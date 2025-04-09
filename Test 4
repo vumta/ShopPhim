@@ -100,3 +100,68 @@ type ColumnData = {
 ---
 
 Bạn muốn mình giúp thêm phần **Parse JSON mẫu cho kiểu `ColumnData[]` này** để dùng trong Power Automate không?
+
+
+Rất thực tế luôn! Việc kiểm tra `getUsedRange()` có trả về `null` hay không là **rất quan trọng** trong Office Script, vì nếu bạn cố gọi `.getValues()` trên `null` thì script sẽ lỗi ngay.
+
+---
+
+## ✅ Cách kiểm tra `getUsedRange()` có trả về `null` hay không
+
+### 🔸 Cách viết an toàn:
+
+```ts
+const usedRange = sheet.getUsedRange();
+
+if (!usedRange) {
+  console.log("Sheet không có dữ liệu!");
+  return; // hoặc return [] nếu đang trong hàm trả dữ liệu
+}
+```
+
+- `getUsedRange()` sẽ **trả về `undefined`** hoặc **`null`** nếu **không có ô nào trong sheet chứa dữ liệu hoặc định dạng.**
+- Dù hiếm gặp, vẫn nên kiểm tra để tránh lỗi runtime.
+
+---
+
+### 🔸 Cách đầy đủ khi muốn lấy `values`:
+
+```ts
+const usedRange = sheet.getUsedRange();
+
+if (!usedRange) {
+  console.log("Không có vùng dữ liệu được sử dụng!");
+  return [];
+}
+
+const values = usedRange.getValues();
+```
+
+---
+
+## ✅ Hoặc viết gọn bằng toán tử `?`:
+
+Nếu bạn không chắc `getUsedRange()` tồn tại và muốn viết gọn, bạn có thể dùng toán tử an toàn (`?.`):
+
+```ts
+const values = sheet.getUsedRange()?.getValues() ?? [];
+```
+
+- `?.` sẽ kiểm tra `getUsedRange()` có null không trước khi gọi `getValues()`.
+- `?? []` đảm bảo nếu kết quả là `undefined` thì bạn vẫn có giá trị mặc định là mảng rỗng.
+
+---
+
+## ✅ Một gợi ý khác – Dự phòng nếu `getUsedRange()` không đủ tin cậy
+
+Nếu file bạn xử lý đôi khi có "vùng trắng" hoặc dữ liệu nằm ngoài vùng Excel coi là "used", bạn có thể xử lý thủ công:
+
+```ts
+const values = sheet.getRange("A1:Z1000").getValues(); // giả định vùng lớn
+```
+
+Tuy nhiên, cách này có thể lấy cả nhiều ô trống không cần thiết – phù hợp nếu bạn biết chắc vùng dữ liệu nằm trong đó.
+
+---
+
+Bạn muốn mình viết cho bạn một **utility function `getSafeValues(sheet)`** để dùng lại nhiều lần không?
