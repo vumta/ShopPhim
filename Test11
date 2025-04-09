@@ -1,0 +1,116 @@
+Tuyệt vời, mình sẽ cập nhật toàn bộ **Office Script** để xử lý tình huống:
+
+- ✅ Bạn dán **nhiều lần (multiple source files)** vào **cùng một file đích**  
+- ✅ Phải kiểm tra hàng cuối cùng đã có dữ liệu trong file đích  
+- ✅ Tìm đúng cột dựa theo tên nằm ở dòng 2 (row index = 1)  
+- ✅ Dán **tiếp theo sau hàng cuối**, không phải luôn bắt đầu từ row 3
+
+---
+
+## ✅ ⚙️ Office Script cập nhật hoàn chỉnh (dán nối tiếp dưới dữ liệu cũ)
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData[]): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  // === 1. Đọc tên cột từ dòng 2 ===
+  const maxCols = 100;
+  const headerRange = sheet.getRangeByIndexes(1, 0, 1, maxCols);
+  const headerValues = headerRange.getValues()[0].map(v => v?.toString().trim());
+
+  // === 2. Tạo map tên cột => chỉ số cột
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerValues.length; i++) {
+    if (headerValues[i]) colMap[headerValues[i]] = i;
+  }
+
+  // === 3. Tìm hàng cuối cùng có dữ liệu (bắt đầu từ row 2)
+  const maxRowsToCheck = 100000;
+  const dataCheckRange = sheet.getRangeByIndexes(2, 0, maxRowsToCheck, maxCols);
+  const dataValues = dataCheckRange.getValues();
+
+  let lastRow = 1; // vì dòng đầu dán bắt đầu từ dòng 2 (index 1)
+  for (let i = dataValues.length - 1; i >= 0; i--) {
+    const row = dataValues[i];
+    if (row.some(cell => cell !== null && cell !== "")) {
+      lastRow = i + 2; // offset: +2 vì data bắt đầu từ dòng 3 (index 2)
+      break;
+    }
+  }
+
+  // === 4. Tạo bảng dữ liệu đầy đủ cần dán (mảng 2D)
+  const maxRowsToInsert = Math.max(...inputData.map(item => item.values.length));
+  let fullInsert: (string | number | boolean)[][] = Array.from({ length: maxRowsToInsert }, () => Array(maxCols).fill(""));
+
+  for (let item of inputData) {
+    const colIndex = colMap[item.columnName];
+    if (colIndex === undefined) continue;
+
+    for (let i = 0; i < item.values.length; i++) {
+      fullInsert[i][colIndex] = item.values[i][0]; // chỉ lấy giá trị đầu tiên mỗi hàng
+    }
+  }
+
+  // === 5. Dán dữ liệu vào sheet
+  const insertRange = sheet.getRangeByIndexes(lastRow, 0, maxRowsToInsert, maxCols);
+  insertRange.setValues(fullInsert);
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+## ✅ Chi tiết Power Automate – Step by Step (xử lý nhiều file đầu vào)
+
+### 🔁 Ý tưởng: Duyệt qua nhiều file Excel nguồn, dán từng batch nối tiếp vào file đích
+
+---
+
+### 🟩 **Step 1. Trigger**  
+- Tùy bạn: khi có file, thủ công, hoặc theo giờ
+
+---
+
+### 📥 **Step 2. Get Files (nguồn)**  
+- Dùng `List files in folder` (OneDrive/SharePoint)  
+- Folder chứa các file nguồn bạn muốn xử lý
+
+---
+
+### 🔁 **Step 3. Apply to each (mỗi file nguồn)**  
+Bên trong vòng lặp:
+
+#### a. `Get file content using path` (với từng file)
+
+#### b. `Run Script` (Excel nguồn)
+- Script: `TrichCotTheoTenCot`
+- Input: `["Phòng ban", "Tên", ...]`
+- Output: `outputData`
+
+#### c. `Parse JSON` (outputData)
+
+#### d. `Run Script` (Excel đích)
+- Script: **cập nhật ở trên** (dán nối tiếp sau dòng cuối)
+- Input: toàn bộ `output` từ Parse JSON
+
+---
+
+### ✅ Sau khi vòng lặp xong → tất cả file nguồn đã được dán nối tiếp vào Excel đích, đúng cột, đúng dòng.
+
+---
+
+## 🧠 Gợi ý thêm
+
+| Mục tiêu | Cách làm |
+|----------|----------|
+| Tránh trùng dữ liệu | Kiểm tra tên file đã xử lý và ghi lại vào danh sách |
+| Bỏ file lỗi | Thêm Try-Catch trong từng `Run script` |
+| Tăng tốc độ | Gom từng nhóm 5 file → batch dán nếu cần |
+
+---
+
+Bạn có muốn mình tạo **flow JSON mẫu** để bạn paste trực tiếp vào Power Automate Designer không? Hoặc mình có thể gửi ảnh minh họa từng bước nếu bạn cần visual hỗ trợ.
