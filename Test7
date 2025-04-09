@@ -1,0 +1,81 @@
+Tuyệt vời! Dưới đây là đoạn **Office Script để dán dữ liệu vào file đích**, **không dùng Table**, mà **dò theo tên cột ở dòng 2** (`row index = 1`), đúng yêu cầu của bạn.
+
+---
+
+## ✅ Mô tả:
+- File đích: không có Table.
+- Dữ liệu: bạn đã có kết quả từ script nguồn, dạng:
+  ```ts
+  [
+    {
+      columnName: "Phòng ban",
+      values: [["IT"], ["HR"], ["Finance"]]
+    },
+    {
+      columnName: "Tên",
+      values: [["Nam"], ["Lan"], ["Hùng"]]
+    }
+  ]
+  ```
+- Mục tiêu: tìm đúng cột theo **tên cột nằm ở dòng 2**, sau đó **dán dữ liệu bắt đầu từ dòng 3**.
+
+---
+
+## ✅ Office Script – Dán dữ liệu vào file đích
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData[]): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  // === 1. Đọc tiêu đề ở dòng 2 (index = 1) ===
+  const maxCol = 100;
+  const headerRange = sheet.getRangeByIndexes(1, 0, 1, maxCol);
+  const headerValues = headerRange.getValues()[0] as string[];
+
+  // === 2. Tạo map: column name => column index ===
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerValues.length; i++) {
+    const name = headerValues[i];
+    if (name) colMap[name] = i;
+  }
+
+  // === 3. Dán dữ liệu vào đúng cột, bắt đầu từ dòng 3 (index = 2) ===
+  for (let item of inputData) {
+    const colIndex = colMap[item.columnName];
+    if (colIndex === undefined) continue; // bỏ qua nếu không tìm thấy cột
+
+    const rowCount = item.values.length;
+    const range = sheet.getRangeByIndexes(2, colIndex, rowCount, 1);
+    range.setValues(item.values);
+  }
+}
+
+// === Định nghĩa kiểu dữ liệu input ===
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+## ✅ Gợi ý dùng trong Power Automate:
+
+1. **Run script (source)** → trả về `data`
+2. **Run script (target)** → dùng output từ bước 1 làm input `inputData`
+
+> 💡 Bạn có thể truyền biến dạng `array` trong Power Automate nếu đã `Parse JSON`.
+
+---
+
+## ✅ Linh hoạt:
+
+- Nếu cột không tồn tại trong file đích → script **tự động bỏ qua**.
+- Không cần biết trước thứ tự cột trong file đích.
+
+---
+
+Bạn có muốn mình ghép lại toàn bộ quy trình:  
+**1 file nguồn → trích → xử lý Power Automate → paste vào file đích**?
+
+Mình có thể viết kịch bản Power Automate từ đầu đến cuối luôn nếu cần.
