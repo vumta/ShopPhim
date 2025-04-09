@@ -1,0 +1,127 @@
+Đúng rồi, để xử lý nhanh và hiệu quả **90.000 dòng dữ liệu Excel** bằng **Office Script và Power Automate**, chúng ta cần tối ưu **cả code Office Script lẫn luồng xử lý trong Power Automate**.
+
+---
+
+## ✅ Mục tiêu:
+- **Dán dữ liệu 1 cột** vào **file đích** không dùng Table.
+- Tìm đúng cột theo tên (ở dòng 2).
+- Dán dữ liệu bắt đầu từ dòng cuối cùng + 1.
+- Tối ưu hiệu suất khi dữ liệu lớn: **90.000 dòng**.
+
+---
+
+## ✅ GIẢI PHÁP TỐI ƯU HÓA TOÀN DIỆN
+
+---
+
+### 1. ✍️ **Office Script tối ưu - phiên bản final**
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+
+  // 1. Map tên cột sang chỉ số
+  const colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const header = headerRow[i]?.toString().trim();
+    if (header) colMap[header] = i;
+  }
+
+  const colIndex = colMap[inputData.columnName];
+  if (colIndex === undefined) {
+    console.log(`Không tìm thấy cột: ${inputData.columnName}`);
+    return;
+  }
+
+  // 2. Xác định dòng cuối chứa dữ liệu trong cột
+  const estimatedMaxRow = 100000; // có thể tăng nếu cần
+  const colRange = sheet.getRangeByIndexes(2, colIndex, estimatedMaxRow, 1);
+  const colValues = colRange.getValues();
+
+  let lastDataRow = 2;
+  for (let i = colValues.length - 1; i >= 0; i--) {
+    const value = colValues[i][0];
+    if (value !== null && value !== "") {
+      lastDataRow = i + 3;
+      break;
+    }
+  }
+
+  // 3. Dán giá trị từ inputData.values
+  const numRows = inputData.values.length;
+  if (numRows === 0) return;
+
+  const targetRange = sheet.getRangeByIndexes(lastDataRow, colIndex, numRows, 1);
+  targetRange.setValues(inputData.values);
+}
+
+type ColumnData = {
+  columnName: string;
+  values: (string | number | boolean)[][];
+};
+```
+
+---
+
+### ✅ Tối ưu hiệu suất:
+- ✅ Không dùng `getUsedRange()` (vì chậm khi file lớn).
+- ✅ Truy xuất trực tiếp theo `getRangeByIndexes()` — hiệu suất cao.
+- ✅ Dán toàn bộ block dữ liệu 1 lần duy nhất (`setValues()`), không dùng vòng lặp.
+
+---
+
+### 2. ⚙️ Power Automate: Xử lý dữ liệu lớn mượt mà
+
+#### **Tổng quan các bước:**
+
+| Bước | Tác vụ |
+|------|--------|
+| 1️⃣ | **Trigger**: Khi có file mới hoặc thủ công |
+| 2️⃣ | **List files** trong thư mục (nếu nhiều file) |
+| 3️⃣ | **Apply to each** file |
+| 4️⃣ | **Read file**: Get File Content |
+| 5️⃣ | **Run Office Script**: Trích xuất cột dữ liệu cần thiết |
+| 6️⃣ | **Parse JSON** dữ liệu từng cột |
+| 7️⃣ | **Run Office Script (dán)**: Gọi script dán từng cột vào file đích |
+| ✅ | Lặp với từng cột nếu cần (nhiều lần gọi script dán) |
+
+---
+
+### 🧩 JSON mẫu để **Parse** trước khi gọi script dán:
+
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"]]
+}
+```
+
+Trong Power Automate:
+- Dùng **action `Parse JSON`** để phân tích input này (có thể lấy mẫu từ response của script extract).
+- Sau đó tách `columnName` và `values` để đưa vào script `Run script` dán dữ liệu.
+
+---
+
+### 🧠 Mẹo xử lý 90.000 dòng nhanh trong Power Automate:
+
+- **Không gọi Office Script nhiều lần**: Nên gom dữ liệu từng cột và dán 1 lần.
+- **Tránh delay**: Power Automate sẽ chậm nếu bạn chạy hàng trăm lần gọi Office Script — gom và xử lý theo batch.
+- **Tăng timeout (nếu cần)**: Một số action như `Run script` có thể timeout, cần chia nhỏ nếu quá lớn (ví dụ chia mỗi lần 30k row).
+- **Theo dõi log & error**: Ghi ra console trong script và check từng `Run script` để xác định lỗi nếu có.
+
+---
+
+### ✅ Nếu cần hỗ trợ thêm
+
+- Gửi bạn **file `.zip` Flow mẫu** có sẵn action + script
+- Script trích xuất từ file nguồn (nhiều cột)
+- Script dán nhiều cột cùng lúc
+
+Cứ nói mình hỗ trợ đóng gói gửi bạn!
+
+---
+
+Bạn muốn mình **gửi sẵn file `.zip` Power Automate Flow mẫu** + **script Office đầy đủ** không? Mình sẽ soạn sẵn để bạn chỉ cần import và dùng luôn!
