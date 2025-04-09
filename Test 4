@@ -253,3 +253,99 @@ const values = range.getValues();
 - Hoặc bạn có thể gửi cụ thể **bạn gặp lỗi gì khi dùng `getUsedRange()`**, để mình hỗ trợ đúng điểm bạn cần.
 
 Cần mình hỗ trợ phần nào tiếp theo?
+
+Hoàn toàn chính xác! Nếu:
+
+- Tên cột nằm ở **dòng 1** (index 0 trong Office Script).
+- Bạn **bỏ qua dòng 2** (có thể là ghi chú, mô tả...).
+- Dữ liệu bắt đầu từ **dòng 3** (index 2 trở đi).
+
+👉 Thì bạn **chỉ cần xác định dòng cuối cùng có dữ liệu**, rồi lấy dữ liệu từ dòng 3 trở xuống là đủ.
+
+---
+
+## ✅ Code cập nhật phù hợp yêu cầu của bạn:
+
+```ts
+function main(workbook: ExcelScript.Workbook, columnNames: string[]): ColumnData[] {
+  const sheet = workbook.getActiveWorksheet();
+  const maxRows = 1000; // quét trước 1000 dòng
+  const maxCols = 30;   // và 30 cột
+
+  // Quét vùng dữ liệu từ A1 để xác định headers và dòng cuối
+  const scanRange = sheet.getRangeByIndexes(0, 0, maxRows, maxCols);
+  const allValues = scanRange.getValues();
+
+  // Dòng tiêu đề nằm ở dòng 1 (index 0)
+  const headers = allValues[0] as string[];
+
+  // Xác định dòng dữ liệu cuối cùng (bắt đầu từ dòng 3 = index 2)
+  let lastRow = 2;
+  for (let i = allValues.length - 1; i >= 2; i--) {
+    if (allValues[i].some(cell => cell !== "" && cell !== null)) {
+      lastRow = i + 1;
+      break;
+    }
+  }
+
+  // Trích dữ liệu thực tế từ dòng 3 đến dòng cuối
+  const dataRowCount = lastRow - 2;
+  const dataRange = sheet.getRangeByIndexes(2, 0, dataRowCount, headers.length);
+  const dataValues = dataRange.getValues();
+
+  let result: ColumnData[] = [];
+
+  for (let name of columnNames) {
+    const colIndex = headers.indexOf(name);
+    if (colIndex === -1) continue;
+
+    const columnData = dataValues.map(row => [String(row[colIndex] ?? "")]);
+    result.push({
+      columnName: name,
+      values: columnData
+    });
+  }
+
+  return result;
+}
+
+// Kiểu dữ liệu trả ra
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+## 📌 Giải thích điểm chính:
+
+| Dòng | Ý nghĩa |
+|------|--------|
+| `headers = allValues[0]` | Lấy dòng 1 làm tiêu đề |
+| `for (i = allValues.length - 1 ... i >= 2)` | Tìm dòng cuối từ dòng 3 trở đi |
+| `sheet.getRangeByIndexes(2, 0, ...)` | Trích dữ liệu từ dòng 3 (index 2) |
+| `values.map(row => [row[colIndex]])` | Lấy từng cột theo tên |
+
+---
+
+## ✅ Kết quả trả ra:
+
+```ts
+[
+  {
+    columnName: "Phòng ban",
+    values: [["Kế toán"], ["Kỹ thuật"], ["Hành chính"]]
+  },
+  {
+    columnName: "Tên",
+    values: [["An"], ["Bình"], ["Châu"]]
+  }
+]
+```
+
+---
+
+Nếu bạn muốn phần này trả về để xử lý tiếp trong Power Automate, thì chỉ cần dùng **"Run script"** rồi parse `outputs('Run_script')?['body']`.
+
+Cần mình viết luôn phần Power Automate JSON mẫu không?
