@@ -165,3 +165,91 @@ Tuy nhiên, cách này có thể lấy cả nhiều ô trống không cần thi�
 ---
 
 Bạn muốn mình viết cho bạn một **utility function `getSafeValues(sheet)`** để dùng lại nhiều lần không?
+
+
+Bạn đang nói đến đoạn:
+
+```ts
+const usedRange = sheet.getUsedRange();
+```
+
+và thắc mắc về giới hạn (limit) của `getUsedRange()` – có lẽ bạn đang gặp phải tình huống:
+
+- `getUsedRange()` không hoạt động như mong đợi.
+- Hoặc bạn nghi ngờ có giới hạn số ô hoặc số dòng được trả về.
+
+---
+
+## ✅ Giải thích về `getUsedRange()` và các giới hạn
+
+### 🔹 `getUsedRange()` làm gì?
+- Trả về vùng bao gồm **tất cả các ô có dữ liệu hoặc định dạng**.
+- Tự động xác định từ ô đầu tiên chứa dữ liệu đến ô cuối cùng.
+- **Không cần chỉ định vùng cụ thể**, nó quét toàn sheet.
+
+---
+
+### 🔹 Có giới hạn không?
+
+| Thuộc tính               | Giới hạn kỹ thuật |
+|--------------------------|------------------|
+| Tổng số dòng trong Excel | 1,048,576        |
+| Tổng số cột              | 16,384 (cột XFD) |
+
+> Tuy nhiên, `getUsedRange()` **chỉ trả về đúng phạm vi đang có dữ liệu/thay đổi**, nên **hiếm khi đụng giới hạn** trừ khi bạn xử lý file cực lớn.
+
+---
+
+## ❗ Các tình huống thực tế bạn có thể gặp:
+
+### 1. `getUsedRange()` trả về `null` hoặc lỗi
+- Sheet hoàn toàn trống, hoặc bạn vừa xóa hết dữ liệu nhưng chưa lưu file.
+- Cần gọi `getUsedRange()` sau khi chắc chắn sheet có dữ liệu.
+
+### 2. Bạn chỉ lấy được một phần dữ liệu (thiếu dòng/cột)
+- Có thể có định dạng rác trong sheet khiến `UsedRange` bao gồm nhiều ô trống không ngờ tới.
+- Hoặc dữ liệu nằm ngoài vùng bạn nghĩ (ví dụ: ở cột AZ hay dòng 2000).
+
+---
+
+## ✅ Cách kiểm tra phạm vi `UsedRange` đang bao gồm gì
+
+Bạn có thể log vị trí hàng và cột:
+
+```ts
+const usedRange = sheet.getUsedRange();
+
+if (!usedRange) {
+  console.log("Không có dữ liệu được sử dụng.");
+  return;
+}
+
+const rowCount = usedRange.getRowCount();
+const columnCount = usedRange.getColumnCount();
+const startRow = usedRange.getRowIndex();
+const startColumn = usedRange.getColumnIndex();
+
+console.log(`Used range bắt đầu từ dòng ${startRow + 1}, cột ${startColumn + 1}, kích thước ${rowCount} x ${columnCount}`);
+```
+
+> Excel sử dụng **chỉ số bắt đầu từ 0**, nên cần `+1` để ra đúng số dòng/cột theo mắt người.
+
+---
+
+## ✅ Nếu bạn muốn "giới hạn vùng dữ liệu" thủ công
+
+Ví dụ: bạn chỉ muốn xử lý từ A1 đến H1000:
+
+```ts
+const range = sheet.getRange("A1:H1000");
+const values = range.getValues();
+```
+
+---
+
+## Bạn muốn gì tiếp theo?
+
+- Mình có thể giúp bạn viết một **hàm `getActualDataRange()`** để tự động xác định vùng có dữ liệu thực (không bị ảnh hưởng bởi định dạng rác).
+- Hoặc bạn có thể gửi cụ thể **bạn gặp lỗi gì khi dùng `getUsedRange()`**, để mình hỗ trợ đúng điểm bạn cần.
+
+Cần mình hỗ trợ phần nào tiếp theo?
