@@ -1,0 +1,123 @@
+Tuyệt vời, dưới đây là hướng dẫn **chi tiết từng bước làm trong Power Automate**, giúp bạn:
+
+- ✅ Trích dữ liệu từ file Excel nguồn (theo tên cột hàng 1)  
+- ✅ Xử lý kết quả trả về (mảng dữ liệu từng cột)  
+- ✅ Dán vào file Excel đích, **không dùng Table**, xác định cột theo **tên ở dòng 2**
+
+---
+
+## ⚙️ Tổng quan quy trình Power Automate
+
+### 📂 Input:  
+- **Excel nguồn**: chứa dữ liệu cần lấy, tên cột ở dòng 1  
+- **Excel đích**: chứa cột đã đặt tên ở dòng 2
+
+---
+
+## ✅ Chi tiết từng bước trong Power Automate
+
+---
+
+### 🟢 **1. Trigger** – Tùy bạn: thủ công, theo giờ, khi có file, v.v.
+
+---
+
+### 📥 **2. Action: Get File Content (Excel nguồn)**
+
+- Dùng `OneDrive for Business` hoặc `SharePoint`
+- Mục tiêu: lấy nội dung file Excel nguồn
+
+---
+
+### 🧠 **3. Action: Run script (Excel nguồn)**
+
+- Script: **Script Trích Cột (đã viết ở trên)**
+- Input:
+  - Truyền mảng `["Phòng ban", "Tên"]` hoặc danh sách cột bạn muốn trích.
+- Output: mảng đối tượng kiểu:
+  ```json
+  [
+    {
+      "columnName": "Phòng ban",
+      "values": [["IT"], ["HR"], ["Finance"]]
+    },
+    {
+      "columnName": "Tên",
+      "values": [["Nam"], ["Lan"], ["Hùng"]]
+    }
+  ]
+  ```
+
+---
+
+### 🔍 **4. Action: Parse JSON**
+
+- Dùng `output` của bước Run script (trích dữ liệu)  
+- Schema mẫu:
+  ```json
+  {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "columnName": { "type": "string" },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+  ```
+
+- Output: sẽ có biến kiểu array `ColumnData[]`
+
+---
+
+### 📁 **5. Action: Get File Content (Excel đích)**
+
+- Lấy nội dung file đích nơi sẽ paste dữ liệu
+
+---
+
+### 📤 **6. Action: Run script (Excel đích)**
+
+- Script: **Script Dán Dữ Liệu (dò cột theo dòng 2)**
+- Input:
+  - Truyền toàn bộ output từ `Parse JSON` vào tham số `inputData`
+
+---
+
+## ✅ Sơ đồ tổng quát:
+
+```text
+(Trigger)
+    ↓
+Get File Content (Excel nguồn)
+    ↓
+Run Script (trích cột theo tên hàng 1)
+    ↓
+Parse JSON (kết quả)
+    ↓
+Get File Content (Excel đích)
+    ↓
+Run Script (dán vào đúng cột theo tên dòng 2)
+```
+
+---
+
+## 💡 Mẹo bổ sung:
+
+| Mục đích | Mẹo triển khai |
+|---------|----------------|
+| Đảm bảo tên cột khớp | Dùng **trim()** ở cả file nguồn và file đích (nếu nghi có dấu cách thừa) |
+| Cột không tồn tại thì sao? | Script đích đã **bỏ qua nếu không tìm thấy**, không lỗi |
+| Bạn muốn dán từng dòng | Có thể mở rộng dùng **Apply to each** nếu cần thao tác phức tạp |
+| Tạo biến toàn cục | Dùng **Initialize Variable** nếu cần ghi nhớ dữ liệu trung gian |
+
+---
+
+Bạn muốn mình tạo sẵn một **Power Automate mẫu hoàn chỉnh**, có thể export dưới dạng `.zip` để bạn import vào không? Mình có thể làm giúp luôn.
