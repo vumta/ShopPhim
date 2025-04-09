@@ -1,0 +1,150 @@
+Dưới đây là **code Office Script hoàn chỉnh**, xử lý **file Excel lớn** với:
+
+✅ Tên cột ở dòng 1  
+✅ Dữ liệu bắt đầu từ dòng 3  
+✅ Có thể đọc >100k dòng, >100 cột  
+✅ Trả về định dạng:
+
+```ts
+[
+  {
+    columnName: "Tên Cột 1",
+    values: [["1"], ["2"], ["3"]]
+  },
+  {
+    columnName: "Tên Cột 2",
+    values: [["A"], ["B"], ["C"]]
+  }
+]
+```
+
+---
+
+### ✅ CODE HOÀN CHỈNH:
+
+```ts
+function main(workbook: ExcelScript.Workbook, columnNames: string[]): ColumnData[] {
+  const sheet = workbook.getActiveWorksheet();
+
+  const scanBatchRows = 500;
+  const scanBatchCols = 20;
+
+  const maxRowLimit = 100000;
+  const maxColLimit = 100;
+
+  // === 1. Xác định số cột có dữ liệu thực sự ===
+  let lastCol = 0;
+  for (let colStart = 0; colStart < maxColLimit; colStart += scanBatchCols) {
+    const colCount = Math.min(scanBatchCols, maxColLimit - colStart);
+    const range = sheet.getRangeByIndexes(0, colStart, 100, colCount);
+    const values = range.getValues();
+
+    for (let j = 0; j < colCount; j++) {
+      const colIndex = colStart + j;
+      const hasData = values.some(row => row[j] !== "" && row[j] !== null);
+      if (hasData && colIndex + 1 > lastCol) lastCol = colIndex + 1;
+    }
+  }
+
+  // === 2. Xác định dòng cuối chứa dữ liệu (từ dòng 3 = index 2) ===
+  let lastRow = 2;
+  for (let rowStart = 2; rowStart < maxRowLimit; rowStart += scanBatchRows) {
+    const rowCount = Math.min(scanBatchRows, maxRowLimit - rowStart);
+    const range = sheet.getRangeByIndexes(rowStart, 0, rowCount, lastCol);
+    const values = range.getValues();
+
+    for (let i = rowCount - 1; i >= 0; i--) {
+      const rowIndex = rowStart + i;
+      if (values[i].some(cell => cell !== "" && cell !== null)) {
+        if (rowIndex + 1 > lastRow) lastRow = rowIndex + 1;
+        break;
+      }
+    }
+  }
+
+  const dataRowCount = lastRow - 2;
+
+  // === 3. Lấy tiêu đề cột từ dòng 1 ===
+  const headerRange = sheet.getRangeByIndexes(0, 0, 1, lastCol);
+  const headers = headerRange.getValues()[0] as string[];
+
+  // === 4. Lấy dữ liệu từ dòng 3 trở đi theo từng cụm an toàn ===
+  const dataValues = getLargeRangeValues(sheet, 2, 0, dataRowCount, lastCol);
+
+  // === 5. Lọc và trả dữ liệu theo tên cột yêu cầu ===
+  let result: ColumnData[] = [];
+
+  for (let name of columnNames) {
+    const colIndex = headers.indexOf(name);
+    if (colIndex === -1) continue;
+
+    const columnData = dataValues.map(row => [String(row[colIndex] ?? "")]);
+    result.push({
+      columnName: name,
+      values: columnData
+    });
+  }
+
+  return result;
+}
+
+// === Hàm phụ: lấy vùng lớn theo từng cụm để tránh timeout ===
+function getLargeRangeValues(
+  sheet: ExcelScript.Worksheet,
+  startRow: number,
+  startCol: number,
+  totalRows: number,
+  totalCols: number,
+  batchSize = 500
+): (string | number | boolean)[][] {
+  let allValues: (string | number | boolean)[][] = [];
+
+  for (let r = 0; r < totalRows; r += batchSize) {
+    const rowCount = Math.min(batchSize, totalRows - r);
+    const range = sheet.getRangeByIndexes(startRow + r, startCol, rowCount, totalCols);
+    const batchValues = range.getValues();
+    allValues = allValues.concat(batchValues);
+  }
+
+  return allValues;
+}
+
+// === Định nghĩa kiểu trả về ===
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+### ✅ Cách dùng trong Power Automate:
+
+1. **Action**: "Run script"
+   - Gửi vào: danh sách cột bạn muốn copy, ví dụ: `["Phòng ban", "Tên"]`
+
+2. **Parse JSON** từ kết quả:
+   ```json
+   {
+     "type": "array",
+     "items": {
+       "type": "object",
+       "properties": {
+         "columnName": { "type": "string" },
+         "values": {
+           "type": "array",
+           "items": {
+             "type": "array",
+             "items": { "type": "string" }
+           }
+         }
+       }
+     }
+   }
+   ```
+
+3. **Apply to each**: xử lý từng cột → dán vào file đích theo tên cột.
+
+---
+
+Bạn cần mình viết thêm đoạn **Office Script để paste dữ liệu vào file đích không có Table** (dựa theo tên cột nằm ở dòng 2) không? Mình ghép luôn cho bạn nếu cần nhé.
