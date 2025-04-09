@@ -1,0 +1,168 @@
+Cảm ơn bạn! Dưới đây là **solution hoàn chỉnh** đã được tổng hợp, tối ưu và kiểm nghiệm từ toàn bộ quá trình trao đổi giữa chúng ta:
+
+---
+
+## ✅ TỔNG QUAN YÊU CẦU
+
+### Mục tiêu:
+- Trích xuất **một vài cột** từ file Excel nguồn (dựa theo **tên cột ở dòng 1**)
+- Trả về data theo format:
+```json
+[
+  { "columnName": "Phòng ban", "values": [["IT"], ["HR"], ["Finance"]] },
+  { "columnName": "Tên", "values": [["Lan"], ["Tùng"], ["Ngọc"]] }
+]
+```
+- Gửi về Power Automate để xử lý.
+
+---
+
+## ✅ PHẦN 1 – OFFICE SCRIPT: Trích xuất dữ liệu từ file nguồn
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputColumns: string[]): { columns: { columnName: string, values: string[][] }[] } {
+  const sheet = workbook.getActiveWorksheet();
+
+  // 1. Lấy dòng header (row 1)
+  const maxCols = 100;
+  const header = sheet.getRangeByIndexes(0, 0, 1, maxCols).getValues()[0];
+
+  // 2. Tạo map từ tên cột → index
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < header.length; i++) {
+    const name = header[i]?.toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  // 3. Tìm dòng cuối cùng có dữ liệu (ở cột A)
+  const checkRange = sheet.getRange("A2:A100000").getValues();
+  let lastRow = 1;
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== "" && checkRange[i][0] !== null) {
+      lastRow = i + 2;
+      break;
+    }
+  }
+
+  // 4. Lấy dữ liệu từng cột
+  const columns: { columnName: string, values: string[][] }[] = [];
+  for (const name of inputColumns) {
+    const colIndex = colMap[name];
+    if (colIndex === undefined) continue;
+
+    const data = sheet.getRangeByIndexes(1, colIndex, lastRow - 1, 1).getValues();
+    columns.push({ columnName: name, values: data as string[][] });
+  }
+
+  return { columns };
+}
+```
+
+### ✅ Input:
+```json
+["Phòng ban", "Tên"]
+```
+
+---
+
+## ✅ PHẦN 2 – OFFICE SCRIPT: Dán vào file đích (không dùng Table)
+
+```ts
+function main(workbook: ExcelScript.Workbook, input: { columns: { columnName: string, values: string[][] }[] }): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const name = headerRow[i]?.toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  if (input.columns.length === 0) return;
+  const maxRowCount = Math.max(...input.columns.map(c => c.values.length));
+
+  // Dùng cột đầu tiên để xác định dòng cuối
+  const colCheckIndex = colMap[input.columns[0].columnName];
+  const checkRange = sheet.getRangeByIndexes(2, colCheckIndex, 100000, 1).getValues();
+  let lastRow = 2;
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== null && checkRange[i][0] !== "") {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  const dataGrid: (string | number | boolean)[][] = Array.from({ length: maxRowCount }, () => Array(maxCols).fill(""));
+
+  for (const col of input.columns) {
+    const colIndex = colMap[col.columnName];
+    if (colIndex === undefined) continue;
+    for (let i = 0; i < col.values.length; i++) {
+      dataGrid[i][colIndex] = col.values[i][0];
+    }
+  }
+
+  const pasteRange = sheet.getRangeByIndexes(lastRow, 0, maxRowCount, maxCols);
+  pasteRange.setValues(dataGrid);
+}
+```
+
+---
+
+## ✅ PHẦN 3 – Power Automate Flow: Chi tiết từng bước
+
+### **1. Trigger**
+- Tùy chọn: Manual, hoặc “When file created in OneDrive/SharePoint”
+
+### **2. List Files / For Each File (nếu cần)**
+
+### **3. Get file content (Excel nguồn)**  
+→ Biến: `fileContentSource`
+
+### **4. Run script (Trích xuất cột từ file nguồn)**  
+- Script: Office Script phần 1
+- Input: `["Phòng ban", "Tên"]`
+
+### **5. Parse JSON (Output script)**  
+→ Tách dữ liệu từng cột
+
+### **6. Run script (Dán dữ liệu vào file đích)**  
+- Script: Office Script phần 2
+- Input:
+```json
+{
+  "columns": [
+    {
+      "columnName": "Phòng ban",
+      "values": [["IT"], ["HR"], ["Finance"]]
+    },
+    {
+      "columnName": "Tên",
+      "values": [["Nam"], ["Lan"], ["Hùng"]]
+    }
+  ]
+}
+```
+
+---
+
+## ✅ TỐI ƯU ĐÃ ĐƯỢC ÁP DỤNG
+
+| Kỹ thuật | Đã dùng |
+|---------|---------|
+| Chỉ gọi `setValues()` 1 lần | ✅ |
+| Dán nhiều cột cùng lúc | ✅ |
+| Dò dòng cuối bằng getRange giới hạn | ✅ |
+| Gom tất cả cột và dữ liệu vào 1 object | ✅ |
+| Tránh lặp gọi script quá nhiều lần | ✅ |
+
+---
+
+Nếu bạn muốn:
+- File `.zip` export sẵn Power Automate
+- Flow mẫu đa file
+- Script xử lý lỗi (cột không tồn tại, thiếu dữ liệu)
+
+👉 Cứ nhắn nhé, mình sẽ hỗ trợ trọn gói.
