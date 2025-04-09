@@ -1,0 +1,218 @@
+Dưới đây là **hướng dẫn chi tiết từng bước** để bạn thực hiện quy trình:
+
+---
+
+## 🎯 **MỤC TIÊU:**
+Dán dữ liệu Excel **nhiều cột, nhiều dòng (ví dụ: 90.000)** vào file đích, nhưng để **tối ưu hiệu suất**, ta sẽ:
+
+> 🔹 Tách dữ liệu thành **từng cột riêng biệt**  
+> 🔹 Sau đó chia **từng cột thành nhiều batch nhỏ (5.000 dòng)**  
+> 🔹 Và gọi Office Script **nhiều lần**, mỗi lần dán 1 batch / 1 cột
+
+---
+
+## 🛠️ **THỰC HIỆN CHI TIẾT**
+
+---
+
+### ✅ **PHẦN 1: Trích xuất dữ liệu từ file Excel nguồn**
+
+#### 📌 Office Script 1 – (Dùng `Run script` trong Power Automate):
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputColumns: string[]): { columns: { columnName: string, values: string[][] }[] } {
+  const sheet = workbook.getActiveWorksheet();
+
+  const maxCols = 100;
+  const header = sheet.getRangeByIndexes(0, 0, 1, maxCols).getValues()[0];
+
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < header.length; i++) {
+    const name = header[i]?.toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  const checkRange = sheet.getRange("A2:A100000").getValues();
+  let lastRow = 1;
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== "" && checkRange[i][0] !== null) {
+      lastRow = i + 2;
+      break;
+    }
+  }
+
+  const columns: { columnName: string, values: string[][] }[] = [];
+  for (const name of inputColumns) {
+    const colIndex = colMap[name];
+    if (colIndex === undefined) continue;
+    const data = sheet.getRangeByIndexes(1, colIndex, lastRow - 1, 1).getValues();
+    columns.push({ columnName: name, values: data as string[][] });
+  }
+
+  return { columns };
+}
+```
+
+---
+
+### ✅ **PHẦN 2: Flow Power Automate xử lý từng cột & chia batch**
+
+#### 🪜 Step-by-step:
+
+---
+
+#### 🔹 **1. Trigger flow**
+- Ví dụ: khi user nhấn nút (Manual Trigger), hoặc khi file mới được upload lên OneDrive/SharePoint
+
+---
+
+#### 🔹 **2. Get file content (Excel nguồn)**
+
+- Action: `Get file content using path`
+- Output: `fileContentSource`
+
+---
+
+#### 🔹 **3. Run Script – Trích xuất dữ liệu từ Excel**
+
+- Action: `Run script`
+- Script: Office Script 1
+- Input:
+```json
+["Phòng ban", "Tên"]
+```
+
+---
+
+#### 🔹 **4. Parse JSON để tách cột**
+- Schema:
+```json
+{
+  "type": "object",
+  "properties": {
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "columnName": { "type": "string" },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "required": ["columnName", "values"]
+      }
+    }
+  }
+}
+```
+
+---
+
+#### 🔹 **5. Apply to each → Với mỗi column**
+
+- `from`: `body('Run_script')?['columns']`
+
+##### Bên trong vòng lặp:
+
+---
+
+#### 🔸 **5.1. Gán biến `columnName` và `allValues`**
+
+- columnName: `item()?['columnName']`  
+- allValues: `item()?['values']`
+
+---
+
+#### 🔸 **5.2. CHIA BATCH – Tạo array chứa từng batch 5000 dòng**
+
+- Action: **Compose – Chunked Values**
+- Expression: *(Giả sử bạn dùng inline code để chia)*
+
+```plaintext
+chunk(variables('allValues'), 5000)
+```
+
+**📌 Gợi ý**: Nếu Power Automate không hỗ trợ `chunk()`, có thể dùng Power Automate Desktop hoặc sử dụng flow phụ chia thủ công.
+
+---
+
+#### 🔸 **5.3. Apply to each → Mỗi batch**
+
+- `from`: output của bước chunk ở trên
+
+---
+
+##### Trong vòng lặp batch:
+
+#### 🔹 **Gọi `Run script` – Dán batch vào Excel đích**
+
+- Office Script: PHẦN 3 bên dưới
+- Input script:
+```json
+{
+  "columnName": "@{variables('columnName')}",
+  "values": @{items('Apply_to_each_batch')}
+}
+```
+
+---
+
+### ✅ **PHẦN 3: Office Script dán dữ liệu 1 batch / 1 cột**
+
+```ts
+function main(workbook: ExcelScript.Workbook, input: { columnName: string, values: string[][] }): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const name = headerRow[i]?.toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  const colIndex = colMap[input.columnName];
+  if (colIndex === undefined) return;
+
+  const checkRange = sheet.getRangeByIndexes(2, colIndex, 100000, 1).getValues();
+  let lastRow = 2;
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== null && checkRange[i][0] !== "") {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  const rowCount = input.values.length;
+  const targetRange = sheet.getRangeByIndexes(lastRow, colIndex, rowCount, 1);
+  targetRange.setValues(input.values);
+}
+```
+
+---
+
+## 🚀 ƯU ĐIỂM CỦA GIẢI PHÁP
+
+| Tính năng                   | Có |
+|----------------------------|----|
+| Chia nhỏ batch khi dán     | ✅ |
+| Dán từng cột riêng biệt    | ✅ |
+| Tránh timeout hoặc quá tải | ✅ |
+| Có thể retry nếu lỗi từng batch | ✅ |
+| Tối ưu hiệu năng cho 90k+ dòng | ✅ |
+
+---
+
+## 📦 Muốn nhanh hơn?
+👉 Mình có thể tạo cho bạn:
+- File `.zip` Flow Power Automate mẫu sẵn
+- Custom connector giúp chia batch nếu cần
+- Auto detect số dòng, chia theo dynamic size
+
+Cứ nhắn nhé! Mình sẽ gửi file hoặc hỗ trợ thêm ngay.
