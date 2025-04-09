@@ -1,0 +1,73 @@
+Cảm ơn bạn đã chỉ rõ — vấn đề nằm ở chỗ **cách hiểu sai cấu trúc dữ liệu `values`**, khiến script dán tất cả data vào **một ô duy nhất**, thay vì nhiều dòng. Dưới đây là cách xử lý chuẩn để dán data dạng `string[][]` vào **nhiều hàng, 1 cột**.
+
+---
+
+## ✅ CẬP NHẬT CODE PHẦN 3 – Dán 1 cột, nhiều dòng (1 batch)
+
+```ts
+function main(workbook: ExcelScript.Workbook, input: { columnName: string, values: string[][] }): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const name = headerRow[i]?.toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  const colIndex = colMap[input.columnName];
+  if (colIndex === undefined) return;
+
+  // Tìm dòng cuối cùng có dữ liệu trong cột được chọn
+  const checkRange = sheet.getRangeByIndexes(2, colIndex, 100000, 1).getValues();
+  let lastRow = 2;
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== null && checkRange[i][0] !== "") {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  const rowCount = input.values.length;
+
+  // Dán đúng từng hàng (cột cố định)
+  const targetRange = sheet.getRangeByIndexes(lastRow, colIndex, rowCount, 1);
+  targetRange.setValues(input.values);
+}
+```
+
+---
+
+## 📌 Giải thích:
+- `input.values` có dạng:  
+  ```ts
+  [["IT"], ["HR"], ["Finance"]] // 3 hàng, 1 cột
+  ```
+- `getRangeByIndexes(lastRow, colIndex, rowCount, 1)` → lấy đúng số dòng và cột để dán
+- `setValues(input.values)` nhận được `string[][]`, mỗi phần tử là 1 dòng → **sẽ dán mỗi giá trị vào 1 hàng khác nhau**
+
+---
+
+## ✅ Kết quả sau khi dán:
+|   | A          | B          |
+|---|------------|------------|
+| 1 | ...        |            |
+| 2 | (header)   | (header)   |
+| 3 | ...        | ...        |
+| 4 |            | **IT**     |
+| 5 |            | **HR**     |
+| 6 |            | **Finance**|
+
+---
+
+Nếu bạn cần chia `input.values` thành nhiều batch ở Power Automate, chỉ cần giữ đúng cấu trúc:  
+```json
+"values": [["IT"], ["HR"], ["Finance"]]
+```
+
+Là sẽ hoạt động hoàn hảo 🎯
+
+---  
+Cần mình gửi lại flow `.zip` mẫu chia batch hoặc xử lý đa cột song song thì cứ nhắn nhé!
