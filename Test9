@@ -1,0 +1,122 @@
+Mình không thể trực tiếp tạo và gửi file `.zip` Power Automate flow vì hệ thống hiện tại không hỗ trợ việc xuất/import file Power Automate, **nhưng** mình sẽ hướng dẫn bạn **cách tạo flow hoàn chỉnh thủ công** (từng bước cụ thể) **và cung cấp JSON mẫu** để bạn dễ hiểu và làm theo.
+
+Nếu bạn sử dụng Power Automate Desktop, mình có thể hỗ trợ thêm file `.pad`.
+
+---
+
+## 📥 Hướng dẫn tạo Power Automate Cloud Flow hoàn chỉnh (manual setup)
+
+### 🔧 Tên Flow đề xuất: `Sao chép dữ liệu từ file Excel nguồn sang file đích (không dùng Table)`
+
+---
+
+### ✅ **Bước 1. Trigger**
+- Trigger: *Manually trigger a flow* (hoặc theo thời gian, tùy nhu cầu)
+
+---
+
+### ✅ **Bước 2. Get file content from Excel nguồn**
+
+- Action: `Get file content using path`
+- Chọn file Excel nguồn (có dữ liệu cần trích xuất)
+
+---
+
+### ✅ **Bước 3. Run script (Excel nguồn)**
+
+- Action: `Run script`
+- Location: OneDrive/SharePoint
+- File: Excel nguồn
+- Script name: `TrichCotTheoTenCot`
+- **Input parameter**: `["Phòng ban", "Tên"]` (danh sách cột bạn muốn lấy)
+- Output: tên gợi ý: `columnDataArray`
+
+---
+
+### ✅ **Bước 4. Parse JSON**
+
+- Action: `Parse JSON`
+- Content: `columnDataArray` (output từ bước trên)
+- Schema:
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "columnName": { "type": "string" },
+      "values": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### ✅ **Bước 5. Get file content from Excel đích**
+
+- Action: `Get file content using path`
+- Chọn file Excel đích
+
+---
+
+### ✅ **Bước 6. Run script (Excel đích)**
+
+- Action: `Run script`
+- Location: OneDrive/SharePoint
+- File: Excel đích
+- Script name: `PasteDataByColumnNameRow2`
+- **Input parameter**: lấy toàn bộ array output từ `Parse JSON`
+
+---
+
+## ✅ Cấu trúc tham số khi truyền `inputData`
+
+```json
+[
+  {
+    "columnName": "Phòng ban",
+    "values": [["IT"], ["HR"], ["Finance"]]
+  },
+  {
+    "columnName": "Tên",
+    "values": [["Nam"], ["Lan"], ["Hùng"]]
+  }
+]
+```
+
+---
+
+## ✅ Script Excel bạn cần chuẩn bị
+
+### 🔹 1. Script trong Excel **nguồn** (`TrichCotTheoTenCot`)
+> Mình đã gửi ở trên – Office Script để đọc dữ liệu lớn theo cột.
+
+---
+
+### 🔹 2. Script trong Excel **đích** (`PasteDataByColumnNameRow2`)
+> Cũng đã gửi – để dán vào đúng cột theo tên ở dòng 2.
+
+---
+
+## ✅ Bạn muốn mình gửi lại **tệp JSON mẫu (flow)** để bạn **import thủ công bằng cách sửa trong Power Automate Code View**?
+
+Nếu **có thể xuất bằng code** (JSON), mình có thể giúp tạo template JSON dễ import bằng cách:
+- Export thủ công trên máy bạn (tạo flow -> Export as `.zip`)
+- Sau đó bạn có thể paste phần định nghĩa JSON hoặc gửi flow qua mình kiểm tra/gợi ý.
+
+---
+
+> 💬 Nếu bạn muốn tạo từng bước nhanh hơn, mình có thể tạo sơ đồ trực quan (flow chart) hoặc gửi hình ảnh từng bước thao tác.
+
+Bạn muốn tiếp tục theo hướng nào?  
+1. Mình viết JSON export mẫu  
+2. Bạn làm thủ công từng bước theo hướng dẫn  
+3. Mình vẽ sơ đồ toàn bộ flow  
+4. Bạn chia sẻ file `.flow.zip` để mình gợi ý cách sửa/import?
