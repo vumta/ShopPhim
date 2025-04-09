@@ -1,0 +1,93 @@
+Cảm ơn bạn đã chỉ rõ! Vấn đề là `inputData.values` có dạng:
+
+```ts
+[["IT"], ["HR"], ["Finance"]]
+```
+
+Nhưng đoạn code Office Script trước đó đang xử lý sai: coi toàn bộ mảng là 1 dòng, dán vào 1 row.
+
+---
+
+## ✅ Yêu cầu:
+- Mỗi giá trị `"IT"`, `"HR"`, `"Finance"` phải được dán vào **mỗi hàng riêng biệt**, cùng 1 cột xác định dựa trên `columnName`
+- Dán bắt đầu từ dòng cuối cùng đã có dữ liệu + 1
+
+---
+
+## ✅ 🔁 Office Script cập nhật lại hoàn chỉnh:
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  // 1. Đọc header ở dòng 2 để tìm chỉ số cột
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const header = headerRow[i]?.toString().trim();
+    if (header) colMap[header] = i;
+  }
+
+  const colIndex = colMap[inputData.columnName];
+  if (colIndex === undefined) return; // Không tìm thấy cột
+
+  // 2. Xác định dòng cuối cùng có dữ liệu trong cột đó
+  const checkRange = sheet.getRangeByIndexes(2, colIndex, 100000, 1);
+  const colValues = checkRange.getValues();
+
+  let lastRow = 2; // Nếu không có gì thì dán từ dòng 3
+  for (let i = colValues.length - 1; i >= 0; i--) {
+    const cell = colValues[i][0];
+    if (cell !== null && cell !== "") {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  // 3. Chuẩn bị giá trị cần dán (dạng mảng dọc)
+  const rowCount = inputData.values.length;
+  const columnData: (string | number | boolean)[][] = inputData.values;
+
+  // 4. Dán vào vị trí (lastRow, colIndex)
+  const targetRange = sheet.getRangeByIndexes(lastRow, colIndex, rowCount, 1);
+  targetRange.setValues(columnData);
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+### ✅ Ví dụ input truyền từ Power Automate
+
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"]]
+}
+```
+
+Dữ liệu này sẽ được dán vào:
+- Cột có tên "Phòng ban" (ở dòng 2)
+- Dán vào hàng tiếp theo sau dòng cuối cùng đã có giá trị
+- Kết quả:
+```
+... (các dòng có sẵn)
+Row 24:  IT
+Row 25:  HR
+Row 26:  Finance
+```
+
+---
+
+## ✅ Nếu cần thêm:
+
+- Hình ảnh hướng dẫn tạo các bước trong Power Automate?
+- JSON mẫu để bạn import trực tiếp flow?
+- Hỗ trợ nhiều cột trong 1 lần (chuyển về array input như ban đầu)?
+
+Cứ nói mình hỗ trợ thêm nha!
