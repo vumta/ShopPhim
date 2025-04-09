@@ -1,0 +1,182 @@
+Rất rõ ràng rồi! Bạn muốn:
+
+- ✅ Office Script **chỉ xử lý 1 cột** tại một thời điểm (input là 1 object đơn lẻ, không phải array nhiều cột).
+- ✅ Power Automate **duyệt qua từng cột** trong output từ Excel nguồn, **tách ra từng `columnName` và `values`** → rồi truyền từng cái vào script dán dữ liệu.
+
+---
+
+## 🧠 Tóm tắt yêu cầu
+
+1. Trích nhiều cột từ Excel nguồn
+2. Từng cột sẽ được dán riêng biệt vào Excel đích (theo tên cột dòng 2)
+3. Script phải:
+   - Tìm đúng cột theo tên
+   - Tìm dòng cuối cùng đã có dữ liệu
+   - Dán xuống dòng tiếp theo
+
+---
+
+## ✅ PHẦN 1 — Office Script cập nhật (nhận 1 cột)
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  // 1. Đọc tên cột từ dòng 2
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const header = headerRow[i]?.toString().trim();
+    if (header) colMap[header] = i;
+  }
+
+  // 2. Tìm cột đích
+  const colIndex = colMap[inputData.columnName];
+  if (colIndex === undefined) return; // Không tìm thấy cột
+
+  // 3. Tìm dòng cuối của cột đó
+  const checkRange = sheet.getRangeByIndexes(2, colIndex, 100000, 1);
+  const colValues = checkRange.getValues();
+
+  let lastRow = 2; // index bắt đầu dán
+  for (let i = colValues.length - 1; i >= 0; i--) {
+    if (colValues[i][0] !== "" && colValues[i][0] !== null) {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  // 4. Dán dữ liệu
+  const rowCount = inputData.values.length;
+  const targetRange = sheet.getRangeByIndexes(lastRow, colIndex, rowCount, 1);
+  targetRange.setValues(inputData.values);
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+## ✅ PHẦN 2 — Hướng dẫn Power Automate chi tiết
+
+### 🎯 Mục tiêu:
+- Duyệt từng file Excel nguồn
+- Trích dữ liệu từ các cột đã chọn
+- Dán **từng cột riêng biệt** vào file Excel đích
+
+---
+
+### 🧩 Step-by-step Power Automate Flow
+
+#### 🔹 Step 1: Trigger
+- Ví dụ: "Manually trigger a flow" (hoặc recurrence)
+
+---
+
+#### 🔹 Step 2: List Files (nguồn)
+- `List files in folder` → thư mục chứa file nguồn Excel
+
+---
+
+#### 🔹 Step 3: Apply to each (file nguồn)
+**Bên trong vòng lặp:**
+
+##### 🟦 a. Get file content
+- Action: `Get file content using path` → file Excel nguồn
+
+##### 🟦 b. Run script (Excel nguồn)
+- Script: `TrichCotTheoTenCot` (trả về toàn bộ data các cột)
+- Output: `outputData`  
+  Ví dụ:
+```json
+[
+  {
+    "columnName": "Phòng ban",
+    "values": [["IT"], ["HR"], ["Finance"]]
+  },
+  {
+    "columnName": "Tên",
+    "values": [["Nam"], ["Lan"], ["Hùng"]]
+  }
+]
+```
+
+##### 🟦 c. Parse JSON
+- Content: `outputData`
+- Schema:
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "columnName": { "type": "string" },
+      "values": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+#### 🔹 Step 4: Apply to each (cột dữ liệu)
+- Input: `body` từ Parse JSON (outputData array)
+- Mỗi vòng lặp xử lý 1 object dạng:
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"]]
+}
+```
+
+**Bên trong loop:**
+
+##### 🟩 a. Run script (Excel đích)
+- Script: `PasteOneColumnToCorrectRow`
+- Input: entire item:
+  - `columnName`: `items('Apply_to_each')?['columnName']`
+  - `values`: `items('Apply_to_each')?['values']`
+
+Bạn truyền cả object `inputData` kiểu:
+
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"]]
+}
+```
+
+---
+
+## 📌 Tóm tắt kiến trúc:
+
+```text
+Trigger
+ └── List Files
+     └── Apply to Each File
+         ├── Get Content
+         ├── Run Script (source)
+         ├── Parse JSON
+         └── Apply to Each Column
+             └── Run Script (dest) — dán 1 cột
+```
+
+---
+
+## 🎁 Bạn cần thêm?
+
+- Hình ảnh hướng dẫn thao tác trong Power Automate Designer?
+- Mình tạo JSON mẫu (code view)?
+- Tối ưu thêm: lọc file theo tên, bỏ qua file trống, log file đã xử lý?
+
+Bạn muốn mình hỗ trợ phần nào thêm?
