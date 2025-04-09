@@ -1,0 +1,99 @@
+Tuyệt vời, mình hiểu vấn đề bạn gặp phải ở **Bước 6: Run Script (Excel đích)** — **thao tác dán dữ liệu quá chậm**, đặc biệt khi số dòng lớn.
+
+Nguyên nhân là do script đang dán từng cột một theo logic:
+
+```ts
+for (let item of inputData) {
+  const colIndex = colMap[item.columnName];
+  const range = sheet.getRangeByIndexes(2, colIndex, rowCount, 1);
+  range.setValues(item.values);
+}
+```
+
+Điều này tạo **nhiều lần gọi `getRange().setValues()`** → chậm đáng kể khi dữ liệu lớn.
+
+---
+
+## ✅ Cách cải thiện hiệu suất
+
+Chúng ta sẽ:
+1. **Xác định toàn bộ vùng dữ liệu cần dán 1 lần duy nhất**
+2. **Tạo mảng 2D tổng**, rồi dùng **1 lệnh duy nhất để `setValues()`**
+
+---
+
+## ✅ Script mới – Cực nhanh, dán toàn bộ data 1 lần
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData[]): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  // === 1. Đọc tiêu đề ở dòng 2 ===
+  const maxCol = 100;
+  const headerRange = sheet.getRangeByIndexes(1, 0, 1, maxCol);
+  const headerValues = headerRange.getValues()[0] as string[];
+
+  // === 2. Tạo map tên cột => index ===
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerValues.length; i++) {
+    const name = (headerValues[i] || "").toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  // === 3. Xác định số dòng tối đa cần dán ===
+  let maxRows = 0;
+  for (let item of inputData) {
+    if (item.values.length > maxRows) {
+      maxRows = item.values.length;
+    }
+  }
+
+  // === 4. Tạo mảng 2D chứa tất cả dữ liệu cần dán ===
+  let fullData: (string | number | boolean)[][] = Array.from({ length: maxRows }, () => Array(maxCol).fill(""));
+
+  for (let item of inputData) {
+    const colIndex = colMap[item.columnName];
+    if (colIndex === undefined) continue;
+
+    for (let row = 0; row < item.values.length; row++) {
+      fullData[row][colIndex] = item.values[row][0]; // mỗi ô chỉ có 1 giá trị
+    }
+  }
+
+  // === 5. Dán dữ liệu bắt đầu từ dòng 3 ===
+  const targetRange = sheet.getRangeByIndexes(2, 0, maxRows, maxCol);
+  targetRange.setValues(fullData);
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+## ✅ Ưu điểm:
+
+| Cũ – `for...setValues()` mỗi cột | Mới – `setValues()` 1 lần |
+|----------------------------------|-----------------------------|
+| Gọi `getRange().setValues()` nhiều lần | Chỉ gọi **1 lần duy nhất** |
+| Càng nhiều cột/dòng càng chậm     | Hiệu suất **ổn định và nhanh** |
+| Không tận dụng batch update      | **Batch update** toàn bộ vùng |
+
+---
+
+## ✅ Kết quả
+
+- Cực nhanh kể cả với 10,000+ dòng  
+- Dán đúng vào cột theo tiêu đề dòng 2  
+- Cột không tồn tại sẽ được bỏ qua
+
+---
+
+Bạn muốn mình cập nhật thêm logic mở rộng như:
+- Tự động detect số cột thực sự có data?
+- Padding dòng ngắn bằng giá trị rỗng?
+- Bỏ trống cột đích nếu không có dữ liệu?
+
+Mình có thể giúp mở rộng thêm!
