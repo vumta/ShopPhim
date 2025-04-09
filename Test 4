@@ -1,0 +1,102 @@
+Cảm ơn bạn đã phản hồi! 🛠️  
+Đúng rồi, phần khai báo kiểu `[string, string[][]][]` sẽ gây lỗi trong **Office Script**, vì TypeScript trong môi trường Office Script **không hỗ trợ tuple array khai báo kiểu phức tạp như vậy**.
+
+---
+
+## ✅ Cách sửa phù hợp với Office Script
+
+Bạn nên thay thế bằng khai báo **object** đơn giản hơn, ví dụ:
+
+```ts
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+Sau đó, kiểu dữ liệu sẽ là:
+
+```ts
+ColumnData[]
+```
+
+---
+
+## ✅ Cập nhật lại hàm Office Script tương thích
+
+### 🔁 **Hàm trích xuất từ file nguồn (đọc dữ liệu)**
+
+```ts
+function main(workbook: ExcelScript.Workbook, columnNames: string[]): ColumnData[] {
+  const sheet = workbook.getActiveWorksheet();
+  const values = sheet.getUsedRange().getValues();
+
+  const headers = values[0] as string[];
+  let result: ColumnData[] = [];
+
+  for (let name of columnNames) {
+    const colIndex = headers.indexOf(name);
+    if (colIndex === -1) continue;
+
+    const columnValues = values.slice(1).map(row => [String(row[colIndex])]);
+    result.push({
+      columnName: name,
+      values: columnValues
+    });
+  }
+
+  return result;
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+### 🔁 **Hàm ghi vào file đích theo tên cột dòng 2**
+
+```ts
+function main(workbook: ExcelScript.Workbook, inputData: ColumnData[]) {
+  const sheet = workbook.getActiveWorksheet();
+  const headerRow = 2;
+  const startRow = 3;
+
+  const headers = sheet.getRange(`A${headerRow}:Z${headerRow}`).getValues()[0] as string[];
+  const colMap: Record<string, number> = {};
+
+  headers.forEach((name, i) => {
+    if (name) colMap[String(name).trim()] = i;
+  });
+
+  const rowCount = inputData[0].values.length;
+
+  for (let i = 0; i < rowCount; i++) {
+    for (let column of inputData) {
+      const colIndex = colMap[column.columnName];
+      if (colIndex !== undefined) {
+        sheet.getCell(startRow - 1 + i, colIndex).setValue(column.values[i][0]);
+      }
+    }
+  }
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+### ✅ Ưu điểm cách dùng `object`:
+
+- Dễ đọc, dễ mở rộng (có thể thêm `dataType`, `format`, v.v. sau này).
+- Dễ thao tác trong Power Automate.
+- Tương thích hoàn toàn với Office Script.
+
+---
+
+Bạn muốn mình giúp thêm phần **Parse JSON mẫu cho kiểu `ColumnData[]` này** để dùng trong Power Automate không?
