@@ -1,0 +1,171 @@
+Rất tuyệt vì bạn đã thử nghiệm thực tế với dữ liệu lớn (90,000 dòng). Với số lượng dòng lớn thế này, việc xử lý dữ liệu trong **Office Script + Power Automate** cần được **tối ưu cẩn thận** vì:
+
+- **Office Script có giới hạn timeout** (tầm 5 phút)
+- `getRangeByIndexes(...).getValues()` và `setValues()` quá nhiều dòng có thể chậm
+- Power Automate nhiều lần gọi `Run script` cũng tốn thời gian
+
+---
+
+## 🧠 Chiến lược tối ưu hiệu quả
+
+### ✅ 1. Gom dữ liệu nhiều cột → dán cùng lúc (nếu được)
+
+Thay vì dán từng cột một:
+```ts
+RunScript → dán "Phòng ban"  
+RunScript → dán "Tên"  
+RunScript → dán "Vị trí"
+```
+Bạn gom tất cả thành:
+
+```ts
+{
+  "columns": [
+    {
+      "columnName": "Phòng ban",
+      "values": [["IT"], ["HR"], ["Finance"]]
+    },
+    {
+      "columnName": "Tên",
+      "values": [["Nam"], ["Lan"], ["Hùng"]]
+    }
+  ]
+}
+```
+
+✅ **Dán 1 lần nhiều cột sẽ cực kỳ nhanh hơn.**
+
+---
+
+### ✅ 2. Hạn chế `.getRange(...).getValues()` tối đa
+
+Dùng `getValues()` càng ít càng tốt.  
+→ chỉ cần load dòng tiêu đề (`row 2`) và 1 cột duy nhất để xác định dòng cuối
+
+---
+
+### ✅ 3. Dùng `setValues()` 1 lần duy nhất
+
+Càng ít lệnh `.setValues()`, càng nhanh.
+
+---
+
+## ✅ Office Script Tối ưu Hóa — Dán nhiều cột cùng lúc
+
+```ts
+function main(workbook: ExcelScript.Workbook, input: PasteInput): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  // 1. Đọc dòng tiêu đề (row 2)
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+  let colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const header = headerRow[i]?.toString().trim();
+    if (header) colMap[header] = i;
+  }
+
+  // 2. Xác định tất cả cột cần chèn
+  const columnsToPaste = input.columns.filter(c => colMap[c.columnName] !== undefined);
+  if (columnsToPaste.length === 0) return;
+
+  // 3. Tìm số dòng dài nhất
+  const maxRowCount = Math.max(...columnsToPaste.map(c => c.values.length));
+
+  // 4. Tìm dòng cuối cùng có dữ liệu (ở 1 cột thôi, ví dụ cột đầu)
+  const checkColIndex = colMap[columnsToPaste[0].columnName];
+  const checkRange = sheet.getRangeByIndexes(2, checkColIndex, 100000, 1).getValues();
+  let lastRow = 2;
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== "" && checkRange[i][0] !== null) {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  // 5. Chuẩn bị mảng 2D đầy đủ
+  const result: (string | number | boolean)[][] = Array.from({ length: maxRowCount }, () => Array(maxCols).fill(""));
+
+  for (const col of columnsToPaste) {
+    const colIndex = colMap[col.columnName];
+    for (let i = 0; i < col.values.length; i++) {
+      result[i][colIndex] = col.values[i][0];
+    }
+  }
+
+  // 6. Ghi giá trị vào file
+  const targetRange = sheet.getRangeByIndexes(lastRow, 0, maxRowCount, maxCols);
+  targetRange.setValues(result);
+}
+
+type PasteInput = {
+  columns: {
+    columnName: string;
+    values: string[][];
+  }[];
+};
+```
+
+---
+
+## ✅ Power Automate – Hướng dẫn tối ưu
+
+### 🧠 Tổng thể flow:
+
+1. **List Files**
+2. **Apply to Each File**
+   - `Get Content`
+   - `Run Script (trích dữ liệu)` → trả về nhiều cột
+   - `Parse JSON`
+   - ✅ `Run Script (dán tất cả cột cùng lúc)` ← dùng script ở trên
+
+---
+
+### 📝 Input cho Office Script (dán):
+
+Truyền toàn bộ như:
+
+```json
+{
+  "columns": [
+    {
+      "columnName": "Phòng ban",
+      "values": [["IT"], ["HR"], ["Finance"], ..., ["X"]]
+    },
+    {
+      "columnName": "Tên",
+      "values": [["Nam"], ["Lan"], ["Hùng"], ..., ["Y"]]
+    }
+  ]
+}
+```
+
+---
+
+## ⚡ Tốc độ thực tế có thể đạt được?
+
+- Dữ liệu 90,000 dòng, 5–10 cột: nếu gom hết và dán 1 lần → mất tầm **10–30s**
+- Nếu tách ra từng cột → có thể mất 1–2 phút cho mỗi lần gọi script
+
+---
+
+## ✅ Kết luận – Checklist Tối Ưu
+
+| Hạng mục | Tối ưu |
+|---------|--------|
+| Dán từng cột | ❌ Chậm |
+| Dán nhiều cột cùng lúc | ✅ Nhanh |
+| Nhiều lần `setValues()` | ❌ |
+| Chỉ 1 lần `setValues()` | ✅ |
+| Tách script theo từng cột | ❌ |
+| Gom data truyền cùng lúc | ✅ |
+| Dùng `.getValues()` ít nhất | ✅ |
+
+---
+
+Mình có thể hỗ trợ:
+- Xuất flow thành file `.zip` để bạn import
+- Tạo flow mẫu trên Power Automate Desktop (nếu cần)
+- Cảnh báo lỗi và xử lý tình huống thực tế (vd. tên cột không khớp)
+
+Bạn muốn mình hỗ trợ phần nào thêm?
