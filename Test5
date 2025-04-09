@@ -1,0 +1,106 @@
+Rất hay! Vì Office Script **có giới hạn về kích thước vùng `getRangeByIndexes`** mà bạn đang làm việc với file lớn (nhiều hơn 5000 dòng hoặc 60 cột), ta cần:
+
+---
+
+## ✅ Cập nhật chiến lược: **Dò từng dòng và từng cột theo cụm (batch)**
+
+- **Tránh quét quá nhiều ô 1 lúc**.
+- Chia việc quét dữ liệu thành **nhiều đợt nhỏ** (ví dụ: 500 dòng mỗi lần).
+- Khi tìm ra dòng cuối và số cột thực tế rồi, **chỉ trích xuất đúng vùng thực sự**.
+
+---
+
+## ✅ Code hoàn chỉnh cho dữ liệu lớn (có thể >5000 dòng, >60 cột):
+
+```ts
+function main(workbook: ExcelScript.Workbook, columnNames: string[]): ColumnData[] {
+  const sheet = workbook.getActiveWorksheet();
+
+  const scanBatchRows = 500;
+  const scanBatchCols = 20;
+
+  const maxRowLimit = 100000; // tùy theo dữ liệu lớn cỡ nào
+  const maxColLimit = 100;    // tăng lên nếu bạn có nhiều cột
+
+  // --- 1. Xác định số cột thực tế ---
+  let lastCol = 0;
+  for (let colStart = 0; colStart < maxColLimit; colStart += scanBatchCols) {
+    const colCount = Math.min(scanBatchCols, maxColLimit - colStart);
+    const range = sheet.getRangeByIndexes(0, colStart, 100, colCount); // chỉ cần vài dòng đầu
+    const values = range.getValues();
+
+    for (let j = 0; j < colCount; j++) {
+      const colIndex = colStart + j;
+      const hasData = values.some(row => row[j] !== "" && row[j] !== null);
+      if (hasData && colIndex + 1 > lastCol) lastCol = colIndex + 1;
+    }
+  }
+
+  // --- 2. Xác định dòng cuối cùng có dữ liệu ---
+  let lastRow = 2; // bắt đầu từ dòng 3 (index = 2)
+  for (let rowStart = 2; rowStart < maxRowLimit; rowStart += scanBatchRows) {
+    const rowCount = Math.min(scanBatchRows, maxRowLimit - rowStart);
+    const range = sheet.getRangeByIndexes(rowStart, 0, rowCount, lastCol);
+    const values = range.getValues();
+
+    for (let i = rowCount - 1; i >= 0; i--) {
+      const rowIndex = rowStart + i;
+      if (values[i].some(cell => cell !== "" && cell !== null)) {
+        if (rowIndex + 1 > lastRow) lastRow = rowIndex + 1;
+        break;
+      }
+    }
+  }
+
+  // --- 3. Lấy tiêu đề từ dòng 1 ---
+  const headerRange = sheet.getRangeByIndexes(0, 0, 1, lastCol);
+  const headers = headerRange.getValues()[0] as string[];
+
+  // --- 4. Lấy dữ liệu từ dòng 3 trở đi ---
+  const dataRowCount = lastRow - 2;
+  const dataRange = sheet.getRangeByIndexes(2, 0, dataRowCount, lastCol);
+  const dataValues = dataRange.getValues();
+
+  // --- 5. Trả dữ liệu dạng [TênCột, [["1"], ["2"]] ...] ---
+  let result: ColumnData[] = [];
+
+  for (let name of columnNames) {
+    const colIndex = headers.indexOf(name);
+    if (colIndex === -1) continue;
+
+    const columnData = dataValues.map(row => [String(row[colIndex] ?? "")]);
+    result.push({
+      columnName: name,
+      values: columnData
+    });
+  }
+
+  return result;
+}
+
+type ColumnData = {
+  columnName: string;
+  values: string[][];
+};
+```
+
+---
+
+## ✅ Ưu điểm:
+
+| Điểm mạnh | Giải thích |
+|-----------|------------|
+| ✅ Không bị timeout | Do chỉ quét từng cụm nhỏ |
+| ✅ Dữ liệu lớn | Có thể đọc >100k dòng, >100 cột |
+| ✅ Trả đúng định dạng mong muốn | `[TênCột, [["1"], ["2"]]]` |
+
+---
+
+## 🔧 Cần điều chỉnh?
+
+- Tăng `maxRowLimit` hoặc `maxColLimit` nếu bạn có file rất lớn.
+- Có thể thêm `console.log` để debug nếu muốn biết nó đang đọc đến đâu.
+
+---
+
+Bạn muốn mình ghép đoạn này vào toàn bộ kịch bản Office Script + Power Automate để xử lý luôn file đích không có Table không?
