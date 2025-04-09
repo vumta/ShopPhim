@@ -1,0 +1,43 @@
+function main(
+  workbook: ExcelScript.Workbook,
+  input: { columns: { columnName: string, values: string[][] }[] }
+): void {
+  const sheet = workbook.getActiveWorksheet();
+
+  const maxCols = 100;
+  const headerRow = sheet.getRangeByIndexes(1, 0, 1, maxCols).getValues()[0];
+
+  // 1. Map tên cột sang chỉ số
+  const colMap: Record<string, number> = {};
+  for (let i = 0; i < headerRow.length; i++) {
+    const name = headerRow[i]?.toString().trim();
+    if (name) colMap[name] = i;
+  }
+
+  if (input.columns.length === 0) return;
+
+  // 2. Xác định cột đầu tiên để tìm dòng cuối có dữ liệu
+  const firstColIndex = colMap[input.columns[0].columnName];
+  if (firstColIndex === undefined) return;
+
+  const checkRange = sheet.getRangeByIndexes(2, firstColIndex, 100000, 1).getValues();
+  let lastRow = 2; // vì dòng 3 là bắt đầu data
+  for (let i = checkRange.length - 1; i >= 0; i--) {
+    if (checkRange[i][0] !== null && checkRange[i][0] !== "") {
+      lastRow = i + 3;
+      break;
+    }
+  }
+
+  // 3. Dán từng cột một, bỏ dòng đầu tiên (tên cột)
+  for (const col of input.columns) {
+    const colIndex = colMap[col.columnName];
+    if (colIndex === undefined) continue;
+
+    const values = col.values.slice(1); // 👈 Bỏ dòng đầu tiên
+    if (values.length === 0) continue;
+
+    const range = sheet.getRangeByIndexes(lastRow, colIndex, values.length, 1);
+    range.setValues(values);
+  }
+}
