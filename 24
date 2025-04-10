@@ -1,0 +1,140 @@
+Dưới đây là **hướng dẫn chi tiết từng bước chia batch data trong Power Automate**, phù hợp với luồng xử lý của bạn khi dán dữ liệu Excel bằng Office Script.
+
+---
+
+## ✅ MỤC TIÊU
+
+Giả sử bạn có dữ liệu dạng:
+
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"], ["Sales"], ["Admin"], ...]
+}
+```
+
+Bạn muốn:
+
+- **Chia mảng `values` thành nhiều batch** (VD: mỗi batch 500 dòng)
+- Gọi `Run script` **nhiều lần**, mỗi lần chỉ gửi 1 batch nhỏ → tránh `timeout` khi `setValues()`
+
+---
+
+## ✅ HƯỚNG DẪN CHI TIẾT – CHIA BATCH TRONG POWER AUTOMATE
+
+### 🔹 **1. Parse JSON đầu vào**
+Sau bước bạn nhận được data từ Office Script phần "trích xuất", dùng **"Parse JSON"** để xử lý.
+
+- Content: output từ bước script
+- Schema mẫu:
+```json
+{
+  "type": "object",
+  "properties": {
+    "columnName": { "type": "string" },
+    "values": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  }
+}
+```
+
+---
+
+### 🔹 **2. Tạo biến dùng để chia batch**
+Thêm bước **Initialize variable**:
+
+| Tên biến | Loại | Giá trị ban đầu |
+|----------|------|------------------|
+| `batchSize` | Integer | 500 |
+| `currentBatch` | Array | `[]` |
+| `batches` | Array | `[]` |
+
+---
+
+### 🔹 **3. Dùng "Apply to each" để chia batch**
+- **Apply to each** → dùng cho `body('Parse_JSON')?['values']`
+
+**Trong mỗi vòng lặp:**
+
+1. **Append item vào `currentBatch`**
+   - Action: `Append to array variable`
+   - Variable: `currentBatch`
+   - Value: `items('Apply_to_each')`
+
+2. **Check nếu currentBatch đủ batchSize**
+   - Action: `Condition`
+   - Condition:  
+     ```
+     length(variables('currentBatch')) is equal to variables('batchSize')
+     ```
+
+3. **Nếu ĐÚNG (đủ batch):**
+   - **Append currentBatch vào batches**
+     - `Append to array variable`
+     - Name: `batches`
+     - Value: `variables('currentBatch')`
+
+   - **Reset currentBatch về []**
+     - `Set variable`
+     - Name: `currentBatch`
+     - Value: `[]`
+
+---
+
+### 🔹 **4. Sau loop: Nếu còn batch cuối → thêm vào**
+Thêm 1 bước **"Condition"** bên ngoài `Apply to each`:
+
+- **Condition**:
+  ```
+  length(variables('currentBatch')) > 0
+  ```
+
+- Nếu ĐÚNG:
+  - `Append to array variable` → `batches` ← `variables('currentBatch')`
+
+---
+
+### 🔹 **5. Apply to each từng batch để gọi Office Script**
+- **Apply to each** → `variables('batches')`
+
+**Bên trong:**
+
+1. **Run script**
+   - Script: Office Script phần dán 1 cột
+   - Input JSON:
+     ```json
+     {
+       "columnName": "<tên cột bạn đang xử lý>",
+       "values": @{items('Apply_to_each')}
+     }
+     ```
+
+👉 Bạn có thể dùng expression:
+```plaintext
+{
+  "columnName": body('Parse_JSON')?['columnName'],
+  "values": items('Apply_to_each')
+}
+```
+
+---
+
+## ✅ HÌNH MINH HỌA (nếu cần)
+
+Mình có thể tạo cho bạn ảnh minh họa từng bước, hoặc gửi `.zip` file để bạn import ngay Flow.
+
+---
+
+## 📌 MẸO NÂNG CAO
+
+- Bạn có thể **chạy song song các batch** bằng cách bật **Concurrency** trong `Apply to each`.
+- Nếu xử lý nhiều cột → gọi Apply to each lồng (theo từng cột, từng batch).
+
+---
+
+Bạn muốn mình gửi **file mẫu Power Automate `.zip`**, hoặc ảnh chụp chi tiết từng bước không? Mình có thể gửi ngay 👇
