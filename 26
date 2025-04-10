@@ -1,0 +1,143 @@
+Chắc chắn rồi! Dưới đây là hướng dẫn chi tiết **từng bước** để bạn xử lý **chia batch dữ liệu và dán vào Excel** bằng **Power Automate + Office Script**, đảm bảo tránh lỗi `timeout` khi xử lý dữ liệu lớn (ví dụ 90.000 dòng).
+
+---
+
+## 🎯 **MỤC TIÊU**
+- Bạn đã trích xuất được dữ liệu từ Excel nguồn (qua Office Script), mỗi cột có dạng:
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"], ...]
+}
+```
+
+- Bạn cần **chia nhỏ mảng này theo batch (ví dụ 500 dòng)** và gọi Office Script nhiều lần để **dán nhanh & tránh lỗi timeout**.
+
+---
+
+## ✅ **CẤU TRÚC FLOW TỔNG QUÁT**
+
+1. **Trigger** – Tuỳ chọn
+2. **Get file content**
+3. **Run script: Trích xuất data từ Excel nguồn**
+4. **Parse JSON kết quả**
+5. **Apply to each column**
+   - Chia data thành các batch nhỏ
+   - Tạo từng batch object: `{ columnName, values: [...] }`
+   - Append vào array `batches`
+6. **Apply to each batch**
+   - Gọi Office Script dán batch data
+
+---
+
+## 🔧 **CHI TIẾT CÁC BƯỚC**
+
+---
+
+### ⚙️ B1 – Khởi tạo biến
+
+| Tên biến        | Kiểu       | Giá trị khởi tạo |
+|----------------|------------|------------------|
+| `batches`       | Array      | `[]`             |
+| `currentBatch`  | Array      | `[]`             |
+| `batchSize`     | Integer    | `500`            |
+
+---
+
+### 🔁 B2 – Apply to each `column` trong mảng dữ liệu
+
+- Duyệt từng column object có dạng:
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"], ...]
+}
+```
+
+**Trong Apply này:**
+
+#### 🧱 Step 1: Set biến `colName` = `items('Current_item')?['columnName']`  
+→ Để biết đang xử lý cột nào
+
+#### 🧱 Step 2: Initialize `currentBatch` = `[]`
+
+#### 🔁 Step 3: Apply to each `rowItem` in `items('Current_item')?['values']`
+
+**Trong vòng lặp này:**
+
+- **Append to array variable** → `currentBatch`  
+  Value: `items('Current_item_2')` *(tức mỗi dòng dữ liệu, dạng `["IT"]`)*
+
+- **Kiểm tra batch đủ lớn chưa:**  
+  Condition: `length(variables('currentBatch'))` **`is greater than or equal to`** `variables('batchSize')`
+
+  ✅ Nếu đúng:
+  - **Append to array variable** `batches`  
+    Value:
+    ```plaintext
+    json(
+      concat(
+        '{ "columnName": "', variables('colName'), '", "values": ',
+        string(variables('currentBatch')), ' }'
+      )
+    )
+    ```
+
+  - **Set `currentBatch` lại thành []**
+
+✅ **Sau vòng lặp**, thêm đoạn kiểm tra **nếu còn dư batch nhỏ thì cũng append**:
+
+- Condition: `length(variables('currentBatch')) > 0`
+
+→ Nếu đúng → Append vào `batches` như ở trên.
+
+---
+
+### ✅ Kết quả sau B2:  
+Biến `batches` chứa danh sách các batch nhỏ như:
+
+```json
+[
+  { "columnName": "Phòng ban", "values": [["IT"], ["HR"], ["Finance"]] },
+  { "columnName": "Phòng ban", "values": [["QA"], ["Admin"], ["Dev"]] },
+  ...
+]
+```
+
+---
+
+### ⚙️ B3 – Dán từng batch
+
+- **Apply to each** `items('batches')`
+
+→ Gọi Office Script dán dữ liệu:
+
+- Script Input:
+```json
+{
+  "columns": [
+    {
+      "columnName": "@items('Current_batch')?['columnName']",
+      "values": @items('Current_batch')?['values']
+    }
+  ]
+}
+```
+
+Hoặc nếu script bạn dùng input chỉ nhận 1 object `columnName` + `values`, thì truyền trực tiếp.
+
+---
+
+## 🧠 GỢI Ý:
+
+- Chia batch 500–1000 tùy theo độ lớn file đích (Excel Online ổn định hơn Excel Desktop)
+- Có thể gộp nhiều batch vào 1 lần gọi script nếu chúng **khác cột** để tối ưu
+
+---
+
+Nếu bạn cần:
+- File `.zip` mẫu Power Automate
+- Ảnh sơ đồ Flow
+- Script gộp nhiều cột trong 1 lần batch
+
+👉 Cứ nói nhé, mình gửi ngay!
