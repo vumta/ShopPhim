@@ -141,3 +141,67 @@ Nếu bạn cần:
 - Script gộp nhiều cột trong 1 lần batch
 
 👉 Cứ nói nhé, mình gửi ngay!
+=================================================================================================================================================================================================
+Tuyệt vời! Dưới đây là **hướng dẫn chi tiết từng bước** cho phần **append batch cuối cùng** còn dư sau vòng lặp — để đảm bảo không mất dữ liệu nếu tổng số dòng không chia hết cho `batchSize`.
+
+---
+
+## 🎯 Tình huống
+Sau vòng lặp Apply to each `rowItem`, có thể còn dư vài dòng nhỏ (< `batchSize`) trong biến `currentBatch`.  
+Bạn cần **append phần dư này vào `batches`**, để không bị bỏ sót dữ liệu.
+
+---
+
+## ✅ Hướng dẫn chi tiết phần xử lý "batch cuối cùng"
+
+### 📌 1. **Thêm Action `Condition`**  
+> Ngay **sau vòng lặp** `Apply to each rowItem`
+
+#### ✏️ Cấu hình điều kiện:
+
+- **Condition**:
+  - *Left:* `length(variables('currentBatch'))`
+  - *Operator:* `is greater than`
+  - *Right:* `0`
+
+> Điều kiện này kiểm tra: có còn dòng nào trong `currentBatch` không?
+
+---
+
+### ✅ 2. Nếu **`Yes`** – Còn dư dữ liệu
+
+#### ➕ Thêm Action: **Append to array variable**  
+- **Name:** `batches`
+- **Value:** *(Tạo chuỗi JSON rồi parse lại như trước)*
+
+```plaintext
+json(
+  concat(
+    '{ "columnName": "', variables('colName'), '", "values": ',
+    string(variables('currentBatch')), ' }'
+  )
+)
+```
+
+---
+
+### ❌ 3. Nếu **`No`** – Không còn dữ liệu dư  
+→ **Không cần thêm gì** cả.
+
+---
+
+### 📌 Mẹo:
+- Đặt Action này sau vòng lặp `rowItem` nhưng **vẫn nằm trong Apply của từng column**  
+- Đảm bảo thứ tự như sau:
+  ```
+  For each column:
+    ├── Set colName
+    ├── Initialize currentBatch
+    ├── Apply to each rowItem
+    ├── Condition: length(currentBatch) > 0
+        ├── YES → Append to batches
+  ```
+
+---
+
+Nếu bạn muốn mình gửi **Flow mẫu `.zip`** hoặc **ảnh sơ đồ trực quan**, chỉ cần nói nhé!
