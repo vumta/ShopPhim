@@ -1,0 +1,115 @@
+Tuyệt vời! Để Power Automate chia batch data (chia nhỏ dữ liệu thành nhiều phần nhỏ hơn – **batch**) trước khi gọi `Office Script`, bạn có thể làm theo **hướng dẫn từng bước dưới đây**.
+
+---
+
+## ✅ MỤC TIÊU
+
+**Bạn có:**
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [["IT"], ["HR"], ["Finance"], ["Sales"], ["Admin"], ...]
+}
+```
+
+**Bạn muốn:**
+- Tách thành các batch nhỏ (ví dụ: mỗi batch 500 dòng)
+- Gọi `Run Script` **nhiều lần** với mỗi batch
+- Mỗi lần chỉ dán 1 phần vào file đích (để tránh `setValues()` timeout)
+
+---
+
+## ✅ BƯỚC THỰC HIỆN TRONG POWER AUTOMATE
+
+### 🔹 **1. Parse dữ liệu đầu vào**
+Sử dụng **Parse JSON** để lấy ra dữ liệu:
+
+```json
+{
+  "columnName": "Phòng ban",
+  "values": [
+    ["IT"], ["HR"], ["Finance"], ["Sales"], ["Admin"], ...
+  ]
+}
+```
+
+---
+
+### 🔹 **2. Initialize các biến**
+- **Array batches** → dạng `Array`
+- **Integer batchSize** → gán = `500` (hoặc giá trị khác bạn muốn)
+- **Array currentBatch** → dùng để gom từng batch
+
+---
+
+### 🔹 **3. Dùng Loop để chia batch**
+**Apply to each** qua `values`:
+
+**Input**: `body('Parse_JSON')?['values']`
+
+**Bên trong loop:**
+
+1. **Append item vào currentBatch**
+
+   ```plaintext
+   Append to array variable → currentBatch
+   Value: items('Apply_to_each')
+   ```
+
+2. **Kiểm tra nếu currentBatch đủ batchSize → thì push vào batches**
+   - Điều kiện:  
+     ```plaintext
+     length(variables('currentBatch')) is equal to variables('batchSize')
+     ```
+
+   - Nếu đúng:
+     - Append currentBatch vào batches
+     - Set currentBatch = `[]` (reset lại)
+
+---
+
+### 🔹 **4. Sau Loop: đẩy batch còn lại vào batches**
+Dùng điều kiện ngoài vòng lặp:
+
+```plaintext
+length(variables('currentBatch')) > 0
+```
+
+→ Nếu đúng, `Append currentBatch to batches`
+
+---
+
+### 🔹 **5. Apply to each BATCH và Gọi Office Script**
+
+**Input**: `variables('batches')`
+
+**Bên trong mỗi batch:**
+- Gọi `Run Script`
+- Input:
+
+```json
+{
+  "columnName": "Phòng ban",
+  "values": @{items('Apply_to_each')}
+}
+```
+
+---
+
+## ✅ KẾT QUẢ
+
+Bạn sẽ gọi `Office Script` **từng batch một**, ví dụ:
+
+- Batch 1: [["IT"], ["HR"], ["Finance"], ...]
+- Batch 2: [["Admin"], ["Sales"], ...]
+- ...
+
+→ Mỗi lần dán chỉ 500 dòng, tránh timeout, mà vẫn đảm bảo đúng vị trí dòng.
+
+---
+
+## 📦 BONUS: Mẫu Flow `.zip` hoặc visual builder
+
+Bạn muốn mình tạo sẵn mẫu `.zip` import vào Power Automate? Hay cần mình chụp lại từng bước bằng ảnh?
+
+👉 Chỉ cần nói **"Gửi zip"** hoặc **"Gửi ảnh từng bước"**, mình sẽ gửi ngay!
