@@ -1,0 +1,72 @@
+Bạn nói rất đúng! 🎯 Trong Power Automate, **không thể dùng trực tiếp `Append to array variable` để thêm một *mảng con* vào một mảng lớn** (tức là không thể `append array to array`).
+
+Nhưng đừng lo! ✅ Mình sẽ hướng dẫn bạn cách **đúng chuẩn để "append 1 batch (mảng con) vào mảng tổng `batches`"** bằng cách dùng hàm `union()` và `Set variable`.
+
+---
+
+## ✅ CÁCH FIX CHUẨN – Append 1 array vào 1 array trong Power Automate
+
+### 🔹 Thay vì:
+```plaintext
+Append to array variable
+Name: batches
+Value: variables('currentBatch') ❌
+```
+
+### 🔹 Làm như sau:
+
+#### 👉 **Dùng “Set variable” với hàm `union()`**:
+```plaintext
+Set variable
+Name: batches
+Value: union(variables('batches'), createArray(variables('currentBatch')))
+```
+
+#### 📌 Giải thích:
+
+- `createArray(variables('currentBatch'))` sẽ biến `currentBatch` thành 1 phần tử dạng mảng con.
+- `union(...)` thêm nó vào mảng `batches`.
+
+---
+
+## ✅ ÁP DỤNG VÀO FLOW CỦA BẠN
+
+### 🔄 Bên trong `Apply to each` chia batch:
+Khi đủ batch:
+
+1. **Set variable – batches**
+```plaintext
+Name: batches  
+Value: union(variables('batches'), createArray(variables('currentBatch')))
+```
+
+2. **Set variable – currentBatch**
+```plaintext
+Name: currentBatch  
+Value: []
+```
+
+---
+
+### 🔄 Sau `Apply to each` – xử lý batch cuối chưa đủ size:
+**Condition:**
+```plaintext
+length(variables('currentBatch')) > 0
+```
+
+**Nếu ĐÚNG:**
+```plaintext
+Set variable – batches  
+Value: union(variables('batches'), createArray(variables('currentBatch')))
+```
+
+---
+
+## ✅ SAU ĐÓ – Lặp `Apply to each` cho từng batch:
+`Apply to each` → `variables('batches')`
+
+→ Gửi từng batch vào Office Script như bạn đang làm.
+
+---
+
+Nếu bạn muốn mình **vẽ sơ đồ hoặc gửi `.zip` Power Automate mẫu**, chỉ cần nhắn nhé – mình gửi ngay 🎁
