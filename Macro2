@@ -1,0 +1,122 @@
+Cảm ơn bạn đã cập nhật — dưới đây là phiên bản **VBA Macro cập nhật để xử lý cả file nguồn và đích đều là `.xlsx`** (không dùng `.xlsm`), và vẫn đảm bảo:
+
+- Truyền vào:
+  - Tên Sheet đích.
+  - Danh sách tên cột cần copy từ nguồn.
+- Header:
+  - Nguồn: nằm ở **dòng 1**.
+  - Đích: nằm ở **dòng 2**.
+- Dữ liệu:
+  - Nguồn: bắt đầu từ **dòng 3**.
+  - Dán vào file đích từ **dòng 5**.
+
+---
+
+### ✅ VBA Macro hoàn chỉnh (cho `.xlsx`):
+
+```vb
+Sub CopyColumnsBetweenXlsx()
+
+    Dim srcWB As Workbook, tgtWB As Workbook
+    Dim srcWS As Worksheet, tgtWS As Worksheet
+    Dim srcHeaders As Variant, tgtHeaders As Variant
+    Dim copyColumns As Variant
+    Dim srcColIndexes() As Long
+    Dim tgtColIndexes() As Long
+    Dim srcPath As String, tgtPath As String
+    Dim i As Long, j As Long, r As Long
+    Dim mapCount As Long
+    Dim tgtSheetName As String
+
+    ' === CẤU HÌNH ===
+    tgtSheetName = InputBox("Nhập tên Sheet trong file đích:", "Tên Sheet", "Sheet1")
+    copyColumns = Array("Tên KH", "Email", "Số điện thoại")
+
+    ' === CHỌN FILE NGUỒN & ĐÍCH (.xlsx) ===
+    srcPath = Application.GetOpenFilename("Excel Files (*.xlsx), *.xlsx", , "Chọn file NGUỒN")
+    tgtPath = Application.GetOpenFilename("Excel Files (*.xlsx), *.xlsx", , "Chọn file ĐÍCH")
+
+    If srcPath = "False" Or tgtPath = "False" Then Exit Sub
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    Set srcWB = Workbooks.Open(srcPath, ReadOnly:=True)
+    Set tgtWB = Workbooks.Open(tgtPath)
+    Set srcWS = srcWB.Sheets(1)
+    Set tgtWS = tgtWB.Sheets(tgtSheetName)
+
+    ' === HEADER ===
+    srcHeaders = srcWS.Range("1:1").Value2
+    tgtHeaders = tgtWS.Range("2:2").Value2
+
+    ReDim srcColIndexes(0 To UBound(copyColumns))
+    ReDim tgtColIndexes(0 To UBound(copyColumns))
+
+    ' === MAPPING CỘT ===
+    For i = 0 To UBound(copyColumns)
+        For j = 1 To UBound(srcHeaders, 2)
+            If srcHeaders(1, j) = copyColumns(i) Then
+                srcColIndexes(i) = j
+                Exit For
+            End If
+        Next j
+        For j = 1 To UBound(tgtHeaders, 2)
+            If tgtHeaders(1, j) = copyColumns(i) Then
+                tgtColIndexes(i) = j
+                mapCount = mapCount + 1
+                Exit For
+            End If
+        Next j
+    Next i
+
+    If mapCount = 0 Then
+        MsgBox "Không tìm thấy cột nào khớp giữa nguồn và đích."
+        GoTo Cleanup
+    End If
+
+    ' === DÁN DỮ LIỆU TỪ DÒNG 3 NGUỒN → DÒNG 5 ĐÍCH ===
+    Dim lastRowSrc As Long
+    lastRowSrc = srcWS.Cells(srcWS.Rows.Count, 1).End(xlUp).Row
+
+    For r = 3 To lastRowSrc
+        For i = 0 To UBound(copyColumns)
+            If srcColIndexes(i) > 0 And tgtColIndexes(i) > 0 Then
+                tgtWS.Cells(r + 2, tgtColIndexes(i)).Value = srcWS.Cells(r, srcColIndexes(i)).Value
+            End If
+        Next i
+        If r Mod 1000 = 0 Then DoEvents
+    Next r
+
+    MsgBox "Copy xong " & (lastRowSrc - 2) & " dòng dữ liệu!", vbInformation
+
+Cleanup:
+    srcWB.Close SaveChanges:=False
+    tgtWB.Save
+    tgtWB.Close
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+
+End Sub
+```
+
+---
+
+### 📌 Cách sử dụng:
+
+1. **Mở một file Excel mới**.
+2. Nhấn `Alt + F11` để mở Visual Basic Editor.
+3. Chọn `Insert > Module`, dán đoạn macro trên vào.
+4. Nhấn `F5` để chạy macro.
+5. Lần lượt chọn file `.xlsx` nguồn và đích.
+6. Nhập tên Sheet đích (ví dụ: `Sheet1`).
+
+---
+
+### ✅ Bạn có muốn mình tạo lại:
+
+- File mẫu `source.xlsx`, `destination.xlsx`, và
+- Macro `.bas` đã export sẵn?
+- Flow UiPath `.xaml` gọi macro (qua Excel Application Scope)?
+
+Mình có thể nén tất cả vào `.zip` gửi bạn trong 1 click. Bạn muốn không?
