@@ -1,0 +1,157 @@
+Dưới đây là hướng dẫn **toàn bộ flow tối ưu hóa trong UiPath**, dành riêng cho trường hợp:
+
+> **File nguồn có đến 90.000 dòng, chỉ copy một vài cột theo tên cột có trong file đích (row 2), và thứ tự cột đích khác với nguồn.**
+
+---
+
+## 🎯 Mục tiêu:
+- Đọc dữ liệu từ file Excel nguồn (`source.xlsx`)
+- Dòng 1 là tiêu đề (header)
+- Chỉ copy một vài cột (khớp với header của file đích ở dòng 2)
+- Dán dữ liệu vào file đích (`destination.xlsx`) từ dòng số 4 trở đi
+- **Tối ưu tốc độ xử lý cho data lớn**
+
+---
+
+## 🧱 Cấu trúc file Excel
+
+### 📄 `source.xlsx`
+| A       | B       | C       | D       | ... |
+|---------|---------|---------|---------|-----|
+| Mã SP   | Tên SP  | Giá     | Ngày    | ... |
+| SP001   | Sản phẩm A | 1000 | 2024-01-01 | ... |
+| SP002   | Sản phẩm B | 1500 | 2024-01-02 | ... |
+| ...     | ...     | ...     | ...     | ... |
+
+### 📄 `destination.xlsx`
+| (Row 1: bỏ trống) |
+|------------------|
+| **Tên SP** | **Giá** |
+|            |         | ← Dán data vào từ dòng 4
+
+---
+
+## 🔧 Các bước thực hiện trong **UiPath Studio**
+
+---
+
+### 1️⃣ **Tạo project mới**
+- Mở UiPath Studio → Chọn **New Project** > **Process**
+- Đặt tên ví dụ: `ExcelColumnMapper_Optimized`
+
+---
+
+### 2️⃣ **Khai báo biến**
+| Tên biến      | Loại dữ liệu              | Scope |
+|---------------|---------------------------|--------|
+| `dtSource`    | `System.Data.DataTable`   | Sequence |
+| `dtDestHeader`| `System.Data.DataTable`   | Sequence |
+| `dtFinal`     | `System.Data.DataTable`   | Sequence |
+
+---
+
+### 3️⃣ **Read dữ liệu từ file nguồn**
+
+**Activity:** `Read Range Workbook`  
+- **WorkbookPath:** `"source.xlsx"`
+- **Sheet:** `"Sheet1"`
+- **AddHeaders:** `False` ✅
+- **Output:** `dtSource`
+
+📌 *Lý do không dùng headers: để lấy luôn dòng 1 làm dữ liệu để xử lý custom header*
+
+---
+
+### 4️⃣ **Read header từ file đích (dòng 2)**
+
+**Activity:** `Read Range Workbook`  
+- **WorkbookPath:** `"destination.xlsx"`
+- **Range:** `"2:2"`
+- **AddHeaders:** `True` ✅
+- **Output:** `dtDestHeader`
+
+---
+
+### 5️⃣ **Xử lý dữ liệu với `Invoke Code` – Mapping đúng cột**
+
+**Activity:** `Invoke Code`  
+- **Language:** VB  
+- **Code:**
+```vbnet
+' Tạo từ điển map tên cột và vị trí index trong dtSource
+Dim columnIndexMap As New Dictionary(Of String, Integer)
+For i As Integer = 0 To dtSource.Columns.Count - 1
+    Dim colName As String = dtSource.Rows(0)(i).ToString().Trim()
+    If Not columnIndexMap.ContainsKey(colName) Then
+        columnIndexMap(colName) = i
+    End If
+Next
+
+' Tạo dtFinal theo cột đích
+dtFinal = New DataTable()
+Dim destColumnIndexes As New List(Of Integer)
+
+For Each destCol As DataColumn In dtDestHeader.Columns
+    Dim colName As String = destCol.ColumnName.Trim()
+    dtFinal.Columns.Add(colName)
+    If columnIndexMap.ContainsKey(colName) Then
+        destColumnIndexes.Add(columnIndexMap(colName))
+    Else
+        destColumnIndexes.Add(-1) ' Không có thì để rỗng
+    End If
+Next
+
+' Thêm dữ liệu từ dòng thứ 2 trở đi trong dtSource
+For i As Integer = 1 To dtSource.Rows.Count - 1
+    Dim srcRow = dtSource.Rows(i)
+    Dim newRow = dtFinal.NewRow()
+
+    For j As Integer = 0 To destColumnIndexes.Count - 1
+        Dim srcIndex = destColumnIndexes(j)
+        If srcIndex >= 0 Then
+            newRow(j) = srcRow(srcIndex)
+        End If
+    Next
+
+    dtFinal.Rows.Add(newRow)
+Next
+```
+
+**Arguments:**
+- `dtSource` → `In` (DataTable)
+- `dtDestHeader` → `In` (DataTable)
+- `dtFinal` → `Out` (DataTable)
+
+---
+
+### 6️⃣ **Dán kết quả vào file đích từ dòng số 4**
+
+**Activity:** `Write Range Workbook`  
+- **WorkbookPath:** `"destination.xlsx"`
+- **SheetName:** `"Sheet1"`
+- **StartingCell:** `"A4"`
+- **AddHeaders:** `False`
+- **DataTable:** `dtFinal`
+
+---
+
+## ✅ Kết quả:
+- Dữ liệu được copy nhanh chóng dù có 90.000 dòng
+- Cột đúng tên và đúng thứ tự với file đích
+- Không lỗi lệch cột, sai định dạng
+
+---
+
+## 💡 Gợi ý nâng cao nếu cần:
+| Mục tiêu | Hướng xử lý |
+|---------|-------------|
+| Xử lý nhiều file source | Dùng `For Each File in Folder` |
+| Cấu hình cột cần lấy | Đọc từ 1 file `Excel cấu hình` |
+| Tăng tốc hơn nữa | Chia batch 10,000 rows và xử lý song song (Parallel For Each) |
+| Log tiến trình | Dùng `Log Message`, hoặc `Append Line` vào file txt |
+
+---
+
+Bạn muốn mình **gửi lại toàn bộ file `.xaml` đã có code mới** và file mẫu để test?
+
+👉 Chỉ cần gật đầu, mình gửi liền!
