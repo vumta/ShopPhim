@@ -1,0 +1,94 @@
+Dưới đây là phiên bản cập nhật của mã VBA. Tôi đã điều chỉnh để dữ liệu bắt đầu ở **hàng thứ 5** trong file đích và thêm **thông báo lỗi** rõ ràng cho các trường hợp xảy ra sự cố trong quá trình thực thi:
+
+```vba
+Sub OptimizedCopyPasteBySecondSheetAndRowWithErrors()
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns As Variant
+    Dim targetCol As Integer
+    Dim lastRow As Long
+    Dim sourceData As Variant
+    Dim i As Integer
+
+    On Error GoTo ErrorHandler
+
+    ' Mở file gốc và file đích
+    Set sourceWorkbook = Workbooks.Open("C:\DuongDan\FileGoc.xlsx")
+    Set targetWorkbook = Workbooks.Open("C:\DuongDan\FileDich.xlsx")
+
+    ' Lấy sheet đầu tiên của file gốc và sheet thứ 2 của file đích
+    Set sourceSheet = sourceWorkbook.Sheets(1) ' Sheet đầu tiên của file gốc
+    Set targetSheet = targetWorkbook.Sheets(2) ' Sheet thứ 2 của file đích
+
+    ' Kiểm tra xem sheet đích có đủ dữ liệu trong hàng 2
+    If Application.CountA(targetSheet.Rows(2)) = 0 Then
+        MsgBox "Hàng thứ 2 trong sheet đích không có dữ liệu! Vui lòng kiểm tra lại.", vbCritical
+        GoTo CleanUp
+    End If
+
+    ' Các cột cần sao chép (thay đổi theo nhu cầu)
+    sourceColumns = Array("Column1", "Column2", "Column3")
+
+    ' Duyệt qua các cột được chỉ định
+    For i = LBound(sourceColumns) To UBound(sourceColumns)
+        ' Tìm cột đích có cùng tên trong hàng thứ 2 của sheet đích
+        On Error Resume Next
+        targetCol = 0
+        targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(2), 0)
+        On Error GoTo 0
+
+        If targetCol > 0 Then
+            ' Xác định số hàng cuối cùng trong cột gốc
+            lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+            ' Kiểm tra nếu không có dữ liệu ở cột nguồn
+            If lastRow < 2 Then
+                MsgBox "Không tìm thấy dữ liệu trong cột " & sourceColumns(i) & " của file gốc!", vbExclamation
+                GoTo CleanUp
+            End If
+
+            ' Sao chép dữ liệu vào mảng
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                           sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+            ' Dán dữ liệu vào cột đích từ hàng thứ 5
+            targetSheet.Range(targetSheet.Cells(5, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 4, targetCol)).Value = sourceData
+        Else
+            MsgBox "Không tìm thấy cột đích cho " & sourceColumns(i) & " trong file đích!", vbExclamation
+        End If
+    Next i
+
+    ' Lưu và đóng file
+    targetWorkbook.Save
+    sourceWorkbook.Close False
+    targetWorkbook.Close True
+
+    MsgBox "Hoàn thành sao chép dữ liệu với sheet thứ 2 và hàng thứ 5 của đích!", vbInformation
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description, vbCritical
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Sub
+```
+
+### Những cập nhật:
+1. **Hàng thứ 5 cho dữ liệu trong file đích**:
+   - Dữ liệu được dán từ hàng thứ 5 thay vì hàng thứ 3 (`targetSheet.Cells(5, targetCol)`).
+
+2. **Thông báo lỗi chi tiết**:
+   - **Hàng 2 trong sheet đích trống**: Nếu không có tiêu đề ở hàng 2, sẽ hiển thị thông báo lỗi.
+   - **Cột nguồn không có dữ liệu**: Nếu không có dữ liệu trong cột chỉ định ở file gốc, thông báo lỗi sẽ xuất hiện.
+   - **Cột đích không tìm thấy**: Nếu không tìm được cột đích trong hàng thứ 2, thông báo lỗi được hiển thị.
+   - **Lỗi chung**: Nếu có lỗi không mong muốn xảy ra, lỗi được hiển thị với thông tin chi tiết.
+
+3. **Quản lý lỗi toàn cục**:
+   - Thêm cơ chế xử lý lỗi để chương trình có thể đóng file Excel mở trước khi kết thúc.
+
+Hãy thử áp dụng code này và cho tôi biết nếu bạn cần hỗ trợ thêm nhé! 😊
