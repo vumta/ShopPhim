@@ -1,0 +1,68 @@
+Rất cảm ơn bạn đã làm rõ — **nếu bạn đang lưu macro dưới dạng `.bas` file** (text thuần), thì lỗi **tên sheet tiếng Nhật bị biến thành `???`** là hoàn toàn dễ hiểu và phổ biến. Đây là lỗi **mã hóa text (encoding)** khi lưu `.bas`.
+
+---
+
+### ⚠️ Nguyên nhân:
+
+- File `.bas` được lưu ở dạng **ANSI** mặc định trong VBA editor, không hỗ trợ Unicode.
+- Khi bạn viết `"顧客リスト"` trong code, lúc export ra `.bas`, nó bị mã hóa sai → thành `???`.
+- Sau đó, khi bạn import lại `.bas` hoặc chạy code, nó không hiểu ký tự.
+
+---
+
+### ✅ Giải pháp khắc phục:
+
+#### 🔧 **Cách 1: Không hardcode tên Unicode trong `.bas`. Lấy tên sheet từ Excel**
+Tốt nhất là bạn không hardcode `"顧客リスト"` trong code `.bas`. Thay vào đó, dùng cách sau:
+
+```vb
+Dim tgtWS As Worksheet
+Set tgtWS = Nothing
+For Each sht In tgtWB.Sheets
+    If sht.Name = Range("A1").Value Then ' ← Đọc tên sheet từ ô A1
+        Set tgtWS = sht
+        Exit For
+    End If
+Next
+
+If tgtWS Is Nothing Then
+    MsgBox "Không tìm thấy sheet đích!", vbCritical
+    Exit Sub
+End If
+```
+
+➡ Bạn chỉ cần nhập tên sheet (`顧客リスト`) trong ô `A1`, macro sẽ tự động dò và gán đúng sheet.
+
+---
+
+#### 🔧 **Cách 2: Gán tên sheet bằng số thứ tự (nếu sheet luôn cố định)**
+```vb
+Set tgtWS = tgtWB.Sheets(1) ' hoặc Sheets(2), nếu sheet đích luôn nằm ở vị trí cố định
+```
+
+---
+
+#### ✅ Cách 3 (ít được khuyến nghị): 
+Nếu bạn thật sự **muốn hardcode Unicode** vào `.bas`:
+
+> Bạn cần **mở file `.bas` bằng Notepad hoặc VSCode**, sau đó:
+- Đổi encoding của file từ **ANSI → UTF-8-BOM**
+- Gõ hoặc paste lại `tgtSheetName = "顧客リスト"` bằng font hỗ trợ Unicode (như "Yu Gothic", "MS Gothic", v.v)
+- Save lại file `.bas` dưới dạng **UTF-8 with BOM**
+
+👉 Nhưng lưu ý: **VBA Editor không đọc tốt UTF-8**, nên cách này rất không ổn định!
+
+---
+
+### ✅ Khuyến nghị mạnh nhất:
+Sử dụng phương án `Range("A1").Value` hoặc `.Sheets(1)` để hoàn toàn tránh phụ thuộc mã hóa `.bas`.
+
+---
+
+Bạn muốn mình:
+- Tạo file mẫu `.xlsm`
+- Tên sheet là `"顧客リスト"`
+- Có macro dùng cách tự dò sheet theo tên từ ô `A1`
+- Export luôn `.bas` tương thích?
+
+Nếu đồng ý, mình gửi lại toàn bộ `.zip` gồm `.xlsm`, `.bas`, `.xlsx` nguồn + mẫu flow UiPath. Bạn cần chứ?
