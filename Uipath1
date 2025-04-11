@@ -1,0 +1,85 @@
+Để thực hiện yêu cầu này bằng **UiPath**, bạn có thể làm theo các bước sau:
+
+---
+
+### 🎯 **Mục tiêu:**
+Copy một số cột từ file Excel nguồn (theo tên cột ở dòng 1) → Dán vào file đích tại các cột có cùng tên (định nghĩa ở dòng 2), bắt đầu từ dòng **4** trở đi.
+
+---
+
+## ✅ **Chi tiết các bước trong UiPath:**
+
+### 🔹 **1. Đọc file Excel nguồn**
+- **Hoạt động:** Use Excel File Scope → Read Range
+- **Input:** File nguồn
+- **Sheet:** Tên sheet
+- **Range:** `"A1"` (không cần ghi rõ vùng)
+- **Output:** `dtSource`
+- **Properties:**
+  - `PreserveFormat`: bật
+  - `AddHeaders`: **True**
+
+---
+
+### 🔹 **2. Lọc các cột cần thiết**
+Nếu bạn biết danh sách tên cột cần lấy (VD: `"Mã NV", "Tên", "Phòng ban"`), bạn có thể làm:
+
+```vb
+dtFiltered = dtSource.DefaultView.ToTable(False, {"Mã NV", "Tên", "Phòng ban"})
+```
+
+> **dtFiltered** sẽ chứa dữ liệu cần lấy theo đúng thứ tự tên cột.
+
+---
+
+### 🔹 **3. Đọc file Excel đích (chỉ lấy header ở dòng 2)**
+- Dùng **Read Range**, đặt **Range** là `"A2:Z2"` (tuỳ số lượng cột), **AddHeaders** = `True`
+- Output: `dtHeaderDest`
+
+```vb
+destColumnNames = dtHeaderDest.Columns.Cast(Of DataColumn).Select(Function(col) col.ColumnName).ToArray()
+```
+
+---
+
+### 🔹 **4. Mapping thứ tự cột từ nguồn sang đích**
+Giả sử bạn đã có `dtFiltered` chứa cột theo tên chuẩn, thì ta cần xây `dtFinalToWrite` khớp với cột trong file đích:
+
+```vb
+dtFinalToWrite = New DataTable()
+
+For Each colName In destColumnNames
+    dtFinalToWrite.Columns.Add(colName)
+Next
+
+For Each row In dtFiltered.Rows
+    newRow = dtFinalToWrite.NewRow()
+    For Each colName In destColumnNames
+        If dtFiltered.Columns.Contains(colName) Then
+            newRow(colName) = row(colName)
+        Else
+            newRow(colName) = Nothing ' hoặc DBNull.Value
+        End If
+    Next
+    dtFinalToWrite.Rows.Add(newRow)
+Next
+```
+
+---
+
+### 🔹 **5. Ghi dữ liệu vào file đích, bắt đầu từ dòng 4**
+- **Use Excel Application Scope**
+- **Write Range** hoặc **Append Range**
+  - **Start Cell:** `"A4"` (hoặc dòng phù hợp)
+  - **AddHeaders**: **False**
+  - **Input DataTable:** `dtFinalToWrite`
+
+---
+
+## 💡 **Lưu ý thêm:**
+- Đảm bảo tên cột không bị thừa khoảng trắng – dùng `.Trim` nếu cần.
+- Nếu bạn không chắc vị trí của từng cột trong file đích, bạn chỉ cần khớp tên – không cần quan tâm vị trí.
+
+---
+
+Bạn muốn mình tạo workflow mẫu `.xaml` cho bạn luôn không? Nếu có file Excel mẫu thì gửi lên để mình làm chuẩn theo nhé.
