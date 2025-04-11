@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Activity x:Class="Main" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+ xmlns:s="clr-namespace:System;assembly=mscorlib"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:sa="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ mc:Ignorable="sap sap2010"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+  <x:Members>
+    <x:Property Name="dtSource" Type="InOutArgument(scg:List(x:Object))" />
+    <x:Property Name="dtFiltered" Type="InOutArgument(scg:List(x:Object))" />
+    <x:Property Name="dtHeaderDest" Type="InOutArgument(scg:List(x:Object))" />
+    <x:Property Name="dtFinalToWrite" Type="InOutArgument(scg:List(x:Object))" />
+    <x:Property Name="destColumnNames" Type="InOutArgument(scg:String[])" />
+  </x:Members>
+
+  <Sequence DisplayName="Map Excel Columns By Name">
+    <ui:ExcelApplicationScope DisplayName="Open Source Excel" WorkbookPath="source.xlsx">
+      <ui:ReadRange DisplayName="Read Source Data" SheetName="Sheet1" Range="A1" AddHeaders="True" Result="dtSource" />
+    </ui:ExcelApplicationScope>
+
+    <ui:Assign DisplayName="Filter Needed Columns" To="[dtFiltered]"
+               Value="[dtSource.DefaultView.ToTable(False, {{&quot;Mã NV&quot;, &quot;Tên&quot;, &quot;Phòng ban&quot;}})]" />
+
+    <ui:ExcelApplicationScope DisplayName="Open Destination Excel" WorkbookPath="destination.xlsx">
+      <ui:ReadRange DisplayName="Read Destination Headers" SheetName="Sheet1" Range="A2:Z2" AddHeaders="True" Result="dtHeaderDest" />
+    </ui:ExcelApplicationScope>
+
+    <ui:Assign DisplayName="Extract Destination Column Names" To="[destColumnNames]"
+               Value="[dtHeaderDest.Columns.Cast(Of DataColumn).Select(Function(col) col.ColumnName.Trim()).ToArray()]" />
+
+    <ui:Assign DisplayName="Create Final Output Table" To="[dtFinalToWrite]" Value="[New DataTable()]" />
+
+    <ui:ForEach x:TypeArguments="x:String" Values="[destColumnNames]" DisplayName="Create Columns in Final Table">
+      <ui:ForEach.Body>
+        <ActivityAction x:TypeArguments="x:String">
+          <ActivityAction.Argument>
+            <DelegateInArgument x:TypeArguments="x:String" Name="colName" />
+          </ActivityAction.Argument>
+          <ui:AddDataColumn DisplayName="Add Column" ColumnName="[colName]" DataTable="[dtFinalToWrite]" />
+        </ActivityAction>
+      </ui:ForEach.Body>
+    </ui:ForEach>
+
+    <ui:ForEach x:TypeArguments="System.Data.DataRow" Values="[dtFiltered.AsEnumerable()]" DisplayName="Process Each Source Row">
+      <ui:ForEach.Body>
+        <ActivityAction x:TypeArguments="System.Data.DataRow">
+          <ActivityAction.Argument>
+            <DelegateInArgument x:TypeArguments="System.Data.DataRow" Name="rowSource" />
+          </ActivityAction.Argument>
+          <Sequence>
+            <ui:Assign DisplayName="Create New Row" To="[newRow]" Value="[dtFinalToWrite.NewRow()]" />
+            <ui:ForEach x:TypeArguments="x:String" Values="[destColumnNames]" DisplayName="Map Column Value">
+              <ui:ForEach.Body>
+                <ActivityAction x:TypeArguments="x:String">
+                  <ActivityAction.Argument>
+                    <DelegateInArgument x:TypeArguments="x:String" Name="colName" />
+                  </ActivityAction.Argument>
+                  <If Condition="[dtFiltered.Columns.Contains(colName)]">
+                    <If.Then>
+                      <ui:Assign DisplayName="Assign Cell Value"
+                                 To="[newRow(colName)]"
+                                 Value="[rowSource(colName)]" />
+                    </If.Then>
+                    <If.Else>
+                      <ui:Assign DisplayName="Assign Empty Value"
+                                 To="[newRow(colName)]"
+                                 Value="[Nothing]" />
+                    </If.Else>
+                  </If>
+                </ActivityAction>
+              </ui:ForEach.Body>
+            </ui:ForEach>
+            <ui:AddDataRow DisplayName="Add Mapped Row" DataTable="[dtFinalToWrite]" ArrayRow="[newRow.ItemArray]" />
+          </Sequence>
+        </ActivityAction>
+      </ui:ForEach.Body>
+    </ui:ForEach>
+
+    <ui:ExcelApplicationScope DisplayName="Write to Destination File" WorkbookPath="destination.xlsx">
+      <ui:WriteRange DisplayName="Write Final Data" DataTable="[dtFinalToWrite]" SheetName="Sheet1" StartingCell="A4" AddHeaders="False" />
+    </ui:ExcelApplicationScope>
+
+  </Sequence>
+</Activity>

@@ -1,0 +1,17 @@
+{
+  "name": "ColumnMappingWorkflow",
+  "description": "A sample workflow to map Excel columns from source to destination by header name",
+  "main": "Main.xaml",
+  "dependencies": {},
+  "schemaVersion": "4.0",
+  "studioVersion": "2023.10.0",
+  "projectType": "Process",
+  "runtimeOptions": {
+    "autoDispose": true
+  },
+  "designOptions": {
+    "projectProfile": "Modern",
+    "outputType": "Process"
+  },
+  "expressionLanguage": "VisualBasic"
+}
