@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Activity mc:Ignorable="sap sap2010" x:Class="Main" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:s1="clr-namespace:System.Collections.Generic;assembly=mscorlib" xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.uipath.com/workflow/activities" xmlns:ui1="http://schemas.uipath.com/workflow/activities/Excel" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+  <x:Members>
+    <x:Property Name="dtFiltered" Type="InArgument(x:Array(x:Object))" />
+    <x:Property Name="dtHeaderDest" Type="InArgument(x:Array(x:Object))" />
+    <x:Property Name="dtFinalToWrite" Type="OutArgument(x:Array(x:Object))" />
+  </x:Members>
+  <Sequence DisplayName="Map Columns From Source to Destination Order">
+    <Assign DisplayName="Create Final DataTable" To="[dtFinalToWrite]" Value="[New DataTable()]"/>
+    <!-- More logic should be inserted here to replicate the process -->
+    <!-- This is just a placeholder workflow structure -->
+  </Sequence>
+</Activity>
