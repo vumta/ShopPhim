@@ -1,0 +1,119 @@
+Dưới đây là **giải pháp tối ưu bằng Excel VBA (macro)** để xử lý dữ liệu với số lượng lớn (100.000 dòng), đáp ứng đầy đủ các yêu cầu của bạn.
+
+---
+
+## ✅ **Yêu cầu tổng quát**
+1. File Excel **nguồn**:
+   - Tên cột ở dòng 1.
+   - Chứa nhiều cột.
+
+2. File Excel **đích**:
+   - Tên cột ở dòng 2.
+   - Ghi dữ liệu bắt đầu từ dòng 4 (bỏ qua dòng 1–3).
+   - Chỉ dán các cột có trong file đích (không dán toàn bộ).
+
+---
+
+## ✅ **Giải pháp VBA**
+
+### 🧠 Ý tưởng chính:
+1. Đọc tiêu đề (header) từ file nguồn (row 1).
+2. Đọc tiêu đề từ file đích (row 2).
+3. Ánh xạ các cột trùng nhau theo **tên cột**.
+4. Copy toàn bộ dữ liệu từ file nguồn (chỉ các cột cần).
+5. Paste vào file đích từ dòng 4.
+
+---
+
+## ✅ **VBA Macro Code**
+
+```vba
+Sub CopyMatchingColumnsFromSourceToTarget()
+
+    Dim srcWB As Workbook, tgtWB As Workbook
+    Dim srcWS As Worksheet, tgtWS As Worksheet
+    Dim srcPath As String, tgtPath As String
+    Dim srcHeaders As Variant, tgtHeaders As Variant
+    Dim srcColIndexes() As Long
+    Dim tgtColIndexes() As Long
+    Dim lastRowSrc As Long, i As Long, j As Long
+    Dim mapCount As Long
+
+    ' ====== File paths ======
+    srcPath = Application.GetOpenFilename("Excel Files (*.xlsx), *.xlsx", , "Chọn file SOURCE")
+    tgtPath = Application.GetOpenFilename("Excel Files (*.xlsm), *.xlsm", , "Chọn file TARGET (.xlsm)")
+
+    If srcPath = "False" Or tgtPath = "False" Then Exit Sub
+
+    ' ====== Open Workbooks ======
+    Set srcWB = Workbooks.Open(srcPath, ReadOnly:=True)
+    Set tgtWB = Workbooks.Open(tgtPath)
+    Set srcWS = srcWB.Sheets(1)
+    Set tgtWS = tgtWB.Sheets(1)
+
+    ' ====== Get Headers ======
+    srcHeaders = srcWS.Range("1:1").Value2
+    tgtHeaders = tgtWS.Range("2:2").Value2
+
+    ' ====== Prepare column mappings ======
+    ReDim srcColIndexes(1 To UBound(tgtHeaders, 2))
+    ReDim tgtColIndexes(1 To UBound(tgtHeaders, 2))
+    mapCount = 0
+
+    For j = 1 To UBound(tgtHeaders, 2)
+        For i = 1 To UBound(srcHeaders, 2)
+            If srcHeaders(1, i) = tgtHeaders(1, j) And srcHeaders(1, i) <> "" Then
+                mapCount = mapCount + 1
+                srcColIndexes(mapCount) = i
+                tgtColIndexes(mapCount) = j
+                Exit For
+            End If
+        Next i
+    Next j
+
+    If mapCount = 0 Then
+        MsgBox "Không tìm thấy cột nào trùng tên."
+        Exit Sub
+    End If
+
+    ' ====== Copy Data ======
+    lastRowSrc = srcWS.Cells(srcWS.Rows.Count, 1).End(xlUp).Row
+    Dim r As Long
+
+    Application.ScreenUpdating = False
+
+    For r = 2 To lastRowSrc ' bắt đầu từ dòng 2 (sau header)
+        For i = 1 To mapCount
+            tgtWS.Cells(r + 2, tgtColIndexes(i)).Value = srcWS.Cells(r, srcColIndexes(i)).Value
+        Next i
+
+        If r Mod 1000 = 0 Then DoEvents ' tránh freeze Excel
+    Next r
+
+    Application.ScreenUpdating = True
+
+    MsgBox "Copy hoàn tất: " & (lastRowSrc - 1) & " dòng được chuyển!"
+
+    srcWB.Close SaveChanges:=False
+    tgtWB.Save
+    tgtWB.Close
+
+End Sub
+```
+
+---
+
+## ✅ Cách sử dụng:
+
+1. Mở file đích (`target.xlsm`), nhấn `Alt + F11`, chèn module và dán code.
+2. Nhấn `F5` hoặc chạy macro `CopyMatchingColumnsFromSourceToTarget`.
+3. Chọn **file nguồn**, sau đó chọn **file đích**.
+4. Macro sẽ:
+   - Tự động đối chiếu tên cột.
+   - Dán dữ liệu vào dòng 4.
+   - Bỏ qua các cột không trùng tên.
+
+---
+
+## 🧪 Test file mẫu?
+Bạn muốn mình gửi luôn file `.xlsm` + `.xlsx` + macro `.bas` và flow `.xaml` mẫu cho giải pháp này không?
