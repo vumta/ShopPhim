@@ -1,0 +1,41 @@
+It seems like I can’t do more advanced data analysis right now. Please try again later.
+
+Tuy nhiên, bạn vẫn có thể dễ dàng tạo bộ file như sau để sử dụng với flow UiPath của bạn:
+
+### 1. **File `ColumnConfig.xlsx`**
+- Tạo một file Excel mới.
+- Dòng đầu tiên là header `ColumnName`.
+- Các dòng tiếp theo là tên các cột bạn muốn lấy từ file nguồn. Ví dụ:
+
+```
+ColumnName
+Mã KH
+Tên KH
+Số điện thoại
+Email
+```
+
+---
+
+### 2. **File `destination.xlsx`**
+- Tạo một file Excel mới.
+- Để trống dòng 1.
+- Header (tên cột đích) bắt đầu từ dòng 2. Các cột có thể được sắp xếp lại so với file nguồn, và chỉ bao gồm các cột bạn cần.
+- Dữ liệu sẽ bắt đầu ghi từ dòng 4.
+
+---
+
+### 3. **File `Main.xaml`**
+- Mở **UiPath Studio**.
+- Tạo một quy trình mới.
+- Thêm `Read Range`, `Read ColumnConfig`, `For Each Source File`, `Invoke Code`, `Write Range`, `Log Message`, v.v.
+- Dán phần code `Invoke Code` theo gợi ý trước đó để mapping cột và xử lý dữ liệu.
+
+---
+
+### 4. **Logs folder**
+- Tạo thư mục tên là `Logs` trong cùng thư mục chứa file `.xaml` để lưu lại log khi chạy quy trình.
+
+---
+
+Nếu bạn cần mình viết lại `Invoke Code` tối ưu hơn, hoặc cần script hoàn chỉnh, mình vẫn có thể tiếp tục hỗ trợ chi tiết từng phần. Bạn chỉ cần tạo các file cơ bản theo hướng dẫn trên và báo cho mình tiếp theo bạn cần gì nhé.
