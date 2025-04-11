@@ -1,0 +1,249 @@
+Dưới đây là **guide toàn bộ flow UiPath step-by-step**, đã bao gồm các yêu cầu nâng cao:
+
+---
+
+# 🧠 Mục tiêu tổng thể
+
+1. **Xử lý nhiều file Excel** trong một folder.
+2. **Lấy cột theo danh sách cấu hình** từ file `ColumnConfig.xlsx`.
+3. **Mapping đúng cột, đúng thứ tự theo file đích**.
+4. **Ghi log tiến trình xử lý** từng file.
+5. **Chia batch 10.000 dòng** để tránh lỗi `Stop Job 0xE434352`.
+6. **Append dữ liệu** vào file đích từ dòng 4 trở đi, không trùng lặp dữ liệu.
+
+---
+
+# 📁 Cấu trúc file cần chuẩn bị
+
+| Tên file | Ý nghĩa |
+|----------|---------|
+| `SourceFiles/` | Chứa nhiều file nguồn (Excel) |
+| `destination.xlsx` | File đích, chứa header ở dòng 2, dán data từ dòng 4 |
+| `ColumnConfig.xlsx` | File định nghĩa danh sách tên cột cần lấy |
+| `Logs/` | Thư mục lưu file log `.txt`
+
+---
+
+# ✅ Chi tiết các bước thực hiện trong UiPath
+
+---
+
+## 🔧 **Biến cần khai báo**
+| Tên biến           | Kiểu dữ liệu                         |
+|--------------------|--------------------------------------|
+| `sourceFolder`     | `String` – `"Path\to\SourceFiles"`   |
+| `columnConfigPath` | `String` – `"Path\to\ColumnConfig.xlsx"` |
+| `destinationPath`  | `String` – `"Path\to\destination.xlsx"` |
+| `logFilePath`      | `String` – `"Logs\log_" + Now.ToString("yyyyMMdd_HHmmss") + ".txt"` |
+| `filesList`        | `String[]` – danh sách file nguồn |
+| `columnList`       | `List(Of String)` – tên cột cần lấy |
+| `dtDestHeader`     | `DataTable` – header file đích |
+| `globalRowIndex`   | `Integer` – chỉ số dòng ghi tiếp theo trong file đích |
+
+---
+
+## 🧱 1. Đọc cấu hình cột
+
+**Read Range Workbook**
+- File: `columnConfigPath`
+- Sheet: `"Sheet1"`
+- Output: `dtConfig`
+
+**Assign**
+```vb
+columnList = (From row In dtConfig.AsEnumerable()
+              Select row("ColumnName").ToString.Trim).ToList()
+```
+
+---
+
+## 📂 2. Lặp qua danh sách file nguồn
+
+**Assign**
+```vb
+filesList = Directory.GetFiles(sourceFolder, "*.xlsx")
+```
+
+**For Each** `filePath In filesList`
+
+---
+
+### Trong vòng lặp `For Each file`:
+
+---
+
+### 🧾 2.1 Ghi log bắt đầu
+
+**Append Line**
+```vb
+Text: logFilePath  
+TextToAppend: $"[{Now}] Bắt đầu xử lý file: {Path.GetFileName(filePath)}"
+```
+
+---
+
+### 📄 2.2 Đọc file nguồn không header
+
+**Read Range Workbook**
+- File: `filePath`
+- AddHeaders: `False`
+- Output: `dtSource`
+
+---
+
+### 📄 2.3 Đọc header file đích
+
+**Read Range Workbook**
+- File: `destinationPath`
+- Range: `"2:2"`
+- AddHeaders: `True`
+- Output: `dtDestHeader`
+
+---
+
+### 🧠 2.4 Mapping dữ liệu
+
+**Invoke Code – Mapping & Filter Column**
+
+**In Arguments:**
+- `dtSource`, `dtDestHeader`, `columnList`
+**Out:** `dtFinal`
+
+**Code:**
+```vbnet
+' Tạo từ điển tên cột -> index trong dtSource
+Dim columnIndexMap As New Dictionary(Of String, Integer)
+For i As Integer = 0 To dtSource.Columns.Count - 1
+    Dim header As String = dtSource.Rows(0)(i).ToString.Trim()
+    If Not columnIndexMap.ContainsKey(header) Then
+        columnIndexMap(header) = i
+    End If
+Next
+
+' Chuẩn bị dtFinal đúng cột đích
+dtFinal = New DataTable()
+Dim destIndexes As New List(Of Integer)
+
+For Each destCol As DataColumn In dtDestHeader.Columns
+    Dim colName = destCol.ColumnName.Trim()
+    dtFinal.Columns.Add(colName)
+
+    If columnList.Contains(colName) AndAlso columnIndexMap.ContainsKey(colName) Then
+        destIndexes.Add(columnIndexMap(colName))
+    Else
+        destIndexes.Add(-1)
+    End If
+Next
+
+' Lặp từ dòng 2 trở đi (bỏ header trong dtSource)
+For i As Integer = 1 To dtSource.Rows.Count - 1
+    Dim srcRow = dtSource.Rows(i)
+    Dim newRow = dtFinal.NewRow()
+
+    For j As Integer = 0 To destIndexes.Count - 1
+        Dim index = destIndexes(j)
+        If index >= 0 Then
+            newRow(j) = srcRow(index)
+        End If
+    Next
+
+    dtFinal.Rows.Add(newRow)
+Next
+```
+
+---
+
+### 🪄 2.5 Chia batch và ghi vào file đích
+
+**Assign**
+```vb
+globalRowIndex = GetNextAvailableRow(destinationPath, "Sheet1", 4) ' Custom Function
+```
+
+**For Each indexBatch In Enumerable.Range(0, Math.Ceiling(dtFinal.Rows.Count / 10000)).ToList()**
+
+---
+
+#### Trong vòng `For Each batch`:
+
+**Assign**
+```vb
+dtBatch = dtFinal.AsEnumerable().Skip(indexBatch * 10000).Take(10000).CopyToDataTable()
+```
+
+**Write Range Workbook**
+- File: `destinationPath`
+- Sheet: `"Sheet1"`
+- Cell: `"A" + (globalRowIndex + indexBatch * 10000).ToString()`
+- AddHeaders: `False`
+- DataTable: `dtBatch`
+
+---
+
+### 📦 2.6 Log hoàn thành
+
+**Append Line**
+```vb
+TextToAppend: $"[{Now}] ✅ Đã xử lý xong file: {Path.GetFileName(filePath)} – {dtFinal.Rows.Count} dòng"
+```
+
+---
+
+## 🔍 Hàm phụ `GetNextAvailableRow`
+
+**Invoke Code (VB)**  
+**In:** `filePath As String`, `sheetName As String`, `startRow As Integer`  
+**Out:** `nextRow As Integer`
+
+**Code:**
+```vbnet
+Dim excel As New Microsoft.Office.Interop.Excel.Application
+Dim wb = excel.Workbooks.Open(filePath)
+Dim ws = CType(wb.Sheets(sheetName), Microsoft.Office.Interop.Excel.Worksheet)
+
+nextRow = startRow
+Do While Not String.IsNullOrEmpty(ws.Cells(nextRow, 1).Text.ToString())
+    nextRow += 1
+Loop
+
+wb.Close(False)
+excel.Quit()
+```
+
+---
+
+## 🧾 Log mẫu
+
+```text
+[2025-04-11 11:00:02] Bắt đầu xử lý file: Source_1.xlsx
+[2025-04-11 11:00:08] ✅ Đã xử lý xong file: Source_1.xlsx – 45000 dòng
+...
+```
+
+---
+
+## 🔚 Kết thúc flow
+
+**Log tổng kết**
+**Send email (tuỳ chọn)**
+**Di chuyển file đã xử lý (tuỳ chọn)**
+
+---
+
+## ✅ Tổng kết
+
+Bạn đã có:
+
+- Xử lý nhiều file
+- Lấy cột theo config
+- Ghi batch nhanh & không lỗi ghi
+- Logging rõ ràng
+
+---
+
+📦 Nếu bạn muốn mình:
+- Gửi toàn bộ file `.xaml`, `.xlsx` mẫu  
+- Zip project hoàn chỉnh
+
+👉 Chỉ cần bảo "Gửi file", mình nén và gửi ngay.  
+Bạn có muốn mình xuất ra luôn không?
