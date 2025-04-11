@@ -1,0 +1,83 @@
+Lỗi liên quan đến `targetSheet.Rows(1)` có thể xảy ra khi bạn gọi một dòng nhưng đối tượng `targetSheet` chưa được xác định đúng hoặc do nội dung của dòng không phù hợp. Để khắc phục, bạn có thể thực hiện các điều chỉnh sau:
+
+### Cách sửa lỗi:
+1. **Kiểm tra targetSheet**:
+   - Hãy đảm bảo rằng `targetSheet` đã được gán đúng. Trong mã của bạn, `Set targetSheet = targetWorkbook.Sheets(1)` đảm bảo rằng bạn đang lấy sheet đầu tiên của workbook đích.
+   - Nếu sheet đầu tiên không tồn tại, hoặc workbook không mở được, lỗi sẽ xuất hiện. Hãy kiểm tra xem file đích có sheet hợp lệ không.
+
+2. **Kiểm tra nội dung Rows(1)**:
+   - `Rows(1)` đại diện cho dòng đầu tiên của sheet. Nếu dòng đầu tiên này trống hoặc có dữ liệu không phù hợp (ví dụ: lỗi định dạng), code sẽ không tìm được tên cột.
+
+3. **Sửa đoạn mã để tránh lỗi**:
+   Dưới đây là phiên bản mã được sửa đổi để tăng độ bền khi xử lý `Rows(1)`:
+
+   ```vba
+   Sub OptimizedCopyPasteBySheetIndex()
+       Dim sourceWorkbook As Workbook
+       Dim targetWorkbook As Workbook
+       Dim sourceSheet As Worksheet
+       Dim targetSheet As Worksheet
+       Dim sourceColumns As Variant
+       Dim targetCol As Integer
+       Dim lastRow As Long
+       Dim sourceData As Variant
+       Dim i As Integer
+
+       ' Mở file gốc và file đích
+       Set sourceWorkbook = Workbooks.Open("C:\DuongDan\FileGoc.xlsx")
+       Set targetWorkbook = Workbooks.Open("C:\DuongDan\FileDich.xlsx")
+
+       ' Lấy sheet theo thứ tự (ví dụ: sheet đầu tiên)
+       Set sourceSheet = sourceWorkbook.Sheets(1) ' Sheet đầu tiên của file gốc
+       Set targetSheet = targetWorkbook.Sheets(1) ' Sheet đầu tiên của file đích
+
+       ' Kiểm tra xem targetSheet có dữ liệu không
+       If targetSheet.UsedRange.Rows.Count = 0 Then
+           MsgBox "Sheet đích không có dữ liệu!", vbExclamation
+           Exit Sub
+       End If
+
+       ' Các cột cần sao chép (thay đổi theo nhu cầu)
+       sourceColumns = Array("Column1", "Column2", "Column3")
+
+       ' Duyệt qua các cột được chỉ định
+       For i = LBound(sourceColumns) To UBound(sourceColumns)
+           ' Tìm cột đích có cùng tên
+           On Error Resume Next
+           targetCol = 0
+           targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(1), 0)
+           On Error GoTo 0
+
+           If targetCol > 0 Then
+               ' Xác định số hàng cuối cùng trong cột gốc
+               lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+               ' Sao chép dữ liệu vào mảng
+               sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                              sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+               ' Dán dữ liệu vào cột đích từ mảng
+               targetSheet.Range(targetSheet.Cells(2, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 1, targetCol)).Value = sourceData
+           Else
+               MsgBox "Không tìm thấy cột đích cho " & sourceColumns(i), vbExclamation
+           End If
+       Next i
+
+       ' Lưu và đóng file
+       targetWorkbook.Save
+       sourceWorkbook.Close False
+       targetWorkbook.Close True
+
+       MsgBox "Hoàn thành sao chép dữ liệu với sheet theo thứ tự!"
+   End Sub
+   ```
+
+### Giải pháp:
+1. **Kiểm tra dòng đầu tiên**:
+   - Code kiểm tra nếu dòng đầu tiên (Rows(1)) không có dữ liệu để tránh lỗi khi sử dụng hàm `Application.Match`.
+   - Nếu không có dữ liệu, sẽ hiển thị thông báo lỗi để bạn biết vấn đề.
+
+2. **Xử lý lỗi cột không tìm thấy**:
+   - Nếu không tìm được cột đích trong `targetSheet.Rows(1)`, một thông báo cụ thể sẽ được hiển thị.
+
+Hãy thử áp dụng và cho tôi biết nếu vẫn gặp vấn đề nhé! 😊
