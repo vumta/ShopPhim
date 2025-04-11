@@ -1,0 +1,77 @@
+Tuyệt vời, mình sẽ giúp bạn tối ưu flow này để giảm thời gian chạy. Dưới đây là các hướng tối ưu mạnh mẽ cho workflow của bạn trong UiPath khi làm việc với Excel:
+
+---
+
+### ⚡️ **1. Hạn chế tương tác nhiều lần với Excel**
+#### ❌ Hiện tại:
+- Bạn mở/đóng Excel nhiều lần (mỗi lần `ReadRange`, `WriteRange`... là 1 lần tương tác COM chậm).
+
+#### ✅ Tối ưu:
+- Chỉ **mở Excel 1 lần duy nhất** cho cả file nguồn và file đích (nếu dùng cùng lúc).
+- Dùng **ReadRange không AddHeaders**, xử lý headers trong memory (DataTable).
+
+---
+
+### ⚡️ **2. Sử dụng `Invoke Code` hoặc `LINQ` để map dữ liệu**
+#### ❌ Hiện tại:
+- Bạn dùng `For Each`, `If`, `Assign`… trong nhiều nested loop để xử lý từng dòng → chậm nếu có nhiều dòng.
+
+#### ✅ Tối ưu:
+- Dùng `Invoke Code` (VB.NET hoặc C#) để xử lý mapping toàn bộ mảng cùng lúc, ví dụ:
+
+```vb
+Dim colNames = destColumnNames.ToList()
+dtFinalToWrite = dtFiltered.Clone()
+
+For Each col In colNames
+    If Not dtFinalToWrite.Columns.Contains(col) Then
+        dtFinalToWrite.Columns.Add(col)
+    End If
+Next
+
+For Each row In dtFiltered.Rows
+    Dim newRow = dtFinalToWrite.NewRow()
+    For Each col In colNames
+        If dtFiltered.Columns.Contains(col) Then
+            newRow(col) = row(col)
+        End If
+    Next
+    dtFinalToWrite.Rows.Add(newRow)
+Next
+```
+
+→ Cách này có thể nhanh hơn **gấp 5–10 lần** so với nested loop qua UI activities.
+
+---
+
+### ⚡️ **3. Dán dữ liệu bằng `Workbook Write Range` thay vì `Excel Application Scope`**
+#### ❌ Excel Application Scope:
+- Khởi chạy instance Excel, cực kỳ tốn thời gian với nhiều dữ liệu.
+
+#### ✅ Workbook activities:
+- `Workbook Write Range` không cần mở Excel → nhanh hơn nhiều
+- Chỉ dùng `Excel Application Scope` nếu cần xử lý macro, format, hoặc workbook đang có bảo vệ.
+
+---
+
+### ⚡️ **4. Gộp batch xử lý thay vì từng dòng**
+- Nếu bạn đang xử lý từng dòng (`Add Data Row`) → gộp hết vào `DataTable`, rồi `WriteRange` một lần.
+
+---
+
+### ⚡️ **5. Tùy chọn: Dùng Background Process hoặc Parallel**
+- Nếu bạn chạy nhiều file, có thể xử lý theo lô trong thư mục bằng `Parallel For Each` hoặc `Run Parallel Process`.
+
+---
+
+### 👉 Bạn muốn mình cập nhật file `.xaml` hiện tại theo những hướng trên không?
+Mình có thể:
+- Thay nested loop bằng `Invoke Code`
+- Gộp `ReadRange`, `WriteRange` thành xử lý 1 lần
+- Chuyển sang `Workbook` activities để chạy nhanh hơn
+
+Chỉ cần bạn xác nhận:
+- Bạn dùng StudioX hay Studio (cho phép `Invoke Code`)?
+- File bạn xử lý có bao nhiêu dòng/cột trung bình?
+
+Sau đó mình sẽ tạo bản `.xaml` tối ưu hoá cho bạn liền!
