@@ -83,3 +83,91 @@ Next
 ---
 
 Bạn muốn mình tạo workflow mẫu `.xaml` cho bạn luôn không? Nếu có file Excel mẫu thì gửi lên để mình làm chuẩn theo nhé.
+========================================================================================================================================================
+Chắc chắn rồi! Bước số 4 là bước **mapping thứ tự cột từ nguồn sang đích** — tức là: từ `dtFiltered` (chứa các cột bạn đã chọn từ file nguồn) → tạo ra `dtFinalToWrite` có đúng **thứ tự cột giống file đích**, để đảm bảo dán dữ liệu vào đúng cột tương ứng.
+
+---
+
+## 🎯 Mục tiêu:
+- `dtFiltered` chứa các cột từ file nguồn: `"Tên", "Phòng ban", "Mã NV"`
+- File đích định nghĩa tên cột ở dòng 2: `"Mã NV", "Tên", "Email", "Phòng ban"`
+- Kết quả cần tạo `dtFinalToWrite` có cột theo thứ tự giống file đích
+- Nếu cột nào trong file đích không có ở nguồn thì để giá trị trống (null)
+
+---
+
+## 🔧 Các bước chi tiết trong UiPath cho bước này:
+
+### ✅ **1. Tạo biến mảng chứa tên cột của file đích**
+Biến này bạn lấy từ `dtHeaderDest` (DataTable bạn đọc từ dòng 2 của file đích):
+
+```vb
+destColumnNames = dtHeaderDest.Columns.Cast(Of DataColumn).Select(Function(col) col.ColumnName.Trim()).ToArray()
+```
+
+- **Kiểu dữ liệu của `destColumnNames`**: `String[]`
+
+---
+
+### ✅ **2. Tạo DataTable mới khớp cột với file đích**
+Dùng **Assign**:
+```vb
+dtFinalToWrite = New DataTable()
+```
+
+Sau đó, dùng **For Each activity**:
+
+- **For each item in:** `destColumnNames`
+- **TypeArgument:** `String`
+- **Body:** Dùng **Add Data Column** activity:
+  - **DataTable:** `dtFinalToWrite`
+  - **ColumnName:** `item`
+
+➡️ Lúc này, `dtFinalToWrite` có các cột khớp thứ tự với file đích.
+
+---
+
+### ✅ **3. Duyệt từng dòng trong `dtFiltered` để tạo dòng tương ứng trong `dtFinalToWrite`**
+
+Dùng **For Each Row**:
+
+- **DataTable:** `dtFiltered`
+- **CurrentRow (ví dụ):** `rowSource`
+
+Bên trong, dùng các bước sau:
+
+1. **Assign:** `newRow = dtFinalToWrite.NewRow()`  
+   (Khai báo biến `newRow` kiểu `DataRow`)
+
+2. **For Each colName In destColumnNames**
+   - **TypeArgument:** `String`
+
+   Bên trong:
+   - **If:** `dtFiltered.Columns.Contains(colName)`
+     - **Then Assign:** `newRow(colName) = rowSource(colName)`
+     - **Else Assign:** `newRow(colName) = Nothing`
+
+3. Sau vòng lặp con, **Add Data Row**:
+   - **DataTable:** `dtFinalToWrite`
+   - **ArrayRow:** `newRow.ItemArray`
+
+---
+
+### 🧠 Tóm tắt luồng logic (giống pseudo-code):
+
+```vb
+For each rowSource in dtFiltered
+    newRow = dtFinalToWrite.NewRow()
+    For each colName in destColumnNames
+        If dtFiltered.Columns.Contains(colName)
+            newRow(colName) = rowSource(colName)
+        Else
+            newRow(colName) = Nothing
+    Next
+    dtFinalToWrite.Rows.Add(newRow)
+Next
+```
+
+---
+
+Nếu bạn muốn mình gửi một **workflow mẫu `.xaml`**, mình có thể chuẩn bị file mẫu cho bạn. Bạn có muốn làm thử với file mẫu mình tạo sẵn hay muốn áp dụng ngay vào quy trình của bạn?
