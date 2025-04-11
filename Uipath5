@@ -1,0 +1,78 @@
+Cảm ơn bạn chia sẻ chi tiết! Với **dữ liệu lớn (90.000 dòng)** và việc chỉ **lấy một vài cột theo đúng thứ tự file đích**, chúng ta cần tối ưu `Invoke Code` để:
+
+1. Tránh dùng `DataRow.ImportRow` (rất chậm cho data lớn)  
+2. Tránh `.Contains()` trong mỗi vòng lặp → nên dùng **dictionary** để mapping nhanh  
+3. Chỉ copy đúng cột cần thiết, đúng thứ tự file đích
+
+---
+
+### ✅ **Code VB.NET đã được tối ưu hóa – rất nhanh với data lớn**
+```vbnet
+' Tạo từ điển map tên cột nguồn và index tương ứng
+Dim columnIndexMap As New Dictionary(Of String, Integer)
+For i As Integer = 0 To dtSource.Columns.Count - 1
+    Dim colName As String = dtSource.Rows(0)(i).ToString().Trim()
+    If Not columnIndexMap.ContainsKey(colName) Then
+        columnIndexMap(colName) = i
+    End If
+Next
+
+' Tạo bảng kết quả với đúng cột theo file đích
+dtFinal = New DataTable()
+Dim destColumnIndexes As New List(Of Integer)
+
+For Each destCol As DataColumn In dtDestHeader.Columns
+    Dim colName As String = destCol.ColumnName.Trim()
+    dtFinal.Columns.Add(colName)
+
+    If columnIndexMap.ContainsKey(colName) Then
+        destColumnIndexes.Add(columnIndexMap(colName))
+    Else
+        destColumnIndexes.Add(-1) ' Để trống nếu không tồn tại
+    End If
+Next
+
+' Lặp từ dòng thứ 2 trở đi trong dtSource (bỏ dòng tiêu đề)
+For i As Integer = 1 To dtSource.Rows.Count - 1
+    Dim srcRow = dtSource.Rows(i)
+    Dim newRow = dtFinal.NewRow()
+
+    For j As Integer = 0 To destColumnIndexes.Count - 1
+        Dim srcIndex = destColumnIndexes(j)
+        If srcIndex >= 0 Then
+            newRow(j) = srcRow(srcIndex)
+        End If
+    Next
+
+    dtFinal.Rows.Add(newRow)
+Next
+```
+
+---
+
+### 📝 Giải thích ưu điểm:
+| Tối ưu gì | Tác dụng |
+|----------|----------|
+| ✅ Dùng Dictionary | Truy cập index cột theo tên nhanh gấp nhiều lần `.Contains()` |
+| ✅ Tránh `.Clone()` và `ImportRow` | Giảm overhead, tăng tốc độ |
+| ✅ Chỉ lặp 2 vòng cố định | Không bị chồng chéo loop theo cột |
+| ✅ Hợp lý hóa cấu trúc bộ nhớ | Giảm rác sinh ra trong Runtime |
+
+---
+
+### 💡 Cách sử dụng:
+- Dán vào trong `Invoke Code` activity
+- Input:
+  - `dtSource` (đã đọc file nguồn, không có header)
+  - `dtDestHeader` (đọc dòng 2 file đích, dùng AddHeaders=True)
+- Output:
+  - `dtFinal`
+
+---
+
+Nếu bạn cần mình:
+- Xuất lại toàn bộ project `.zip` với code mới
+- Tự động detect encoding
+- Log tiến độ xử lý batch 10k rows
+
+→ Mình có thể hỗ trợ ngay nhé!
