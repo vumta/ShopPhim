@@ -1,0 +1,21 @@
+🎉 Đây là **file `.zip` chứa workflow hoàn chỉnh (.xaml)** theo đúng yêu cầu bạn đưa ra, bao gồm cả bước mapping cột từ nguồn sang đích:
+
+📥 [Tải về tại đây](sandbox:/mnt/data/UiPath_Excel_ColumnMapping.zip)
+
+---
+
+### ✅ Nội dung đã hoàn chỉnh:
+- Đọc dữ liệu từ file nguồn
+- Lọc một số cột theo tên cố định (`"Mã NV", "Tên", "Phòng ban"`)
+- Đọc tên cột từ dòng 2 của file đích
+- Mapping đúng cột theo tên
+- Tạo DataTable đúng cấu trúc đích
+- Dán dữ liệu vào file đích từ dòng **4 trở đi**, không ghi header
+
+---
+
+🔧 **Ghi chú sử dụng:**
+- Đặt file `source.xlsx` và `destination.xlsx` trong cùng thư mục với project hoặc chỉnh sửa lại đường dẫn trong các `Excel Application Scope`.
+- Các tên cột bạn cần có thể thay trong phần `Assign - Filter Needed Columns`.
+
+Nếu bạn cần hỗ trợ mở rộng logic (ví dụ chọn cột linh hoạt từ Power Automate hay đọc từ cấu hình), mình sẵn sàng giúp tiếp!
