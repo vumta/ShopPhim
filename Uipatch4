@@ -1,0 +1,134 @@
+Dưới đây là **hướng dẫn step-by-step** để bạn tự tay xây dựng lại flow tối ưu hóa trong **UiPath Studio**, không cần dùng file `.zip` nếu muốn làm thủ công.
+
+---
+
+## 🛠️ Mục tiêu:
+- Copy một số cột từ file Excel nguồn → dán vào file Excel đích
+- Mapping theo tên cột
+- Dán từ dòng **4** của file đích
+- **Tối ưu hóa tốc độ xử lý** bằng cách:
+  - Hạn chế `Excel Application Scope`
+  - Sử dụng `Invoke Code` thay cho nhiều loop
+  - Dùng `Workbook` activities (nhẹ, nhanh)
+
+---
+
+## ✅ Chuẩn bị:
+- `source.xlsx`: chứa toàn bộ dữ liệu (header ở dòng 1)
+- `destination.xlsx`: đã có header ở **dòng 2**, dữ liệu sẽ dán vào dòng **4 trở đi**
+
+---
+
+## 🔧 Các bước chi tiết:
+
+### 1️⃣ **Tạo Project**
+- Mở **UiPath Studio**
+- Chọn **Process** → đặt tên: `Excel_Column_Mapping_Optimized`
+
+---
+
+### 2️⃣ **Tạo 3 biến chính**
+| Tên biến      | Loại dữ liệu              | Ghi chú |
+|---------------|---------------------------|--------|
+| `dtSource`    | `System.Data.DataTable`   | Dữ liệu từ file nguồn |
+| `dtDestHeader`| `System.Data.DataTable`   | Dòng header từ file đích |
+| `dtFinal`     | `System.Data.DataTable`   | Kết quả mapping |
+
+---
+
+### 3️⃣ **Activity: ReadRangeWorkbook – Đọc file nguồn**
+- **Activity:** `Read Range Workbook`
+- **Workbook Path:** `source.xlsx`
+- **Sheet Name:** `Sheet1`
+- **Add Headers:** `False` ❗
+- **Output → dtSource**
+
+---
+
+### 4️⃣ **Activity: ReadRangeWorkbook – Đọc header file đích**
+- **Workbook Path:** `destination.xlsx`
+- **Range:** `2:2` → để chỉ đọc dòng 2
+- **Add Headers:** `True`
+- **Output → dtDestHeader**
+
+---
+
+### 5️⃣ **Activity: Invoke Code – Mapping & tạo bảng kết quả**
+- **Language:** VB
+- **Code:**
+
+```vb
+' Bỏ dòng header (dòng 0)
+Dim headerRow = dtSource.Rows(0)
+Dim contentRows = dtSource.Clone()
+
+For i = 1 To dtSource.Rows.Count - 1
+    contentRows.ImportRow(dtSource.Rows(i))
+Next
+
+' Lấy danh sách cột từ file đích (row 2)
+Dim destCols = New List(Of String)
+For Each col As DataColumn In dtDestHeader.Columns
+    destCols.Add(col.ColumnName.Trim())
+Next
+
+' Tạo bảng kết quả với cột đúng thứ tự
+dtFinal = New DataTable()
+For Each colName In destCols
+    dtFinal.Columns.Add(colName)
+Next
+
+' Mapping dữ liệu theo tên cột
+For Each row As DataRow In contentRows.Rows
+    Dim newRow = dtFinal.NewRow()
+    For Each colName In destCols
+        If contentRows.Columns.Contains(colName) Then
+            newRow(colName) = row(colName)
+        End If
+    Next
+    dtFinal.Rows.Add(newRow)
+Next
+```
+
+- **Arguments:**
+  - `dtSource` → **In** (`DataTable`)
+  - `dtDestHeader` → **In** (`DataTable`)
+  - `dtFinal` → **Out** (`DataTable`)
+
+---
+
+### 6️⃣ **Activity: WriteRangeWorkbook – Dán vào file đích**
+- **Workbook Path:** `destination.xlsx`
+- **Sheet:** `Sheet1`
+- **Starting Cell:** `A4`
+- **Add Headers:** `False`
+- **DataTable:** `dtFinal`
+
+---
+
+## 🎯 Tổng quan flow:
+
+```
+Sequence
+├── Read Range Workbook (dtSource)
+├── Read Range Workbook (dtDestHeader)
+├── Invoke Code (Mapping logic → dtFinal)
+└── Write Range Workbook (A4, dtFinal)
+```
+
+---
+
+## ✅ Kết quả đạt được:
+- Dán dữ liệu đúng cột, đúng thứ tự
+- Không lặp nhiều vòng lặp tốn thời gian
+- Tốc độ nhanh gấp nhiều lần so với bản đầu
+- Không cần mở Excel để xử lý
+
+---
+
+Nếu bạn cần mình hướng dẫn thêm để:
+- Làm dạng động với nhiều file
+- Cho phép người dùng chọn cột từ giao diện
+- Ghi log hoặc report
+
+→ Chỉ cần nói thôi nhé!
