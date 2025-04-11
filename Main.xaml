@@ -1,13 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Activity mc:Ignorable="sap sap2010" x:Class="Main" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:s1="clr-namespace:System.Collections.Generic;assembly=mscorlib" xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.uipath.com/workflow/activities" xmlns:ui1="http://schemas.uipath.com/workflow/activities/Excel" xmlns:sys="clr-namespace:System;assembly=mscorlib">
-  <x:Members>
-    <x:Property Name="dtFiltered" Type="InArgument(x:Array(x:Object))" />
-    <x:Property Name="dtHeaderDest" Type="InArgument(x:Array(x:Object))" />
-    <x:Property Name="dtFinalToWrite" Type="OutArgument(x:Array(x:Object))" />
-  </x:Members>
-  <Sequence DisplayName="Map Columns From Source to Destination Order">
-    <Assign DisplayName="Create Final DataTable" To="[dtFinalToWrite]" Value="[New DataTable()]"/>
-    <!-- More logic should be inserted here to replicate the process -->
-    <!-- This is just a placeholder workflow structure -->
+<Activity x:Class="Main" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+ xmlns:s="clr-namespace:System;assembly=mscorlib"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:sa="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ mc:Ignorable="sap sap2010"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+  <Sequence DisplayName="Optimized Excel Column Mapping">
+
+    <ui:ReadRangeWorkbook DisplayName="Read Source Excel (No Headers)"
+        WorkbookPath="source.xlsx"
+        SheetName="Sheet1"
+        Range=""
+        AddHeaders="False"
+        Result="[dtSource]" />
+
+    <ui:ReadRangeWorkbook DisplayName="Read Destination Header (Row 2)"
+        WorkbookPath="destination.xlsx"
+        SheetName="Sheet1"
+        Range="2:2"
+        AddHeaders="True"
+        Result="[dtDestHeader]" />
+
+    <ui:InvokeCode DisplayName="Map and Reorder Columns"
+        Language="VB"
+        Code="
+Dim headerRow = dtSource.Rows(0)
+Dim contentRows = dtSource.Clone()
+For i = 1 To dtSource.Rows.Count - 1
+    contentRows.ImportRow(dtSource.Rows(i))
+Next
+
+Dim destCols = New List(Of String)
+For Each col As DataColumn In dtDestHeader.Columns
+    destCols.Add(col.ColumnName.Trim())
+Next
+
+dtFinal = New DataTable()
+For Each colName In destCols
+    dtFinal.Columns.Add(colName)
+Next
+
+For Each row As DataRow In contentRows.Rows
+    Dim newRow = dtFinal.NewRow()
+    For Each colName In destCols
+        If contentRows.Columns.Contains(colName) Then
+            newRow(colName) = row(colName)
+        End If
+    Next
+    dtFinal.Rows.Add(newRow)
+Next" >
+      <ui:InvokeCode.Arguments>
+        <ui:InArgument x:TypeArguments="x:Object" Name="dtSource" />
+        <ui:InArgument x:TypeArguments="x:Object" Name="dtDestHeader" />
+        <ui:OutArgument x:TypeArguments="x:Object" Name="dtFinal" />
+      </ui:InvokeCode.Arguments>
+    </ui:InvokeCode>
+
+    <ui:WriteRangeWorkbook DisplayName="Write Data to Destination (from row 4)"
+        WorkbookPath="destination.xlsx"
+        SheetName="Sheet1"
+        StartingCell="A4"
+        DataTable="[dtFinal]"
+        AddHeaders="False" />
+
   </Sequence>
 </Activity>
