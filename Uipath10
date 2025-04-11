@@ -1,0 +1,50 @@
+Đúng rồi! Trong UiPath, bạn **không thể dùng trực tiếp `Math.Ceiling()` chia số nguyên và gán vào `Enumerable.Range()`** như trong C# thuần. Hàm `Math.Ceiling` trả về `Double`, trong khi `Enumerable.Range()` yêu cầu `Integer` cho cả 2 tham số (start và count). Nếu không ép kiểu đúng, bạn sẽ gặp lỗi kiểu dữ liệu.
+
+---
+
+## ✅ Cách sửa lỗi chính xác:
+
+Giả sử bạn muốn xử lý `DataTable dtFinal` theo batch 10.000 dòng, dùng `For Each` để lặp qua các batch:
+
+```vb
+For Each indexBatch In Enumerable.Range(0, CInt(Math.Ceiling(dtFinal.Rows.Count / 10000.0)))
+```
+
+### ✅ Giải thích:
+- `dtFinal.Rows.Count / 10000.0` → ép về kiểu `Double`
+- `Math.Ceiling(...)` → kết quả vẫn là `Double`
+- `CInt(...)` → ép về `Integer` để dùng trong `Enumerable.Range`
+
+---
+
+## ✅ Sử dụng trong UiPath:
+
+### 1. **Assign** – tạo danh sách các batch:
+
+```vb
+batchCount = Enumerable.Range(0, CInt(Math.Ceiling(dtFinal.Rows.Count / 10000.0)))
+```
+
+> Biến `batchCount`: kiểu `IEnumerable(Of Integer)`
+
+---
+
+### 2. **For Each**:
+- **TypeArgument**: `Int32`
+- **Values**: `batchCount`
+
+---
+
+### 3. **Trong vòng lặp For Each**, bạn lấy batch như sau:
+
+```vb
+startRow = indexBatch * 10000
+endRow = Math.Min(startRow + 10000, dtFinal.Rows.Count)
+dtBatch = dtFinal.AsEnumerable().Skip(startRow).Take(endRow - startRow).CopyToDataTable()
+```
+
+> Đừng quên xử lý trường hợp `.CopyToDataTable()` bị lỗi nếu `.Take()` trả về 0 dòng. Có thể thêm kiểm tra `Any()` trước.
+
+---
+
+Bạn muốn mình giúp tạo luôn một snippet hoặc viết sẵn file `.xaml` dùng batch xử lý DataTable không?
