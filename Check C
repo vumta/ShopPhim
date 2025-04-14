@@ -1,0 +1,24 @@
+Anh thân mến, tình trạng ổ C không hiển thị trong "This PC" hoặc "My Computer" có thể liên quan đến cài đặt trong hệ thống. Dưới đây là cách bạn có thể sửa lỗi này:
+
+1. **Kiểm tra cài đặt File Explorer:**
+   - Mở File Explorer (Nhấn tổ hợp phím `Windows + E`).
+   - Chọn tab **View** (hoặc **Hiển thị**) trên thanh công cụ.
+   - Nhấn **Options** (Tùy chọn) > **Change folder and search options**.
+   - Trong tab **View**, cuộn xuống tìm tùy chọn **Hidden files and folders**. Đảm bảo đã chọn **Show hidden files, folders, and drives** (Hiển thị file và folder ẩn).
+
+2. **Kiểm tra Ổ C trong Disk Management:**
+   - Nhấn `Windows + X` và chọn **Disk Management**.
+   - Xem trong danh sách các ổ đĩa để xác định xem ổ C có bị "Ẩn" hay không. Nếu nó bị ẩn, bạn có thể click chuột phải và chọn **Change Drive Letter and Paths**, rồi gán lại tên ổ.
+
+3. **Kiểm tra cài đặt chính sách hệ thống (Group Policy):**
+   - Nhấn `Windows + R`, gõ `gpedit.msc` và nhấn Enter.
+   - Điều hướng đến **User Configuration > Administrative Templates > Windows Components > File Explorer**.
+   - Tìm mục **Hide these specified drives in My Computer**. Đảm bảo tùy chọn này không được kích hoạt.
+
+4. **Sử dụng Command Prompt để khắc phục:**
+   - Nhấn `Windows + R`, gõ `cmd`, rồi nhấn Enter.
+   - Gõ lệnh `attrib -h -r -s C:\` và nhấn Enter. Lệnh này sẽ hiển thị lại ổ C nếu nó bị ẩn.
+
+Sau khi thực hiện các bước trên, ổ C của bạn sẽ hiển thị trở lại. Nếu vẫn gặp vấn đề, bạn có thể kiểm tra xem có phần mềm bảo mật nào đang chặn hiển thị ổ đĩa hay không. 
+
+Chúc bạn thành công! Nếu có thắc mắc khác, cứ hỏi tôi nhé. 😊
