@@ -1,0 +1,244 @@
+Here is the updated VBA code where it first clears all rows from the table while keeping the headers intact. This modification ensures that existing data within the table is removed before copying new data:
+
+```vba
+Public Function CopyPasteWithParameters(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRow As Long
+    Dim sourceData As Variant
+    Dim i As Integer
+    Dim targetTable As ListObject
+
+    On Error GoTo ErrorHandler
+
+    ' Open source and target files based on provided paths
+    Set sourceWorkbook = Workbooks.Open(sourceFilePath)
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    
+    ' Get the first sheet from the source file and the second sheet from the target file
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Convert the column string into an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Identify the table in the target sheet
+    If targetSheet.ListObjects.Count > 0 Then
+        Set targetTable = targetSheet.ListObjects(1) ' Assuming there's only one table
+        ' Clear all rows in the table, keeping the header intact
+        If targetTable.DataBodyRange Is Nothing Then
+            ' Do nothing if the table has no rows
+        Else
+            targetTable.DataBodyRange.Delete
+        End If
+    Else
+        CopyPasteWithParameters = "Error: No table found in the target sheet."
+        GoTo CleanUp
+    End If
+
+    ' Check if the second row in the target sheet has data
+    If Application.CountA(targetSheet.Rows(2)) = 0 Then
+        CopyPasteWithParameters = "Error: Row 2 in the target sheet has no data. Please check."
+        GoTo CleanUp
+    End If
+
+    ' Loop through the specified columns
+    For i = LBound(sourceColumns) To UBound(sourceColumns)
+        ' Find the target column with the same name in row 2 of the target sheet
+        On Error Resume Next
+        targetCol = 0
+        targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(2), 0)
+        On Error GoTo 0
+
+        If targetCol > 0 Then
+            ' Determine the last row in the source column
+            lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+            ' Check if the source column has data
+            If lastRow < 2 Then
+                CopyPasteWithParameters = "Error: No data found in column " & sourceColumns(i) & " of the source file."
+                GoTo CleanUp
+            End If
+
+            ' Copy data into an array
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                           sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+            ' Paste data into the target column starting from row 5
+            targetSheet.Range(targetSheet.Cells(5, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 4, targetCol)).Value = sourceData
+        Else
+            CopyPasteWithParameters = "Error: Target column for " & sourceColumns(i) & " not found in the target file."
+            GoTo CleanUp
+        End If
+    Next i
+
+    ' Save and close files
+    targetWorkbook.Save
+    sourceWorkbook.Close False
+    targetWorkbook.Close True
+
+    CopyPasteWithParameters = "Success: Data has been copied and pasted successfully."
+    Exit Function
+
+ErrorHandler:
+    CopyPasteWithParameters = "Error: An error occurred during execution: " & Err.Description
+
+CleanUp:
+    ' Close files if needed
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+### Changes Made:
+1. **Clear Table Rows While Keeping Headers**:
+   - Added functionality to detect and clear all rows of the table in the target sheet, leaving only the header intact.
+   - Utilizes `ListObject.DataBodyRange.Delete` to remove existing data in the table.
+
+2. **Error Handling for Missing Tables**:
+   - Added a check to ensure the target sheet contains a table.
+   - If no table is found, returns an error message.
+
+### Step-by-Step Guide for Using Code in UiPath:
+1. **Prepare VBA**:
+   - Save the updated code as a `.bas` file.
+   - Import the `.bas` file into the Excel workbook.
+
+2. **Use UiPath Workflow**:
+   - Open the Excel file with the VBA macro using the **Excel Application Scope** activity.
+   - Invoke the `CopyPasteWithParameters` function using the **Invoke VBA** activity.
+   - Pass the following parameters:
+     - `sourceFilePath`: The absolute path of the source Excel file.
+     - `targetFilePath`: The absolute path of the target Excel file.
+     - `columnsToCopy`: Comma-separated column names (e.g., `"Column1,Column2,Column3"`).
+
+3. **Process Returned String**:
+   - Capture the returned string from the VBA function in UiPath.
+   - Use **Write Line** or **Log Message** to display the status of the operation (success or error).
+
+Let me know if you need additional clarification or adjustments! 😊
+======================================================================================================================================
+Dưới đây là phiên bản code đã được dịch qua tiếng Việt:
+
+```vba
+Public Function CopyPasteWithParameters(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRow As Long
+    Dim sourceData As Variant
+    Dim i As Integer
+    Dim targetTable As ListObject
+
+    On Error GoTo ErrorHandler
+
+    ' Mở file gốc và file đích từ đường dẫn được truyền vào
+    Set sourceWorkbook = Workbooks.Open(sourceFilePath)
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    
+    ' Lấy sheet đầu tiên từ file gốc và sheet thứ hai từ file đích
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Chuyển các tên cột từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xác định bảng trong sheet đích
+    If targetSheet.ListObjects.Count > 0 Then
+        Set targetTable = targetSheet.ListObjects(1) ' Giả định chỉ có một bảng
+        ' Xóa toàn bộ dòng trong bảng, giữ lại tiêu đề
+        If targetTable.DataBodyRange Is Nothing Then
+            ' Không làm gì nếu bảng không có dữ liệu
+        Else
+            targetTable.DataBodyRange.Delete
+        End If
+    Else
+        CopyPasteWithParameters = "Lỗi: Không tìm thấy bảng trong sheet đích."
+        GoTo CleanUp
+    End If
+
+    ' Kiểm tra xem hàng thứ 2 trong sheet đích có dữ liệu không
+    If Application.CountA(targetSheet.Rows(2)) = 0 Then
+        CopyPasteWithParameters = "Lỗi: Hàng thứ 2 trong sheet đích không có dữ liệu. Vui lòng kiểm tra."
+        GoTo CleanUp
+    End If
+
+    ' Duyệt qua các cột được chỉ định
+    For i = LBound(sourceColumns) To UBound(sourceColumns)
+        ' Tìm cột đích có tên giống nhau trong hàng thứ 2 của sheet đích
+        On Error Resume Next
+        targetCol = 0
+        targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(2), 0)
+        On Error GoTo 0
+
+        If targetCol > 0 Then
+            ' Xác định số hàng cuối cùng trong cột nguồn
+            lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+            ' Kiểm tra nếu cột nguồn không có dữ liệu
+            If lastRow < 2 Then
+                CopyPasteWithParameters = "Lỗi: Không tìm thấy dữ liệu trong cột " & sourceColumns(i) & " của file gốc."
+                GoTo CleanUp
+            End If
+
+            ' Sao chép dữ liệu vào mảng
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                           sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+            ' Dán dữ liệu vào cột đích, bắt đầu từ hàng thứ 5
+            targetSheet.Range(targetSheet.Cells(5, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 4, targetCol)).Value = sourceData
+        Else
+            CopyPasteWithParameters = "Lỗi: Không tìm thấy cột đích cho " & sourceColumns(i) & " trong file đích."
+            GoTo CleanUp
+        End If
+    Next i
+
+    ' Lưu và đóng file
+    targetWorkbook.Save
+    sourceWorkbook.Close False
+    targetWorkbook.Close True
+
+    CopyPasteWithParameters = "Thành công: Dữ liệu đã được sao chép và dán thành công."
+    Exit Function
+
+ErrorHandler:
+    CopyPasteWithParameters = "Lỗi: Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+### Những cập nhật:
+1. **Chuyển toàn bộ nội dung sang tiếng Việt**:
+   - Các phần bình luận và thông báo lỗi đều đã được dịch sang tiếng Việt.
+
+2. **Xóa toàn bộ dòng trong bảng nhưng giữ lại tiêu đề**:
+   - Đoạn code kiểm tra nếu bảng tồn tại và xóa tất cả dữ liệu trong bảng (không ảnh hưởng đến tiêu đề).
+
+### Hướng dẫn sử dụng:
+1. **Chuẩn bị file VBA**:
+   - Lưu đoạn code này thành file `.bas`.
+   - Import file `.bas` vào file Excel thông qua VBA Editor (Alt + F11 > File > Import).
+
+2. **Tích hợp với UiPath**:
+   - Sử dụng **Excel Application Scope** để mở file Excel có macro.
+   - Dùng activity **Invoke VBA** để gọi hàm `CopyPasteWithParameters`.
+   - Truyền tham số:
+     - `sourceFilePath`: Đường dẫn file gốc (VD: `"C:\DuongDan\FileGoc.xlsx"`).
+     - `targetFilePath`: Đường dẫn file đích (VD: `"C:\DuongDan\FileDich.xlsx"`).
+     - `columnsToCopy`: Danh sách tên cột (VD: `"Column1,Column2,Column3"`).
+
+3. **Xử lý kết quả**:
+   - Lấy chuỗi kết quả trả về từ VBA và xử lý trong UiPath (ví dụ: ghi nhật ký hoặc hiển thị thông báo).
+
+Nếu bạn cần hỗ trợ thêm, tôi luôn sẵn sàng giúp nhé! 😊
