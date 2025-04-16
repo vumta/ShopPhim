@@ -1,0 +1,236 @@
+Dưới đây là phiên bản cập nhật của code VBA để xóa dữ liệu từ dòng ngay sau header (hàng đầu tiên của bảng) mà không làm ảnh hưởng đến tiêu đề:
+
+```vba
+Public Function CopyPasteWithParameters(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRow As Long
+    Dim sourceData As Variant
+    Dim i As Integer
+    Dim targetTable As ListObject
+
+    On Error GoTo ErrorHandler
+
+    ' Mở file gốc và file đích từ đường dẫn được truyền vào
+    Set sourceWorkbook = Workbooks.Open(sourceFilePath)
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    
+    ' Lấy sheet đầu tiên từ file gốc và sheet thứ hai từ file đích
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Chuyển các tên cột từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xác định bảng trong sheet đích
+    If targetSheet.ListObjects.Count > 0 Then
+        Set targetTable = targetSheet.ListObjects(1) ' Giả định chỉ có một bảng
+        ' Xóa toàn bộ dữ liệu từ dòng sau header
+        If Not targetTable.DataBodyRange Is Nothing Then
+            targetTable.DataBodyRange.ClearContents
+        End If
+    Else
+        CopyPasteWithParameters = "Lỗi: Không tìm thấy bảng trong sheet đích."
+        GoTo CleanUp
+    End If
+
+    ' Kiểm tra xem hàng thứ 2 trong sheet đích có dữ liệu không
+    If Application.CountA(targetSheet.Rows(2)) = 0 Then
+        CopyPasteWithParameters = "Lỗi: Hàng thứ 2 trong sheet đích không có dữ liệu. Vui lòng kiểm tra."
+        GoTo CleanUp
+    End If
+
+    ' Duyệt qua các cột được chỉ định
+    For i = LBound(sourceColumns) To UBound(sourceColumns)
+        ' Tìm cột đích có tên giống nhau trong hàng thứ 2 của sheet đích
+        On Error Resume Next
+        targetCol = 0
+        targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(2), 0)
+        On Error GoTo 0
+
+        If targetCol > 0 Then
+            ' Xác định số hàng cuối cùng trong cột nguồn
+            lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+            ' Kiểm tra nếu cột nguồn không có dữ liệu
+            If lastRow < 2 Then
+                CopyPasteWithParameters = "Lỗi: Không tìm thấy dữ liệu trong cột " & sourceColumns(i) & " của file gốc."
+                GoTo CleanUp
+            End If
+
+            ' Sao chép dữ liệu vào mảng
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                           sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+            ' Dán dữ liệu vào cột đích, bắt đầu từ hàng thứ 5
+            targetSheet.Range(targetSheet.Cells(5, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 4, targetCol)).Value = sourceData
+        Else
+            CopyPasteWithParameters = "Lỗi: Không tìm thấy cột đích cho " & sourceColumns(i) & " trong file đích."
+            GoTo CleanUp
+        End If
+    Next i
+
+    ' Lưu và đóng file
+    targetWorkbook.Save
+    sourceWorkbook.Close False
+    targetWorkbook.Close True
+
+    CopyPasteWithParameters = "Thành công: Dữ liệu đã được sao chép và dán thành công."
+    Exit Function
+
+ErrorHandler:
+    CopyPasteWithParameters = "Lỗi: Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+### Cập nhật mới:
+1. **Xóa dữ liệu sau header**:
+   - Sử dụng `ClearContents` để xóa toàn bộ dữ liệu trong bảng, giữ nguyên header.
+   - Kiểm tra `DataBodyRange` để đảm bảo rằng bảng có dữ liệu trước khi thực hiện lệnh xóa.
+
+2. **Bảo vệ tiêu đề**:
+   - Đoạn code sẽ không xóa dòng header của bảng, đảm bảo cấu trúc bảng vẫn được giữ nguyên.
+
+### Hướng dẫn sử dụng:
+1. **Chuẩn bị file VBA**:
+   - Lưu code này thành file `.bas`.
+   - Import file `.bas` vào file Excel thông qua VBA Editor (Alt + F11 > File > Import).
+
+2. **Tích hợp với UiPath**:
+   - Sử dụng **Excel Application Scope** để mở file Excel có macro.
+   - Gọi hàm `CopyPasteWithParameters` thông qua **Invoke VBA**.
+   - Truyền các tham số:
+     - `sourceFilePath`: Đường dẫn file gốc (VD: `"C:\DuongDan\FileGoc.xlsx"`).
+     - `targetFilePath`: Đường dẫn file đích (VD: `"C:\DuongDan\FileDich.xlsx"`).
+     - `columnsToCopy`: Danh sách tên cột (VD: `"Column1,Column2,Column3"`).
+
+Nếu bạn cần thêm chỉnh sửa hoặc hỗ trợ, cứ nói nhé! 😊
+=======================================================================================================
+Dưới đây là phiên bản cập nhật của mã VBA, trong đó bạn có thể chỉ định một vị trí dòng bắt đầu (`row n`) và tất cả dữ liệu từ dòng đó trở đi sẽ bị xóa:
+
+```vba
+Public Function CopyPasteWithParameters(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String, ByVal startRow As Long) As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRow As Long
+    Dim sourceData As Variant
+    Dim i As Integer
+
+    On Error GoTo ErrorHandler
+
+    ' Mở file gốc và file đích từ đường dẫn được truyền vào
+    Set sourceWorkbook = Workbooks.Open(sourceFilePath)
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    
+    ' Lấy sheet đầu tiên từ file gốc và sheet thứ hai từ file đích
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Chuyển các tên cột từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xóa dữ liệu từ dòng startRow trở đi trong sheet đích
+    If startRow > 0 And startRow <= targetSheet.Rows.Count Then
+        On Error Resume Next
+        targetSheet.Rows(startRow & ":" & targetSheet.Rows.Count).ClearContents
+        On Error GoTo 0
+    Else
+        CopyPasteWithParameters = "Lỗi: Vị trí dòng bắt đầu (startRow) không hợp lệ."
+        GoTo CleanUp
+    End If
+
+    ' Kiểm tra xem hàng thứ 2 trong sheet đích có dữ liệu không
+    If Application.CountA(targetSheet.Rows(2)) = 0 Then
+        CopyPasteWithParameters = "Lỗi: Hàng thứ 2 trong sheet đích không có dữ liệu. Vui lòng kiểm tra."
+        GoTo CleanUp
+    End If
+
+    ' Duyệt qua các cột được chỉ định
+    For i = LBound(sourceColumns) To UBound(sourceColumns)
+        ' Tìm cột đích có tên giống nhau trong hàng thứ 2 của sheet đích
+        On Error Resume Next
+        targetCol = 0
+        targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(2), 0)
+        On Error GoTo 0
+
+        If targetCol > 0 Then
+            ' Xác định số hàng cuối cùng trong cột nguồn
+            lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+            ' Kiểm tra nếu cột nguồn không có dữ liệu
+            If lastRow < 2 Then
+                CopyPasteWithParameters = "Lỗi: Không tìm thấy dữ liệu trong cột " & sourceColumns(i) & " của file gốc."
+                GoTo CleanUp
+            End If
+
+            ' Sao chép dữ liệu vào mảng
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                           sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+            ' Dán dữ liệu vào cột đích, bắt đầu từ hàng thứ 5
+            targetSheet.Range(targetSheet.Cells(5, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 4, targetCol)).Value = sourceData
+        Else
+            CopyPasteWithParameters = "Lỗi: Không tìm thấy cột đích cho " & sourceColumns(i) & " trong file đích."
+            GoTo CleanUp
+        End If
+    Next i
+
+    ' Lưu và đóng file
+    targetWorkbook.Save
+    sourceWorkbook.Close False
+    targetWorkbook.Close True
+
+    CopyPasteWithParameters = "Thành công: Dữ liệu đã được sao chép và dán thành công."
+    Exit Function
+
+ErrorHandler:
+    CopyPasteWithParameters = "Lỗi: Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+### Những cập nhật chính:
+1. **Xóa dữ liệu từ một dòng cụ thể (`startRow`)**:
+   - Sử dụng tham số `startRow` để chỉ định dòng bắt đầu xóa dữ liệu trong sheet đích.
+   - Tất cả dữ liệu từ dòng `startRow` đến cuối sẽ bị xóa bằng cách sử dụng `ClearContents`.
+
+2. **Kiểm tra hợp lệ của `startRow`**:
+   - Đảm bảo `startRow` nằm trong phạm vi hợp lệ của sheet (lớn hơn 0 và nhỏ hơn hoặc bằng tổng số hàng).
+
+3. **Thêm tham số `startRow`**:
+   - Người dùng có thể truyền tham số này từ UiPath để xác định dòng bắt đầu xóa.
+
+### Hướng dẫn tích hợp với UiPath:
+1. **Chuẩn bị file VBA**:
+   - Lưu đoạn code này thành file `.bas`.
+   - Import file `.bas` vào file Excel thông qua VBA Editor (Alt + F11 > File > Import).
+
+2. **Cấu hình trong UiPath**:
+   - Dùng activity **Invoke VBA** để gọi hàm `CopyPasteWithParameters`.
+   - Truyền các tham số:
+     - `sourceFilePath`: Đường dẫn đến file gốc (VD: `"C:\DuongDan\FileGoc.xlsx"`).
+     - `targetFilePath`: Đường dẫn đến file đích (VD: `"C:\DuongDan\FileDich.xlsx"`).
+     - `columnsToCopy`: Danh sách tên cột cần sao chép (VD: `"Column1,Column2,Column3"`).
+     - `startRow`: Dòng bắt đầu xóa dữ liệu (VD: `5`).
+
+3. **Xử lý kết quả trả về**:
+   - Kết quả trả về sẽ là chuỗi trạng thái (thành công hoặc lỗi) để bạn xử lý thêm trong UiPath.
+
+Hãy thử nghiệm và cho tôi biết nếu bạn cần hỗ trợ thêm nhé! 😊
