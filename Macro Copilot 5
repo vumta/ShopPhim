@@ -1,0 +1,40 @@
+Nếu bạn muốn giữ lại hàng chứa công thức ngay sau tiêu đề và chỉ xóa dữ liệu từ hàng tiếp theo trở đi, bạn có thể sử dụng đoạn mã VBA sau:
+
+```vba
+Sub XoaDataSauCongThuc()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim rng As Range
+    Dim lastFormulaRow As Range
+    
+    ' Thay đổi tên Sheet và Table nếu cần
+    Set ws = ThisWorkbook.Sheets("Sheet1") ' Đổi "Sheet1" thành tên sheet của bạn
+    Set tbl = ws.ListObjects("Table1") ' Đổi "Table1" thành tên bảng của bạn
+    
+    ' Xác định hàng chứa dữ liệu (sau tiêu đề và hàng công thức)
+    If Not tbl Is Nothing Then
+        ' Hàng chứa công thức ngay sau tiêu đề
+        Set lastFormulaRow = tbl.HeaderRowRange.Offset(1)
+        
+        ' Xác định phạm vi cần xóa dữ liệu
+        Set rng = tbl.DataBodyRange
+        If Not rng Is Nothing Then
+            Set rng = rng.Offset(1).Resize(rng.Rows.Count - 1) ' Loại bỏ hàng công thức
+            rng.ClearContents
+        End If
+    End If
+End Sub
+```
+
+### Hướng dẫn thực hiện:
+1. Mở Excel, nhấn `Alt + F11` để mở **VBA Editor**.
+2. Trong VBA Editor, nhấn `Insert > Module` để tạo một Module mới.
+3. Sao chép đoạn mã trên và dán vào Module mới.
+4. Đóng VBA Editor và quay lại Excel.
+5. Nhấn `Alt + F8`, chọn **XoaDataSauCongThuc**, sau đó nhấn **Run**.
+
+Đoạn mã này đảm bảo rằng:
+- Hàng tiêu đề (**header**) và hàng công thức ngay sau tiêu đề sẽ được giữ lại.
+- Dữ liệu từ hàng sau hàng công thức sẽ bị xóa, nhưng không làm thay đổi cấu trúc bảng hoặc định dạng.
+
+Nếu bạn gặp khó khăn hoặc cần tinh chỉnh thêm, cứ thoải mái hỏi nhé! 😊
