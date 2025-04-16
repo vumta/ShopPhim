@@ -1,0 +1,115 @@
+Để truyền các parameter từ UiPath vào đoạn code VBA, chúng ta cần sử dụng các kỹ thuật như tạo `Public Sub` và nhận tham số qua các biến VBA. Dưới đây là phiên bản cập nhật của code VBA để nhận parameter, kèm hướng dẫn chi tiết từng bước.
+
+### Code VBA cập nhật với khả năng nhận parameter
+```vba
+Public Sub CopyPasteWithParameters(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String)
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRow As Long
+    Dim sourceData As Variant
+    Dim i As Integer
+    
+    On Error GoTo ErrorHandler
+
+    ' Mở file gốc và file đích từ đường dẫn truyền vào
+    Set sourceWorkbook = Workbooks.Open(sourceFilePath)
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    
+    ' Lấy sheet đầu tiên của file gốc và sheet thứ 2 của file đích
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Chuyển các cột từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Kiểm tra xem sheet đích có đủ dữ liệu trong hàng thứ 2
+    If Application.CountA(targetSheet.Rows(2)) = 0 Then
+        MsgBox "Hàng thứ 2 trong sheet đích không có dữ liệu! Vui lòng kiểm tra lại.", vbCritical
+        GoTo CleanUp
+    End If
+
+    ' Duyệt qua các cột được chỉ định
+    For i = LBound(sourceColumns) To UBound(sourceColumns)
+        ' Tìm cột đích có cùng tên trong hàng thứ 2 của sheet đích
+        On Error Resume Next
+        targetCol = 0
+        targetCol = Application.Match(sourceColumns(i), targetSheet.Rows(2), 0)
+        On Error GoTo 0
+
+        If targetCol > 0 Then
+            ' Xác định số hàng cuối cùng trong cột gốc
+            lastRow = sourceSheet.Cells(sourceSheet.Rows.Count, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)).End(xlUp).Row
+
+            ' Kiểm tra nếu không có dữ liệu ở cột nguồn
+            If lastRow < 2 Then
+                MsgBox "Không tìm thấy dữ liệu trong cột " & sourceColumns(i) & " của file gốc!", vbExclamation
+                GoTo CleanUp
+            End If
+
+            ' Sao chép dữ liệu vào mảng
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0)), _
+                                           sourceSheet.Cells(lastRow, Application.Match(sourceColumns(i), sourceSheet.Rows(1), 0))).Value
+
+            ' Dán dữ liệu vào cột đích từ hàng thứ 5
+            targetSheet.Range(targetSheet.Cells(5, targetCol), targetSheet.Cells(UBound(sourceData, 1) + 4, targetCol)).Value = sourceData
+        Else
+            MsgBox "Không tìm thấy cột đích cho " & sourceColumns(i) & " trong file đích!", vbExclamation
+        End If
+    Next i
+
+    ' Lưu và đóng file
+    targetWorkbook.Save
+    sourceWorkbook.Close False
+    targetWorkbook.Close True
+
+    MsgBox "Hoàn thành sao chép dữ liệu với sheet thứ 2 và hàng thứ 5 của đích!", vbInformation
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description, vbCritical
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Sub
+```
+
+### Hướng dẫn chi tiết để truyền parameter từ UiPath vào code VBA
+
+#### **1. Chuẩn bị file VBA**
+- Tạo file VBA (`.bas`) chứa đoạn mã ở trên.
+- Import file `.bas` này vào file Excel đích bằng cách:
+  - Mở VBA Editor (Alt + F11).
+  - Chọn `File > Import File` và chọn file `.bas`.
+
+#### **2. Tạo workflow trong UiPath**
+1. **Import file Excel**:
+   - Sử dụng UiPath activity **Excel Application Scope** để mở file Excel nơi macro đã được import.
+
+2. **Truyền parameter vào VBA**:
+   - Sử dụng activity **Invoke VBA** của UiPath:
+     - **Macro Name**: Điền tên macro là `CopyPasteWithParameters`.
+     - **Parameters**: Truyền các giá trị vào macro. Ví dụ:
+       - `sourceFilePath`: Đường dẫn tới file gốc.
+       - `targetFilePath`: Đường dẫn tới file đích.
+       - `columnsToCopy`: Tên các cột, phân tách bằng dấu phẩy (VD: `"Column1,Column2,Column3"`).
+
+3. **Setup workflow**:
+   - Kéo thả activity **Invoke VBA** vào trong flow.
+   - Đảm bảo đường dẫn file chính xác và macro VBA đã được import.
+
+#### **3. Kiểm tra kết quả**
+- Khi flow chạy, VBA sẽ nhận các parameter từ UiPath và thực hiện mã dựa trên giá trị được truyền vào.
+- Kiểm tra file đích để xác nhận dữ liệu đã được xử lý đúng.
+
+### Những lưu ý:
+- Đường dẫn file cần phải là tuyệt đối (full path).
+- File Excel đích phải chứa macro VBA đã được import trước khi UiPath gọi.
+- Nếu xảy ra lỗi, kiểm tra kỹ các giá trị được truyền vào (parameter).
+
+Nếu bạn cần hỗ trợ thêm trong việc tích hợp với UiPath, tôi luôn sẵn lòng giúp nhé! 😊
