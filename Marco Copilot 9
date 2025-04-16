@@ -1,0 +1,149 @@
+Dưới đây là phiên bản được cập nhật hoàn chỉnh của đoạn code VBA để đảm bảo tính hoạt động. Đồng thời, tôi sẽ hướng dẫn từng bước chi tiết cách triển khai nó:
+
+---
+
+### **Cập nhật code VBA**
+
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal targetSheetName As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+
+    On Error GoTo ErrorHandler
+
+    ' Phân tách danh sách các file nguồn từ chuỗi, cách nhau bởi dấu phẩy
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Mở file đích
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(targetSheetName) ' Xác định sheet mục tiêu trong file đích
+
+    ' Chuyển các tên cột từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xóa dữ liệu cũ trong file đích nhưng giữ lại tiêu đề
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Duyệt qua từng file nguồn
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        ' Mở file nguồn
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        Set sourceSheet = sourceWorkbook.Sheets(1) ' Lấy sheet đầu tiên trong file nguồn
+
+        ' Xác định dòng cuối cùng trong dữ liệu file nguồn
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Xác định dòng cuối cùng trong dữ liệu file đích
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Duyệt qua các cột được chỉ định
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            ' Tìm cột nguồn dựa trên tên cột
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            If sourceCol > 0 Then
+                ' Xác định dòng cuối cùng của dữ liệu trong cột nguồn
+                lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+                ' Sao chép dữ liệu từ cột nguồn
+                sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                ' Tìm cột đích dựa trên tên cột
+                targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+                If targetCol > 0 Then
+                    ' Dán dữ liệu vào cột đích tại file đích
+                    targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                      targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                Else
+                    ConsolidateMultipleFiles = "Lỗi: Không tìm thấy cột đích cho " & sourceColumns(j) & " trong file đích."
+                    GoTo CleanUp
+                End If
+            Else
+                ConsolidateMultipleFiles = "Lỗi: Không tìm thấy cột nguồn cho " & sourceColumns(j) & " trong file nguồn."
+                GoTo CleanUp
+            End If
+        Next j
+
+        ' Đóng file nguồn
+        sourceWorkbook.Close False
+    Next i
+
+    ' Lưu và đóng file đích
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ConsolidateMultipleFiles = "Thành công: Dữ liệu đã được sao chép từ nhiều file nguồn vào file đích."
+    Exit Function
+
+ErrorHandler:
+    ConsolidateMultipleFiles = "Lỗi: Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+---
+
+### **Hướng dẫn Step-by-Step**
+
+#### **1. Chuẩn bị file VBA**
+- Lưu đoạn mã trên vào file `.bas`:
+  - Mở VBA Editor trong Excel (Alt + F11).
+  - Chọn `File > Import File` để import file `.bas`.
+
+#### **2. Thiết lập dữ liệu**
+- **Các file nguồn** (`sourceFilePaths`):
+  - Chuẩn bị danh sách đường dẫn đầy đủ đến các file nguồn, phân cách bằng dấu phẩy:
+    ```
+    "C:\DuongDan\FileNguon1.xlsx,C:\DuongDan\FileNguon2.xlsx"
+    ```
+
+- **File đích** (`targetFilePath`):
+  - Đảm bảo file đích đã tồn tại. Nếu chưa có, tạo một file Excel mới.
+
+- **Tên sheet đích** (`targetSheetName`):
+  - Xác định tên của sheet trong file đích nơi bạn muốn hợp nhất dữ liệu.
+
+- **Tên các cột** (`columnsToCopy`):
+  - Danh sách các tên cột cần sao chép, phân cách bằng dấu phẩy:
+    ```
+    "Column1,Column2,Column3"
+    ```
+
+#### **3. Triển khai UiPath**
+1. **Sử dụng Excel Application Scope**:
+   - Dùng hoạt động `Excel Application Scope` để mở file Excel đích chứa macro VBA.
+
+2. **Invoke VBA**:
+   - Thêm activity `Invoke VBA` vào workflow.
+   - Cài đặt:
+     - **Macro Name**: Điền tên macro là `ConsolidateMultipleFiles`.
+     - **Parameters**: Truyền giá trị:
+       - `sourceFilePaths`: Danh sách các file nguồn.
+       - `targetFilePath`: Đường dẫn file đích.
+       - `targetSheetName`: Tên sheet trong file đích.
+       - `columnsToCopy`: Danh sách các cột.
+
+#### **4. Chạy và kiểm tra**
+- Chạy workflow trong UiPath.
+- Kiểm tra file đích để xác nhận dữ liệu từ tất cả file nguồn đã được hợp nhất.
+
+Nếu có bất kỳ vấn đề gì hoặc cần hướng dẫn chi tiết hơn, hãy cho tôi biết nhé! 😊
