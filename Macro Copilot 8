@@ -1,0 +1,130 @@
+Dưới đây là đoạn code VBA đã được cập nhật, cho phép đọc dữ liệu từ nhiều file nguồn (`sourceFilePath`) và ghi tất cả vào một file đích (`targetFilePath`):
+
+### Code VBA Cập nhật: Đọc và ghi nhiều file
+```vba
+Public Function CopyPasteMultipleSources(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+
+    On Error GoTo ErrorHandler
+
+    ' Phân tách danh sách các file nguồn từ chuỗi, cách nhau bởi dấu phẩy
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Mở file đích
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2) ' Sử dụng sheet thứ hai của file đích
+
+    ' Chuyển các tên cột từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xóa dữ liệu cũ trong file đích nhưng giữ lại tiêu đề
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Duyệt qua từng file nguồn
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        ' Mở file nguồn
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        Set sourceSheet = sourceWorkbook.Sheets(1) ' Lấy sheet đầu tiên trong file nguồn
+
+        ' Xác định dòng cuối cùng trong dữ liệu file nguồn
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Xác định dòng cuối cùng trong dữ liệu file đích
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Duyệt qua các cột được chỉ định
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            ' Tìm cột nguồn dựa trên tên cột
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            If sourceCol > 0 Then
+                ' Xác định dòng cuối cùng của dữ liệu trong cột nguồn
+                lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+                ' Sao chép dữ liệu từ cột nguồn
+                sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                ' Tìm cột đích dựa trên tên cột
+                targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(2), 0)
+
+                If targetCol > 0 Then
+                    ' Dán dữ liệu vào cột đích tại file đích
+                    targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                      targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                Else
+                    CopyPasteMultipleSources = "Lỗi: Không tìm thấy cột đích cho " & sourceColumns(j) & " trong file đích."
+                    GoTo CleanUp
+                End If
+            Else
+                CopyPasteMultipleSources = "Lỗi: Không tìm thấy cột nguồn cho " & sourceColumns(j) & " trong file nguồn."
+                GoTo CleanUp
+            End If
+        Next j
+
+        ' Đóng file nguồn
+        sourceWorkbook.Close False
+    Next i
+
+    ' Lưu và đóng file đích
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    CopyPasteMultipleSources = "Thành công: Dữ liệu đã được sao chép từ nhiều file nguồn vào file đích."
+    Exit Function
+
+ErrorHandler:
+    CopyPasteMultipleSources = "Lỗi: Đã xảy ra lỗi trong quá trình thực thi: " & Err.Description
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+### Các cập nhật trong đoạn code:
+1. **Đọc nhiều file nguồn**:
+   - `sourceFilePaths`: Chứa danh sách các đường dẫn file nguồn, phân cách bằng dấu phẩy. Ví dụ: `"C:\File1.xlsx,C:\File2.xlsx"`.
+
+2. **Ghi vào file đích**:
+   - Mở file đích (`targetFilePath`) và ghép dữ liệu từ tất cả các file nguồn vào đúng các cột, dựa trên `columnsToCopy`.
+
+3. **Xóa dữ liệu cũ**:
+   - Xóa dữ liệu từ hàng thứ 2 trở đi trong file đích, giữ lại tiêu đề ở hàng 1.
+
+4. **Xử lý cột tương ứng**:
+   - Xác định cột trong file nguồn và file đích dựa trên tiêu đề cột.
+
+---
+
+### Hướng dẫn sử dụng:
+1. **Chuẩn bị file VBA**:
+   - Lưu đoạn code này thành file `.bas`.
+   - Import file `.bas` vào file Excel thông qua VBA Editor (Alt + F11 > File > Import).
+
+2. **Tích hợp với UiPath**:
+   - Dùng activity **Invoke VBA** để gọi hàm `CopyPasteMultipleSources`.
+   - Truyền tham số:
+     - `sourceFilePaths`: Danh sách các đường dẫn file nguồn, cách nhau bởi dấu phẩy.
+     - `targetFilePath`: Đường dẫn tới file Excel đích.
+     - `columnsToCopy`: Danh sách tên cột, ví dụ: `"Column1,Column2,Column3"`.
+
+3. **Kiểm tra kết quả**:
+   - Sau khi chạy, kiểm tra file đích để xem dữ liệu từ các file nguồn đã được hợp nhất.
+
+Nếu bạn cần thêm chỉnh sửa hoặc hướng dẫn chi tiết hơn, cứ nói nhé! 😊
