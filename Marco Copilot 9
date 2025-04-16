@@ -147,3 +147,110 @@ End Function
 - Kiểm tra file đích để xác nhận dữ liệu từ tất cả file nguồn đã được hợp nhất.
 
 Nếu có bất kỳ vấn đề gì hoặc cần hướng dẫn chi tiết hơn, hãy cho tôi biết nhé! 😊
+==========================================================================================================
+Here’s the updated version of your code with the comments translated into English:
+
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal targetSheetName As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+
+    On Error GoTo ErrorHandler
+
+    ' Split the list of source file paths by commas
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(targetSheetName) ' Specify the target sheet in the target file
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data from the target file but keep the headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Loop through each source file
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        ' Open the source file
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        Set sourceSheet = sourceWorkbook.Sheets(1) ' Use the first sheet from the source file
+
+        ' Determine the last row of data in the source file
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Determine the last row of data in the target file
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Loop through specified columns
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            ' Find the source column based on the column name
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            If sourceCol > 0 Then
+                ' Determine the last row of data in the source column
+                lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+                ' Copy data from the source column
+                sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                ' Find the target column based on the column name
+                targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+                If targetCol > 0 Then
+                    ' Paste data into the target column in the target file
+                    targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                      targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                Else
+                    ConsolidateMultipleFiles = "Error: Target column for " & sourceColumns(j) & " not found in the target file."
+                    GoTo CleanUp
+                End If
+            Else
+                ConsolidateMultipleFiles = "Error: Source column for " & sourceColumns(j) & " not found in the source file."
+                GoTo CleanUp
+            End If
+        Next j
+
+        ' Close the source file
+        sourceWorkbook.Close False
+    Next i
+
+    ' Save and close the target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ConsolidateMultipleFiles = "Success: Data has been copied from multiple source files to the target file."
+    Exit Function
+
+ErrorHandler:
+    ConsolidateMultipleFiles = "Error: An error occurred during execution: " & Err.Description
+
+CleanUp:
+    ' Close files if necessary
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+### All comments are now in English:
+1. **Descriptive explanations**:
+   - The comments explain each step clearly, including splitting file paths, opening files, clearing old data, finding columns, and pasting data.
+
+2. **Error handling**:
+   - Keeps the logic intact while making the comments universal for an English-speaking audience.
+
+Let me know if you need further modifications or clarification! 😊
