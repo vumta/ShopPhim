@@ -1,0 +1,82 @@
+Dưới đây là **snippet hoàn chỉnh** cho UiPath, chia thành từng phần bạn có thể copy vào **Assign**, **For Each**, **Build DataTable**, v.v. Nếu bạn muốn mình gói thành file `.xaml` mình cũng có thể gửi tiếp.
+
+---
+
+### 📌 1. Biến cần tạo
+
+| Tên biến         | Kiểu dữ liệu  |
+|------------------|---------------|
+| `rootFolderPath` | `String`      |
+| `sharePointRootUrl` | `String`  |
+| `excelOutputPath` | `String`     |
+| `imageFiles`     | `String[]`    |
+| `imageTable`     | `DataTable`   |
+| `fileName`       | `String`      |
+| `localPath`      | `String`      |
+| `sharePointPath` | `String`      |
+
+---
+
+### 📁 2. Lấy danh sách file ảnh từ folder & sub-folder
+
+**Assign activity:**
+```vb
+imageFiles = Directory.GetFiles(rootFolderPath, "*.*", SearchOption.AllDirectories).Where(Function(f) New String() {".jpg", ".jpeg", ".png", ".gif", ".bmp"}.Contains(Path.GetExtension(f).ToLower)).ToArray()
+```
+
+---
+
+### 📋 3. Tạo DataTable
+
+**Build DataTable activity**  
+Tạo 3 cột:
+- `Tên hình ảnh` (`String`)
+- `Đường dẫn local` (`String`)
+- `Đường dẫn SharePoint` (`String`)  
+Gán vào biến: `imageTable`
+
+---
+
+### 🔁 4. Duyệt file ảnh
+
+**For Each** → `item in imageFiles`  
+(TypeArgument: `String`)
+
+Trong loop, thêm các activity:
+
+**Assign:**
+```vb
+fileName = Path.GetFileName(item)
+```
+
+**Assign:**
+```vb
+localPath = item
+```
+
+**Assign:**
+```vb
+sharePointPath = item.Replace(rootFolderPath, sharePointRootUrl).Replace("\", "/")
+```
+
+**Add Data Row:**
+- **ArrayRow**: `{fileName, localPath, sharePointPath}`
+- **DataTable**: `imageTable`
+
+---
+
+### 📤 5. Ghi vào Excel từ dòng 5
+
+**Use Excel File** (ExcelPath = `excelOutputPath`)
+
+Bên trong:
+
+**Write Range to Excel**  
+- Sheet: `"Sheet1"` (đổi theo tên bạn có)  
+- Range: `"A5"`  
+- DataTable: `imageTable`  
+- IncludeHeaders: `False`
+
+---
+
+Nếu bạn cần file `.xaml`, mình có thể tạo rồi gửi qua dạng tải về. Bạn muốn dùng phiên bản UiPath nào (Classic hay Modern Activities)?
