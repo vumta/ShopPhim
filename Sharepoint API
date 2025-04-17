@@ -1,0 +1,65 @@
+Dưới đây là hướng dẫn chi tiết theo từng bước để sử dụng SharePoint Request API trong UiPath:
+
+---
+
+### **Bước 1: Cài đặt các gói cần thiết**
+1. Mở **UiPath Studio**.
+2. Chọn **Manage Packages** từ menu.
+3. Tìm kiếm và cài đặt gói **UiPath.WebAPI.Activities** để sử dụng hoạt động HTTP Request.
+
+---
+
+### **Bước 2: Lấy thông tin SharePoint API**
+1. Xác định API endpoint từ SharePoint (ví dụ: URL thư mục, danh sách cần truy cập).
+2. Đăng nhập vào SharePoint để lấy Access Token hoặc thông tin xác thực. Bạn có thể sử dụng Microsoft Graph API nếu cần Access Token.
+
+---
+
+### **Bước 3: Thêm hoạt động HTTP Request**
+1. Trong UiPath Studio, kéo hoạt động **HTTP Request** từ **Activities Panel** vào workflow.
+2. Điền thông tin:
+   - **Method**: Chọn GET/POST/PUT/DELETE tùy yêu cầu API.
+   - **Endpoint**: Dán URL API SharePoint.
+
+---
+
+### **Bước 4: Cấu hình Headers**
+1. Trong thuộc tính **Headers**, thêm:
+   - `Authorization`: `Bearer [Access Token]` (trong đó [Access Token] là token bạn vừa lấy được).
+   - `Content-Type`: `application/json`.
+
+---
+
+### **Bước 5: Tạo Body (nếu cần)**
+1. Nếu bạn thực hiện yêu cầu POST hoặc PUT, tạo dữ liệu dạng JSON cho thuộc tính **Body**:
+   ```json
+   {
+       "Title": "New Item",
+       "Description": "This is a test description."
+   }
+   ```
+2. Sử dụng hoạt động **Assign** để tạo Body hoặc nhập trực tiếp vào thuộc tính.
+
+---
+
+### **Bước 6: Xử lý Response**
+1. Khi yêu cầu hoàn tất, dữ liệu trả về sẽ được lưu trong Output Variable của hoạt động HTTP Request.
+2. Sử dụng hoạt động **Deserialize JSON** để phân tích cú pháp dữ liệu nhận được và sử dụng nó trong workflow.
+
+---
+
+### **Ví dụ thực tế: GET danh sách file từ SharePoint**
+1. Sử dụng API Endpoint:
+   ```
+   https://yoursharepointsite/_api/web/GetFolderByServerRelativeUrl('/YourFolder')/Files
+   ```
+2. Đặt Header với Access Token:
+   ```
+   Authorization: Bearer YOUR_ACCESS_TOKEN
+   Content-Type: application/json
+   ```
+3. Xử lý Response để hiển thị danh sách file.
+
+---
+
+Nếu bạn gặp vấn đề cụ thể ở bước nào, hãy cho tôi biết nhé! Tôi có thể hỗ trợ chi tiết hơn! 😊
