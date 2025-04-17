@@ -1,3 +1,301 @@
+Dưới đây là hướng dẫn chi tiết từng bước để bạn dùng NTLM Authentication trong UiPath, gọi SharePoint REST API:
+
+1. **Lấy danh sách file từ thư mục Source**  
+2. **Ghi metadata (tên, đường dẫn) vào Excel**  
+3. **Đọc Excel, rồi move từng file sang thư mục Destination**  
+
+---
+
+## 0. Chuẩn bị chung
+
+- Cài package **UiPath.WebAPI.Activities**  
+- Import namespace **Newtonsoft.Json.Linq** (nếu cần Deserialize JSON)  
+- Tạo một **Sequence** chính, và trong panel **Variables** thêm:
+
+| Tên biến         | Kiểu            | Mô tả                                                       |
+|------------------|-----------------|-------------------------------------------------------------|
+| `spSiteUrl`      | String          | `https://contoso.sharepoint.com/sites/MySite`              |
+| `domain`         | String          | (để trống hoặc `contoso`)                                   |
+| `spUsername`     | String          | `user@contoso.com`                                          |
+| `spPassword`     | SecureString    | password tương ứng                                          |
+| `libraryName`    | String          | Ví dụ `"Shared Documents"`                                  |
+| `sourceFolder`   | String          | Ví dụ `"FolderA"`                                           |
+| `destFolder`     | String          | Ví dụ `"FolderB"`                                           |
+| `excelFilePath`  | String          | Đường dẫn file Excel xuất ra, ví dụ `"C:\temp\Files.xlsx"` |
+
+---
+
+## 1. Lấy FormDigestValue (cho tất cả POST)
+
+1. **Sequence**: **Get Request Digest**  
+2. **HTTP Request** activity  
+   - **Endpoint**:  
+     ```vb
+     spSiteUrl + "/_api/contextinfo"
+     ```
+   - **Method**: POST  
+   - **Authentication**: NTLM (Domain/Username/Password như trên)  
+   - **Headers**:
+     | Name   | Value                             |
+     | ------ | --------------------------------- |
+     | Accept | `application/json;odata=verbose`  |
+   - **Outputs**:
+     - **Response** → `digestResponse` (String)  
+     - **StatusCode** → `digestStatus` (Int32)  
+
+3. **Deserialize JSON** → lưu vào `jDigest` (JObject)  
+4. **Extract**:
+   ```vb
+   formDigest = jDigest("d")("GetContextWebInformation")("FormDigestValue").ToString
+   ```
+
+---
+
+## 2. Lấy danh sách file & ghi vào Excel
+
+### 2.1. Lấy file list
+
+1. **Sequence**: **Get File List**  
+2. **HTTP Request** activity  
+   - **Endpoint**:
+     ```vb
+     spSiteUrl + 
+       "/_api/web/GetFolderByServerRelativeUrl('/" + libraryName + "/" + sourceFolder + "')/Files"
+     ```
+   - **Method**: GET  
+   - **Authentication**: NTLM  
+   - **Headers**:
+     | Name   | Value                            |
+     | ------ | -------------------------------- |
+     | Accept | `application/json;odata=verbose` |
+   - **Outputs**:
+     - **Response** → `filesResponse` (String)  
+     - **StatusCode** → `filesStatus` (Int32)  
+
+3. **If** `filesStatus <> 200` → Throw Exception / Log error  
+
+4. **Deserialize JSON**  
+   ```vb
+   jFiles = JObject.Parse(filesResponse)("d")("results")
+   ```
+5. **Build DataTable**  
+   - **Activity**: **Build Data Table**  
+   - Columns: `"Name"` (String), `"ServerRelativeUrl"` (String)  
+   - **Output** → `dtFiles`  
+
+6. **For Each** item in `jFiles` (TypeArgument = JToken)  
+   - **Assign**  
+     ```vb
+     row = dtFiles.NewRow()
+     row("Name") = item("Name").ToString
+     row("ServerRelativeUrl") = item("ServerRelativeUrl").ToString
+     dtFiles.Rows.Add(row)
+     ```
+
+### 2.2. Ghi DataTable ra Excel
+
+1. **Excel Application Scope** (`excelFilePath`)  
+2. **Write Range** (Sheet1!A1)  
+   - **DataTable**: `dtFiles`  
+   - **AddHeaders**: True  
+
+---
+
+## 3. Đọc Excel & Move File
+
+### 3.1. Đọc Excel
+
+1. **Sequence**: **Read Excel For Moves**  
+2. **Excel Application Scope** (`excelFilePath`)  
+3. **Read Range**  
+   - **SheetName**: `"Sheet1"`  
+   - **Range**: `""` (để lấy toàn sheet)  
+   - **Output** → `dtToMove` (DataTable)
+
+### 3.2. Move từng file
+
+1. **For Each Row** in `dtToMove`  
+2. **Build**  
+   ```vb
+   srcUrl = row("ServerRelativeUrl").ToString
+   dstUrl = "/" + libraryName + "/" + destFolder + "/" + row("Name").ToString
+   movetoEndpoint = spSiteUrl + "/_api/web/GetFileByServerRelativeUrl('" + srcUrl + "')/moveto(newurl='" + dstUrl + "',flags=1)"
+   ```
+3. **HTTP Request** activity  
+   - **Name**: `HTTP_MoveFile`  
+   - **Endpoint**: `movetoEndpoint`  
+   - **Method**: POST  
+   - **Authentication**: NTLM  
+   - **Headers**:
+     | Name            | Value                              |
+     | --------------- | ---------------------------------- |
+     | Accept          | `application/json;odata=verbose`   |
+     | Content-Type    | `application/json;odata=verbose`   |
+     | X-RequestDigest | `formDigest`                       |
+   - **Outputs**:
+     - **StatusCode** → `moveStatus` (Int32)  
+4. **If** `moveStatus = 200 Or moveStatus = 204` → Log “Moved `{row("Name")}` thành công”  
+   **Else** → Log “Lỗi di chuyển `{row("Name")}`: {moveStatus}”
+
+---
+
+## 4. Tóm tắt
+
+1. **Get Digest** (1 lần)  
+2. **GET /Files** → Build DataTable → Write Excel  
+3. **Read Excel** → For Each → POST /moveto → Move file  
+
+Với workflow trên, bạn đã hoàn toàn “skip” Azure AD, dùng NTLM để lấy file list, ghi metadata vào Excel, rồi dựa trên Excel để move file trong SharePoint. Nếu cần thêm paging (nếu >100 file), hoặc lọc file theo extension, bạn chỉ việc thêm `$top`/`$filter` vào URL GET. Chúc bạn thành công!
+=======
+Dưới đây là hướng dẫn chi tiết từng bước để bạn thiết lập và gọi SharePoint REST API bằng NTLM Authentication trong UiPath. Mình sẽ lấy ví dụ “Lấy danh sách Items” (GET) và “Tạo mới Item” (POST) trên một SharePoint Online site.
+
+---
+
+## 1. Chuẩn bị môi trường
+
+1. Mở UiPath Studio, tạo hoặc mở dự án của bạn.  
+2. Vào **Manage Packages** → cài **UiPath.WebAPI.Activities**.  
+3. (Nếu cần parse JSON) Vào **Imports** → thêm namespace `Newtonsoft.Json.Linq`.  
+
+---
+
+## 2. Thiết lập biến chung
+
+Trong panel **Variables** của Sequence chính, tạo các biến sau:
+
+| Tên biến       | Kiểu           | Mô tả                                    |
+| -------------- | -------------- | ---------------------------------------- |
+| `spSiteUrl`    | String         | URL site, ví dụ `https://contoso.sharepoint.com/sites/MySite` |
+| `spUsername`   | String         | Tài khoản có quyền truy cập (ví dụ: `user@contoso.com`)       |
+| `spPassword`   | SecureString   | Password (kéo thả vào để bảo mật)        |
+| `domain`       | String         | Domain (có thể để trống hoặc `contoso`)  |
+
+---
+
+## 3. Lấy danh sách Items (GET)
+
+1. **Tạo Sequence** mới, đặt tên “Get SP List Items”.  
+2. **Activity**: **HTTP Request** (UiPath.WebAPI.Activities)  
+   - **Name**: `HTTP_GetItems`  
+   - **Endpoint**:
+     ```
+     spSiteUrl + "/_api/web/lists/GetByTitle('MyList')/items"
+     ```
+   - **Method**: GET  
+   - **Authentication**:
+     - **Type**: NTLM  
+     - **Domain**: `domain`  
+     - **Username**: `spUsername`  
+     - **Password**: `spPassword`  
+   - **Headers**:
+     | Name      | Value                                 |
+     | --------- | ------------------------------------- |
+     | Accept    | `application/json;odata=verbose`      |
+   - **Outputs**:
+     - **Result** → `itemsResponse` (String)
+     - **StatusCode** → `itemsStatus` (Int32)
+
+3. **Kiểm tra StatusCode**  
+   - Thêm **If** activity: `itemsStatus = 200`  
+     - **Then**: tiếp tục  
+     - **Else**: Throw Business Rule Exception (tùy bạn)
+
+4. **Deserialize JSON**  
+   - **Activity**: **Deserialize JSON**  
+     - **Input**: `itemsResponse`  
+     - **TypeArgument**: `Newtonsoft.Json.Linq.JObject`  
+     - **Output**: `jItemsObj`
+
+5. **Lấy mảng results**  
+   ```vb
+   Dim results As JArray = jItemsObj("d")("results")
+   ```
+6. **For Each**  
+   - **TypeArgument**: `Newtonsoft.Json.Linq.JToken`  
+   - **Values**: `results`  
+   - **Body**: ví dụ `Log Message`: `item("Title").ToString`
+
+---
+
+## 4. Tạo mới Item (POST)
+
+> **Lưu ý**: Với POST/DELETE bạn vẫn cần form‑digest (Request Digest) để đảm bảo session.
+
+### 4.1. Lấy FormDigestValue
+
+1. **Sequence**: “Get Request Digest”  
+2. **HTTP Request**  
+   - **Name**: `HTTP_GetDigest`  
+   - **Endpoint**:  
+     ```
+     spSiteUrl + "/_api/contextinfo"
+     ```
+   - **Method**: POST  
+   - **Authentication**: giống bước GET (NTLM)  
+   - **Headers**:  
+     | Name   | Value                           |
+     | ------ | ------------------------------- |
+     | Accept | `application/json;odata=verbose`|
+   - **Outputs**:  
+     - `digestResponse` (String)  
+     - `digestStatus` (Int32)
+
+3. **Deserialize JSON** → `jDigestObj` (JObject)  
+4. **Extract FormDigestValue**  
+   ```vb
+   formDigest = jDigestObj("d")("GetContextWebInformation")("FormDigestValue").ToString
+   ```
+
+### 4.2. Gửi POST tạo Item
+
+1. **Sequence**: “Create SP List Item”  
+2. **HTTP Request**  
+   - **Name**: `HTTP_CreateItem`  
+   - **Endpoint**:  
+     ```
+     spSiteUrl + "/_api/web/lists/GetByTitle('MyList')/items"
+     ```
+   - **Method**: POST  
+   - **Authentication**: NTLM (giống trên)  
+   - **Headers**:  
+     | Name            | Value                                        |
+     | --------------- | -------------------------------------------- |
+     | Authorization   | (bỏ trống với NTLM)                          |
+     | Accept          | `application/json;odata=verbose`             |
+     | Content-Type    | `application/json;odata=verbose`             |
+     | X-RequestDigest | `formDigest` (String)                       |
+   - **Body**: chuyển `Body` format = Raw (application/json)
+     ```json
+     {
+       "__metadata": { "type": "SP.Data.MyListListItem" },
+       "Title": "Test từ UiPath NTLM",
+       "CustomField": "Giá trị NTLM"
+     }
+     ```
+   - **Outputs**:  
+     - `createResponse` (String)  
+     - `createStatus` (Int32)
+
+3. **Kiểm tra kết quả**  
+   - If `createStatus = 201` thì Success, else Throw Exception hoặc log lỗi.
+
+---
+
+## 5. Các lưu ý
+
+- Với **PATCH/MERGE** cho update:  
+  - Method = MERGE hoặc PATCH  
+  - Thêm header `IF-MATCH: *`  
+- Với **DELETE**:  
+  - Method = DELETE  
+  - Header `IF-MATCH: *`  
+- Có thể dùng `$select`, `$filter`, `$top`… trong URL để lọc dữ liệu.
+
+---
+
+Giờ bạn đã có một workflow NTLM‑only, không qua Azure AD, để thực hiện CRUD trên SharePoint List. Nếu còn chỗ nào chưa rõ hoặc cần mở rộng thêm (ví dụ paging, error handling nâng cao…), cứ báo mình nhé!
+
+------------------------------------------------------------------------------------------------------------
 Dưới đây là hướng dẫn chi tiết theo từng bước để sử dụng SharePoint Request API trong UiPath:
 
 ---
