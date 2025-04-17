@@ -1,0 +1,80 @@
+Tuyệt vời, để tải toàn bộ folder từ **SharePoint** về máy tính **local** bằng **UiPath**, bạn có thể thực hiện theo 2 cách chính:
+
+---
+
+### 🅰️ Cách 1: Sử dụng **UiPath Microsoft365 Activities (Graph API)**
+Đây là cách chuẩn, sử dụng **Microsoft 365 Scope** để truy cập SharePoint.
+
+---
+
+#### ✅ Yêu cầu chuẩn bị:
+
+1. **Tài khoản Office 365** có quyền truy cập thư mục SharePoint.
+2. **Đăng ký ứng dụng Azure AD (App Registration)** (nếu bạn không dùng account của UiPath Apps).
+3. Cài package:
+   - `UiPath.MicrosoftOffice365.Activities`
+
+---
+
+### 🧭 Step-by-step:
+
+#### 🔹 Bước 1: Cài Package
+- Mở **Manage Packages** trong UiPath Studio.
+- Cài: `UiPath.MicrosoftOffice365.Activities`
+
+---
+
+#### 🔹 Bước 2: Thiết lập Microsoft 365 Scope
+
+- Kéo **Microsoft365 Scope** vào flow.
+- Điền các thông tin:
+  - **Application ID**, **Tenant ID**, **Client Secret** (từ Azure AD).
+  - **Services**: chọn `SharePoint`, `Files`, `Sites`.
+
+---
+
+#### 🔹 Bước 3: Dùng “Find Files and Folders” để lấy danh sách file trong folder
+
+- Kéo activity **Find Files and Folders**.
+- Set `Parent Folder`: `"Shared Documents/TenFolderCuaBan"`  
+  (đường dẫn tính từ gốc Document Library)
+- Output: `sharepointFiles` (List of DriveItem)
+
+---
+
+#### 🔹 Bước 4: Dùng “Download File” để tải từng file
+
+- Dùng For Each: `For Each file In sharepointFiles`
+- Bên trong:
+  - **Download File**
+    - DriveItem: `file`
+    - LocalPath: `"C:\DuongDanLocal\" + file.Name`
+
+---
+
+### 🅱️ Cách 2: Sử dụng giao diện web SharePoint + UiPath UI Automation (ít khuyến khích)
+
+Nếu không dùng được API thì có thể:
+
+---
+
+#### 🧭 Step-by-step:
+
+1. Mở Chrome/Edge và đăng nhập vào SharePoint đến đúng folder bạn cần tải.
+2. Dùng UiPath:
+   - **Open Browser**: mở đường dẫn SharePoint folder.
+   - **Click** vào nút `Download` hoặc chọn `Sync` (nếu có).
+   - Hoặc: Select all → Click Download → Tải `.zip`
+3. Dùng `Wait for Download` + `Move File` để chuyển file zip về folder đích.
+4. Dùng activity `Unzip Files` để giải nén về thư mục local.
+
+---
+
+### 🧠 Mẹo:
+
+- Nếu folder SharePoint lớn và bạn có quyền truy cập tốt, ưu tiên dùng **Graph API** (Cách 1) → chạy nhanh, ổn định, dễ xử lý lỗi.
+- Nếu dùng cách UI Automation (Cách 2), hãy đảm bảo độ ổn định của UI (sử dụng `Retry Scope`, `Element Exists`).
+
+---
+
+Bạn đang có app Azure AD sẵn chưa? Nếu chưa mình có thể hướng dẫn tạo 1 cái rất nhanh.
