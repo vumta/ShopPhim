@@ -63,3 +63,121 @@ Dưới đây là hướng dẫn chi tiết theo từng bước để sử dụn
 ---
 
 Nếu bạn gặp vấn đề cụ thể ở bước nào, hãy cho tôi biết nhé! Tôi có thể hỗ trợ chi tiết hơn! 😊
+================================
+Để lấy thông tin từ SharePoint API, bạn cần thực hiện các bước dưới đây:
+
+---
+
+### **Bước 1: Xác định mục tiêu**
+- Xác định những gì bạn muốn thực hiện thông qua API, ví dụ như:
+  - Lấy danh sách file hoặc folder.
+  - Thêm, sửa hoặc xóa dữ liệu trong danh sách hoặc thư mục.
+  - Truy xuất thông tin user, nhóm hoặc quyền.
+
+---
+
+### **Bước 2: Lấy URL SharePoint Site**
+- Đăng nhập vào trang SharePoint của bạn.
+- Xác định URL của trang web hoặc thư mục bạn cần truy cập, ví dụ: `https://yoursharepointsite.sharepoint.com`.
+
+---
+
+### **Bước 3: Kích hoạt SharePoint API**
+- API của SharePoint thường được tích hợp sẵn, bạn chỉ cần xác định đúng endpoint phù hợp:
+  - **Danh sách (List):** `/sites/{siteName}/_api/web/lists`
+  - **Thư mục (Folder):** `/sites/{siteName}/_api/web/GetFolderByServerRelativeUrl('/FolderName')`
+
+---
+
+### **Bước 4: Lấy Access Token**
+Để sử dụng SharePoint API, bạn cần Access Token để xác thực:
+1. Đăng ký ứng dụng với Azure Active Directory.
+   - Điều này cho phép bạn cấp quyền truy cập cho ứng dụng của mình.
+2. Tạo Client ID và Client Secret khi đăng ký ứng dụng.
+3. Sử dụng **OAuth 2.0** để lấy Access Token từ Microsoft Graph API hoặc Azure AD.
+
+---
+
+### **Bước 5: Tìm Endpoint API**
+- Mở [SharePoint API Documentation](https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/sharepoint-net-server-and-rest-service-reference) để tìm danh sách các API endpoint phù hợp với nhu cầu của bạn.
+
+---
+
+### **Bước 6: Kiểm tra và thử nghiệm**
+- Sử dụng công cụ như Postman để thử nghiệm API:
+  - Thêm Access Token vào phần **Headers**.
+  - Gửi yêu cầu GET, POST, PUT, DELETE đến đúng endpoint.
+
+---
+
+Nếu bạn cần thêm trợ giúp để thực hiện các bước này hoặc có thắc mắc cụ thể, hãy cho tôi biết nhé! 😊
+===============================
+Dưới đây là hướng dẫn chi tiết từng bước để lấy Access Token từ Azure Active Directory (Azure AD) để sử dụng với SharePoint API:
+
+---
+
+### **Bước 1: Đăng nhập vào Azure Portal**
+1. Truy cập [Azure Portal](https://portal.azure.com).
+2. Đăng nhập bằng tài khoản quản trị viên.
+
+---
+
+### **Bước 2: Đăng ký ứng dụng**
+1. Trong Azure Portal, vào mục **Azure Active Directory** > **App registrations**.
+2. Chọn **New registration**.
+3. Điền thông tin:
+   - **Name**: Đặt tên cho ứng dụng (ví dụ: "SharePointAPIApp").
+   - **Supported account types**: Chọn **Single tenant** hoặc **Multi-tenant** tùy thuộc vào nhu cầu.
+   - **Redirect URI**: Để trống hoặc điền URL nếu bạn sử dụng ứng dụng có giao diện người dùng.
+4. Nhấn **Register** để hoàn tất.
+
+---
+
+### **Bước 3: Tạo Client ID và Client Secret**
+1. Sau khi đăng ký ứng dụng, bạn sẽ thấy **Application (client) ID**. Lưu lại thông tin này.
+2. Vào mục **Certificates & secrets**.
+3. Chọn **New client secret**.
+   - Điền mô tả.
+   - Chọn thời hạn hết hạn (ví dụ: 6 tháng, 12 tháng).
+4. Nhấn **Add** và lưu lại **Value** của Client Secret.
+
+---
+
+### **Bước 4: Cấp quyền cho ứng dụng**
+1. Vào mục **API permissions** của ứng dụng.
+2. Chọn **Add a permission**.
+3. Chọn **Microsoft Graph** hoặc **SharePoint** tùy nhu cầu.
+4. Chọn quyền (ví dụ: `Sites.ReadWrite.All`, `Sites.Read.All`).
+5. Nhấn **Grant admin consent** để cấp quyền cho ứng dụng.
+
+---
+
+### **Bước 5: Lấy Access Token**
+1. Sử dụng công cụ như Postman hoặc code để gửi yêu cầu lấy Access Token. 
+2. Gửi yêu cầu HTTP POST đến endpoint:
+   ```
+   https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token
+   ```
+   - `{tenant_id}` là ID của tenant trong Azure AD.
+3. Trong Body của yêu cầu, nhập:
+   ```json
+   {
+       "grant_type": "client_credentials",
+       "client_id": "[Client ID]",
+       "client_secret": "[Client Secret]",
+       "scope": "https://graph.microsoft.com/.default"
+   }
+   ```
+4. Khi yêu cầu hoàn tất, bạn sẽ nhận được Access Token trong phần phản hồi.
+
+---
+
+### **Bước 6: Sử dụng Access Token**
+1. Thêm Access Token này vào **Headers** của các yêu cầu API SharePoint.
+   ```
+   Authorization: Bearer [Access Token]
+   ```
+
+---
+
+Nếu bạn gặp khó khăn ở bất kỳ bước nào, tôi rất sẵn lòng hướng dẫn chi tiết thêm. Bạn muốn thử bước nào trước? 😊
