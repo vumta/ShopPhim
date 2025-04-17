@@ -78,3 +78,269 @@ Nếu không dùng được API thì có thể:
 ---
 
 Bạn đang có app Azure AD sẵn chưa? Nếu chưa mình có thể hướng dẫn tạo 1 cái rất nhanh.
+===========================================================================================================================
+Tuyệt, mình sẽ hướng dẫn **chi tiết từng bước để thực hiện Cách 1** – dùng **UiPath + Microsoft365 Scope + Graph API** để tải folder từ SharePoint về local.
+
+---
+
+## 🟢 MỤC TIÊU
+Tải toàn bộ file trong một folder SharePoint (ví dụ: `https://yourcompany.sharepoint.com/sites/yourSite/Shared Documents/FolderA`) về thư mục local (`C:\Downloaded\FolderA`) bằng UiPath.
+
+---
+
+## 🔧 BƯỚC 1: Tạo app trong Azure để lấy thông tin đăng nhập
+
+> Nếu bạn đã có `Client ID`, `Tenant ID`, `Client Secret` thì có thể **bỏ qua bước này**.
+
+### 🔹 1.1. Truy cập Azure Portal:
+- Vào: https://portal.azure.com
+- Tìm **App registrations** > Click **New registration**
+
+### 🔹 1.2. Tạo app:
+- Name: `UiPathGraphApp`
+- Supported account types: **Accounts in this organizational directory only**
+- Redirect URI: để trống (hoặc thêm `https://login.microsoftonline.com/common/oauth2/nativeclient` nếu dùng dạng Desktop login)
+
+Click **Register**
+
+---
+
+### 🔹 1.3. Lấy thông tin:
+- **Application (client) ID** → Copy
+- **Directory (tenant) ID** → Copy
+
+---
+
+### 🔹 1.4. Tạo Client Secret:
+- Trong tab **Certificates & Secrets** > Click **New Client Secret**
+- Nhập mô tả và chọn thời hạn → Click **Add**
+- Copy giá trị **Client Secret** (chỉ hiện 1 lần)
+
+---
+
+### 🔹 1.5. Cấp quyền API:
+- Vào tab **API Permissions** > Click **Add a permission**
+- Chọn:
+  - Microsoft Graph
+  - Delegated permissions (nếu dùng login người dùng) hoặc Application permissions (nếu chạy nền)
+  - Thêm quyền:
+    - `Sites.Read.All`
+    - `Files.Read.All`
+
+> Sau đó **click Grant admin consent**
+
+---
+
+## 🔵 BƯỚC 2: Cài package và thiết lập UiPath
+
+### 🔹 2.1. Cài Package
+- Vào **Manage Packages**
+- Cài: `UiPath.MicrosoftOffice365.Activities`
+
+---
+
+### 🔹 2.2. Microsoft 365 Scope
+
+Kéo activity **Microsoft 365 Scope**, cấu hình như sau:
+
+| Field | Value |
+|-------|-------|
+| **AuthenticationType** | `Application` |
+| **ApplicationID** | dán `Client ID` |
+| **Tenant** | dán `Tenant ID` |
+| **ClientSecret** | dán `Client Secret` |
+| **Services** | chọn: `Files`, `Sites`, `SharePoint` |
+
+---
+
+## 🟣 BƯỚC 3: Lấy danh sách file trong folder SharePoint
+
+### 🔹 Dùng activity `Find Files and Folders`
+
+- **Folder Path**:  
+  Đường dẫn kiểu: `"Shared Documents/FolderA"`  
+  (Tính từ gốc thư viện document SharePoint)
+- Output: tạo biến `filesList` kiểu `List<DriveItem>`
+
+---
+
+## 🟡 BƯỚC 4: Duyệt qua danh sách file và tải về local
+
+### 🔹 Dùng For Each:
+
+- For Each `fileItem In filesList`
+- TypeArgument: `Microsoft.Graph.DriveItem`
+
+### 🔹 Bên trong For Each:
+
+Dùng `Download File` activity:
+- **DriveItem**: `fileItem`
+- **Local Path**: `"C:\Downloaded\FolderA\" + fileItem.Name`
+
+> Đảm bảo thư mục `C:\Downloaded\FolderA\` tồn tại (dùng `Create Directory` nếu cần)
+
+---
+
+## ✅ Kết quả
+Toàn bộ file trong SharePoint folder `FolderA` sẽ được tải về local folder `C:\Downloaded\FolderA`.
+
+---
+
+Bạn muốn mình **tạo sample project file `.xaml`** sẵn hoặc giúp bạn config đoạn **Scope cụ thể** không? Mình có thể viết nhanh cho bạn.
+==========================================================================================================================================
+Rất tốt! Mình sẽ hướng dẫn bạn tạo **App đăng ký trong Azure AD** từ đầu, để bạn có thể dùng trong **UiPath** để truy cập SharePoint qua **Microsoft Graph API**.
+
+---
+
+## 🔧 Hướng dẫn tạo App Azure AD để dùng với UiPath (từng bước cực chi tiết)
+
+---
+
+### ✅ BƯỚC 1: Truy cập Azure Portal
+
+1. Vào trình duyệt → Truy cập: [https://portal.azure.com](https://portal.azure.com)
+2. Đăng nhập bằng tài khoản admin (hoặc tài khoản được cấp quyền tạo app trong Azure AD).
+
+---
+
+### ✅ BƯỚC 2: Tạo App Registration
+
+1. Ở thanh tìm kiếm, gõ **“App registrations”** → Chọn kết quả đầu tiên.
+2. Click **+ New registration**
+
+**Điền thông tin:**
+
+| Trường | Giá trị |
+|--------|--------|
+| **Name** | `UiPathGraphApp` (hoặc tên tùy bạn) |
+| **Supported account types** | Chọn `Accounts in this organizational directory only (Single tenant)` |
+| **Redirect URI** | **Bỏ trống** (hoặc chọn “Public client/native (mobile & desktop)” và nhập: `https://login.microsoftonline.com/common/oauth2/nativeclient` nếu muốn test đăng nhập tương tác) |
+
+3. Nhấn **Register**
+
+---
+
+### ✅ BƯỚC 3: Lấy thông tin đăng nhập
+
+Sau khi tạo xong, bạn sẽ thấy các thông tin:
+
+| Trường | Mô tả |
+|--------|-------|
+| **Application (client) ID** | Dùng để cấu hình trong UiPath |
+| **Directory (tenant) ID** | Cũng cần trong UiPath |
+
+→ **Copy cả 2 ID này ra lưu tạm.**
+
+---
+
+### ✅ BƯỚC 4: Tạo Client Secret
+
+1. Trong menu bên trái, chọn **Certificates & secrets**
+2. Bấm **+ New client secret**
+3. Nhập mô tả: `UiPathSecret`, chọn thời hạn → Nhấn **Add**
+4. **Copy giá trị Client Secret** ngay sau khi tạo – **chỉ thấy 1 lần**.
+
+---
+
+### ✅ BƯỚC 5: Cấp quyền API cho Microsoft Graph
+
+1. Chọn **API permissions** ở menu bên trái
+2. Click **+ Add a permission**
+3. Chọn:
+   - Microsoft Graph
+   - **Application permissions**
+4. Tìm và **thêm các quyền sau**:
+   - `Sites.Read.All`
+   - `Files.Read.All`
+   *(có thể thêm `Sites.ReadWrite.All` nếu cần quyền ghi/đồng bộ sau này)*
+
+5. Sau khi thêm → Bấm **Grant admin consent** để cấp quyền (cần tài khoản admin)
+
+---
+
+### ✅ TÓM TẮT BẠN ĐÃ CÓ:
+
+| Thông tin cần trong UiPath | Ghi chú |
+|----------------------------|--------|
+| **Tenant ID**              | từ bước 3 |
+| **Client ID**              | từ bước 3 |
+| **Client Secret**          | từ bước 4 |
+| Các quyền Graph API        | từ bước 5 |
+
+---
+
+Nếu bạn làm đến đây xong, mình có thể hướng dẫn bước tiếp theo là cấu hình trong **UiPath Studio** nhé – bạn chỉ cần paste các giá trị đó vào `Microsoft365 Scope` và làm bước tải file thôi.
+
+---
+
+Bạn muốn mình làm giúp file `.xaml` mẫu để bạn import luôn không? Hoặc mình có thể hỗ trợ tạo đoạn cấu hình Scope sẵn nếu bạn gửi các thông tin `Client ID`, `Tenant ID` (bạn có thể thay thế giá trị thật trước khi chạy).
+===================================
+Tuyệt! Sau khi bạn đã tạo xong App trong Azure và có 3 thông tin:
+
+- ✅ **Tenant ID**  
+- ✅ **Client ID (Application ID)**  
+- ✅ **Client Secret**  
+
+Giờ mình sẽ hướng dẫn **từng bước để cấu hình activity `Microsoft365 Scope` trong UiPath** để kết nối với SharePoint.
+
+---
+
+## 🟢 CẤU HÌNH `Microsoft365 Scope` (Step-by-Step)
+
+### 🧩 Bước 1: Kéo activity
+
+1. Mở UiPath Studio
+2. Tìm activity: `Microsoft365 Scope` (nếu chưa có, bạn cần cài package `UiPath.MicrosoftOffice365.Activities`)
+3. Kéo vào trong Sequence hoặc Flow của bạn.
+
+---
+
+### ⚙️ Bước 2: Cấu hình các trường như sau:
+
+| Trường | Giá trị bạn điền | Ghi chú |
+|--------|------------------|--------|
+| **DisplayName** | `Graph API Scope` | (đặt tùy bạn) |
+| **AuthenticationType** | `Application` | (chọn từ dropdown) |
+| **Application ID** | `dán Client ID` | (từ Azure AD) |
+| **Tenant** | `dán Tenant ID` | (từ Azure AD) |
+| **ClientSecret** | `dán Client Secret` | (từ Azure AD) |
+| **Services** | Tick chọn: `Files`, `SharePoint`, `Sites` | (tùy nhu cầu) |
+
+📌 **Lưu ý**:
+- Chọn đúng `AuthenticationType = Application`
+- Nếu chọn sai, bạn sẽ bị lỗi `unauthorized` hoặc `invalid_grant`
+
+---
+
+### 📦 Ví dụ thực tế (giả lập)
+
+```text
+Application ID:      11112222-3333-4444-aaaa-bbbbccccdddd
+Tenant ID:           abcd1234-ef56-7890-ghij-klmnopqrstuv
+Client Secret:       xyz@ABCD!1234567890
+```
+
+Thì bạn sẽ điền như sau:
+
+- **Application ID** → `11112222-3333-4444-aaaa-bbbbccccdddd`
+- **Tenant** → `abcd1234-ef56-7890-ghij-klmnopqrstuv`
+- **ClientSecret** → `"xyz@ABCD!1234567890"` (có thể đặt vào biến SecureString nếu muốn bảo mật)
+
+---
+
+### ✅ Kết thúc:
+
+Sau khi bạn cấu hình xong `Microsoft365 Scope`, **các activity con bên trong nó (như: `Find Files and Folders`, `Download File`, `Upload File`, ...) sẽ tự động dùng context kết nối này**.
+
+---
+
+## 📌 Kiểm tra kết nối
+
+- Bạn có thể test đơn giản:
+  - Kéo activity `Find Files and Folders` vào trong Scope
+  - Chọn `Folder Path`: `"Shared Documents/TenFolder"`
+  - In ra tên file bằng `Write Line`: `fileItem.Name`
+
+---
+
+Bạn có muốn mình **tạo đoạn mẫu sẵn** để bạn chỉ cần copy vào UiPath và paste 3 thông tin ID vào thôi không? Mình có thể viết nhanh `.xaml` hoặc đoạn demo ngắn giúp bạn.
