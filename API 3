@@ -1,0 +1,91 @@
+Tuyệt vời, mình sẽ **hướng dẫn chi tiết từng bước** để bạn dùng **Microsoft365 Scope + SharePoint Activities** trong UiPath để:
+
+- ✅ Kết nối vào SharePoint Online bằng tài khoản nội bộ (không cần Azure, không cần token).
+- 📥 Lấy danh sách file trong một thư mục.
+- 📤 Ghi danh sách vào Excel.
+- 🔁 Di chuyển file sang thư mục khác.
+
+---
+
+## 🎯 Mục tiêu
+Lấy file từ thư mục:  
+📂 `Documents/Reports` trên site `TestSite` → ghi vào Excel → di chuyển sang `Documents/Processed`.
+
+---
+
+## 🧩 **Step-by-Step Hướng dẫn**
+
+---
+
+### 🔧 Bước 1: Cài gói cần thiết
+
+1. Mở UiPath Studio.
+2. Vào **Manage Packages** → Chọn tab **Official**.
+3. Cài:
+   ```
+   UiPath.MicrosoftOffice365.Activities
+   ```
+
+---
+
+### 📦 Bước 2: Thêm Microsoft365 Scope
+
+1. Kéo `Microsoft365 Scope` vào workflow.
+2. Chọn `AuthenticationType`: **InteractiveToken**.
+3. Tích chọn:
+   - `Email` → nhập tài khoản tổ chức, ví dụ: `abc@contoso.com`
+   - `Application ID`: để trống (vì Interactive Login không cần)
+   - `ServiceURL`: `https://contoso.sharepoint.com/sites/TestSite`
+
+Khi chạy lần đầu, bạn sẽ **được yêu cầu đăng nhập** → đăng nhập và cấp quyền.
+
+---
+
+### 📂 Bước 3: Lấy danh sách file
+
+1. Bên trong `Microsoft365 Scope`, kéo activity `Find Files and Folders`.
+2. Thiết lập:
+   - **Parent Folder**:  
+     ```
+     Shared Documents/Reports
+     ```
+   - **Drive Item Output**: tạo biến kiểu `List<DriveItem>` tên là `fileList`.
+
+> 📝 SharePoint path thường bắt đầu bằng `"Shared Documents/"` thay vì `"Documents/"`
+
+---
+
+### 📄 Bước 4: Ghi danh sách vào Excel
+
+1. Kéo `Excel Process Scope` và bên trong dùng:
+   - `Use Excel File` → chọn đường dẫn: `C:\Users\...\Documents\List.xlsx`
+   - `For Each` lặp qua `fileList`
+     - Trong mỗi vòng lặp, ghi ra các cột như: Tên file, ID, Ngày tạo, v.v. bằng `Write Cell`.
+
+---
+
+### 🔁 Bước 5: Di chuyển file
+
+1. Trong `For Each`, kéo activity `Move File`.
+2. Thiết lập:
+   - **Source Path**: `"Shared Documents/Reports/" + item.Name`
+   - **Destination Path**: `"Shared Documents/Processed/" + item.Name`
+
+---
+
+## ✅ Kết quả bạn có:
+
+- Danh sách file được ghi vào file Excel.
+- Tất cả file trong `Reports` đã được di chuyển sang `Processed`.
+
+---
+
+## 🧪 Nếu bạn muốn mình gửi file `.xaml` mẫu?
+
+Chỉ cần xác nhận:
+- Tài khoản bạn có thể đăng nhập bằng popup (không dùng MFA hoặc đã cấp quyền).
+- Bạn dùng SharePoint Online domain `contoso.sharepoint.com`.
+
+👉 Mình sẽ gửi bạn `Main.xaml` hoàn chỉnh ngay sau đó.
+
+Bạn xác nhận nhé?
