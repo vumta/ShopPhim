@@ -1,0 +1,97 @@
+Dưới đây là hướng dẫn **chi tiết từng bước** để **GET FILES TRONG THƯ MỤC SHAREPOINT** bằng **Power Automate**:
+
+---
+
+## 🎯 Mục tiêu:
+Lấy danh sách **tất cả file** trong một thư mục cụ thể trong SharePoint, ví dụ:  
+`https://contoso.sharepoint.com/sites/TestSite/Shared Documents/Reports`
+
+---
+
+## 🧩 Bước-by-Bước Trong Power Automate
+
+---
+
+### 🔹 Bước 1: Tạo một Flow mới
+
+- Vào [Power Automate Portal](https://make.powerautomate.com/)
+- Chọn **Create** → **Instant cloud flow**
+- Đặt tên: `GetFilesInFolder`
+- Chọn trigger: `Manually trigger a flow` hoặc `When an HTTP request is received` nếu muốn gọi từ UiPath
+
+---
+
+### 🔹 Bước 2: Thêm action `Get files (properties only)`
+
+Tìm: **Get files (properties only)** → Chọn loại kết nối là SharePoint
+
+#### Thiết lập như sau:
+
+- **Site Address**:  
+  `https://contoso.sharepoint.com/sites/TestSite`
+
+- **Library Name**:  
+  `Documents` (thư viện gốc của SharePoint)
+
+- **Folder**:  
+  `Reports` *(hoặc `"Shared Documents/Reports"` nếu dùng đường dẫn đầy đủ)*
+
+> 💡 Nếu bạn không thấy folder trong dropdown → có thể gõ tay vào đường dẫn tương đối.
+
+---
+
+### 🔹 Bước 3: Thêm “Apply to each” (nếu cần xử lý từng file)
+
+- **Input**:  
+  `value` (output của bước “Get files”)
+
+Bên trong, bạn có thể:
+- Truy cập `item()?['Name']` → tên file  
+- `item()?['ServerRelativeUrl']` → đường dẫn nội bộ  
+- `item()?['FileRef']`, `item()?['Id']`, `item()?['Modified']`, v.v.
+
+---
+
+### 🔹 (Tuỳ chọn) Bước 4: Trả về kết quả JSON (nếu gọi từ UiPath)
+
+- Tạo **biến mảng** (`Initialize variable` → type = Array)
+- Trong vòng `Apply to each`, dùng `Append to array variable` để thêm từng file:
+
+```json
+{
+  "Name": "@{items('Apply_to_each')?['Name']}",
+  "Url": "@{items('Apply_to_each')?['FileRef']}"
+}
+```
+
+- Sau `Apply to each`, dùng `Response` action để trả về mảng JSON đó
+
+---
+
+## 🧪 Ví dụ output JSON:
+
+```json
+[
+  {
+    "Name": "Report1.xlsx",
+    "Url": "/sites/TestSite/Shared Documents/Reports/Report1.xlsx"
+  },
+  {
+    "Name": "Report2.xlsx",
+    "Url": "/sites/TestSite/Shared Documents/Reports/Report2.xlsx"
+  }
+]
+```
+
+---
+
+## ✅ Xong rồi!
+
+Giờ bạn có thể:
+- Gọi flow từ UiPath (bằng HTTP POST)
+- Hoặc dùng flow để xử lý file tiếp theo (di chuyển, tải về, đổi tên...)
+
+---
+
+📌 **Bạn có cần mình gửi mẫu Flow (JSON export)** hoặc `.xaml` mẫu gọi từ UiPath không?  
+Chỉ cần nói **"Có"**, mình sẽ gửi ngay!
