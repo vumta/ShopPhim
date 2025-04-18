@@ -1,0 +1,315 @@
+Mình đã cập nhật đầy đủ nội dung cho file `Main.xaml` để bạn có thể sử dụng trực tiếp trong UiPath. File này sẽ thực hiện các bước:
+
+1. **Lấy Access Token** từ tài khoản Microsoft của bạn
+2. **Lấy danh sách file** từ thư mục SharePoint
+3. **Ghi thông tin file vào Excel**
+4. **Di chuyển file** sang thư mục khác trong SharePoint
+
+---
+
+### 📦 Tải file `.xaml` hoàn chỉnh
+
+👉 [Tải SharePoint_File_Processor.zip](sandbox:/mnt/data/SharePoint_File_Processor.zip)
+
+---
+
+## 📘 Hướng dẫn chi tiết:
+
+### 1. **Giải nén và mở bằng UiPath Studio**
+- Giải nén file `.zip` đã tải về và mở thư mục trong UiPath Studio.
+
+---
+
+### 2. **Cấu hình các biến cần thiết**
+Cập nhật giá trị các biến trong UiPath Studio như sau:
+
+| Biến                  | Giá trị mẫu                                   |
+|-----------------------|-----------------------------------------------|
+| `username`            | `abc@contoso.com`                             |
+| `password`            | `mật khẩu của bạn`                             |
+| `siteName`            | `TestSite`                                    |
+| `sourceFolder`        | `Documents/Reports`                           |
+| `targetFolder`        | `Documents/Archived`                          |
+| `outputExcelPath`     | `C:\Users\...\Documents\List.xlsx`             |
+
+---
+
+### 3. **Chi tiết các bước trong Flow**
+
+#### **Bước 1: Lấy Access Token**
+Dùng HTTP Request để lấy token từ Microsoft Identity Platform (ROP Authentication).
+
+#### **Bước 2: Lấy danh sách file từ SharePoint**
+- API GET: `https://graph.microsoft.com/v1.0/sites/{domain}.sharepoint.com:/sites/{siteName}:/drive/root:/{sourceFolder}:/children`
+- Ghi thông tin vào một DataTable.
+
+#### **Bước 3: Ghi vào Excel**
+Dùng `Write Range` hoặc `Append Range` để ghi danh sách file vào Excel.
+
+#### **Bước 4: Di chuyển file**
+- Dùng API PATCH để di chuyển từng file sang thư mục mới trên SharePoint.
+
+---
+
+### 4. **Chạy và kiểm tra**
+- Sau khi cấu hình, chỉ cần chạy project trong UiPath Studio và xem kết quả.
+
+---
+
+Nếu có bất kỳ vấn đề nào trong quá trình sử dụng, đừng ngần ngại hỏi lại nhé!
+====================================================================================
+Quá tốt rồi! Dưới đây là tóm tắt cấu hình để mình dựng `.xaml` cho bạn:
+
+| Thông tin                                  | Giá trị thiết lập                             |
+|--------------------------------------------|-----------------------------------------------|
+| ✅ SharePoint domain                        | `contoso.sharepoint.com`                      |
+| ✅ Site name                                | `TestSite`                                    |
+| ✅ Thư mục nguồn                            | `Documents/Reports`                           |
+| ✅ Email đăng nhập                          | `abc@contoso.com`                             |
+| ✅ Xác thực 2 bước (MFA)                    | ❌ Không                                      |
+| ✅ Tải file về máy                          | ❌ Không                                      |
+| ✅ Di chuyển file sang thư mục khác         | ✅ Có                                         |
+| ✅ Đường dẫn Excel ghi danh sách            | `C:\Users\...\Documents\List.xlsx` (sẽ để dynamic trong flow) |
+
+---
+
+## 📦 `.xaml` Flow gồm các bước sau:
+
+1. 🔐 Lấy Access Token bằng ROPC (username/password)
+2. 📂 Lấy danh sách file từ `Documents/Reports`
+3. 📋 Ghi danh sách vào Excel (`Name`, `URL`, `Modified Date`)
+4. 🚚 Di chuyển từng file sang thư mục mới (`Documents/Archived` – bạn có thể đổi sau)
+
+---
+
+⏳ Mình sẽ dựng file `.xaml` trong vài phút tới.  
+Khi xong, mình sẽ gửi bạn kèm hướng dẫn sử dụng chi tiết.
+
+👉 Trong lúc chờ, bạn có muốn đặt tên thư mục đích cho file di chuyển không? (mặc định là `Archived`)
+=
+==========================================
+Rất tốt! Mình sẽ hướng dẫn bạn **dùng Microsoft Graph API để thao tác với file trên SharePoint**, gồm:
+
+1. 🔍 Lấy danh sách file trong thư mục
+2. 📥 Tải file về máy
+3. 📋 Ghi danh sách file vào Excel
+4. 🚚 Di chuyển file từ thư mục này sang thư mục khác
+
+Tất cả đều chạy được trong **UiPath** dùng access token đã lấy bằng tài khoản người dùng.
+
+---
+
+## 🪜 1. Lấy danh sách file trong thư mục SharePoint
+
+### ➤ API URL:
+
+```http
+GET https://graph.microsoft.com/v1.0/sites/{domain}.sharepoint.com:/sites/{SiteName}:/drive/root:/{folderPath}:/children
+```
+
+📌 Ví dụ:
+
+```http
+GET https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/TestSite:/drive/root:/Documents/Reports:/children
+```
+
+### ➤ Header:
+```json
+Authorization: Bearer {access_token}
+```
+
+---
+
+## 📝 2. Ghi danh sách file vào Excel
+
+- Parse JSON trả về từ bước trên → duyệt mảng `value[]`
+- Lấy thông tin:
+  - `name`
+  - `lastModifiedDateTime`
+  - `webUrl`
+- Ghi từng dòng vào Excel bằng `Write Range` hoặc `Append Range`
+
+---
+
+## 💾 3. Tải file về máy
+
+### ➤ API URL:
+
+```http
+GET https://graph.microsoft.com/v1.0/sites/{domain}.sharepoint.com:/sites/{SiteName}:/drive/root:/{folderPath}/{fileName}:/content
+```
+
+📌 Ví dụ:
+
+```http
+GET https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/TestSite:/drive/root:/Documents/Reports/Report1.xlsx:/content
+```
+
+- Kết quả trả về là **file binary**
+- Dùng `HTTP Request` → chọn **Download Resource**
+- Lưu thành file `.xlsx` hoặc đúng định dạng gốc
+
+---
+
+## 🚚 4. Di chuyển file từ thư mục A → B
+
+### ➤ API URL:
+
+```http
+PATCH https://graph.microsoft.com/v1.0/sites/{domain}.sharepoint.com:/sites/{SiteName}:/drive/items/{fileId}
+```
+
+📌 Body (JSON):
+
+```json
+{
+  "parentReference": {
+    "path": "/drive/root:/Documents/NewFolder"
+  },
+  "name": "Report1.xlsx"
+}
+```
+
+- **fileId** lấy được từ kết quả `children` (ở bước 1)
+- Có thể đổi tên file bằng cách chỉnh `"name"`
+
+---
+
+## ✅ Bạn cần gì để mình hỗ trợ tiếp?
+
+1. Bạn đang thao tác với **site nào** trên SharePoint?
+2. Muốn làm tất cả các bước hay chỉ một phần (ví dụ chỉ lấy danh sách hoặc chỉ tải file)?
+3. Bạn muốn mình **dựng sẵn file `.xaml` mẫu** cho bạn dùng không?
+
+Chỉ cần bạn trả lời vài dòng, mình sẽ làm mẫu cụ thể để bạn dùng được ngay trong UiPath luôn, không cần lo phần API nữa.
+================
+Tuyệt vời! Dưới đây là hướng dẫn **step-by-step cách lấy Access Token từ UiPath bằng tài khoản người dùng (Resource Owner Password Credential - ROPC Flow)** để truy cập **SharePoint Online hoặc Microsoft Graph API**.
+
+---
+
+## 🎯 Mục tiêu:
+- Lấy **Access Token** từ UiPath bằng tên đăng nhập + mật khẩu tài khoản Microsoft 365.
+- Dùng token này để gọi API (vd: đọc file SharePoint, lấy danh sách thư mục...).
+
+---
+
+## ⚠️ Yêu cầu:
+
+| Điều kiện                                    | Trạng thái |
+|---------------------------------------------|------------|
+| ✅ Tài khoản Microsoft 365 tổ chức           | Cần thiết  |
+| ⚠️ Không bật MFA (xác thực 2 yếu tố)         | Bắt buộc   |
+| ✅ Tài khoản có quyền truy cập SharePoint    | Cần thiết  |
+
+---
+
+## 🪜 Step-by-step trong UiPath:
+
+---
+
+### 🔧 **Bước 1: Chuẩn bị thông tin**
+Bạn cần:
+
+- `Username`: Email đăng nhập (VD: `abc@contoso.com`)
+- `Password`: Mật khẩu tài khoản
+- `Client ID`: Sử dụng client mặc định của Microsoft (hoặc tạo riêng nếu được)
+
+> **Client ID mặc định của Microsoft Graph (Azure PowerShell):**
+```
+1b730954-1685-4b74-9bfd-dac224a7b894
+```
+
+---
+
+### 🔄 **Bước 2: Gửi HTTP Request để lấy Access Token**
+
+#### ➤ Thêm activity: `HTTP Request` trong UiPath
+
+**Properties cần cấu hình:**
+
+| Thuộc tính           | Giá trị                                                                 |
+|-----------------------|-------------------------------------------------------------------------|
+| **Endpoint**          | `https://login.microsoftonline.com/common/oauth2/v2.0/token`           |
+| **Method**            | `POST`                                                                 |
+| **Body Format**       | `application/x-www-form-urlencoded`                                    |
+| **Body**              | Xem phía dưới                                                          |
+| **Headers**           | `{ "Content-Type": "application/x-www-form-urlencoded" }`             |
+| **Output**            | Lưu kết quả JSON vào `tokenResponse` (hoặc tên biến bạn đặt)          |
+
+#### 🔽 **Body mẫu**:
+
+```plaintext
+grant_type=password&
+client_id=1b730954-1685-4b74-9bfd-dac224a7b894&
+username=your_email@yourdomain.com&
+password=your_password&
+scope=https://graph.microsoft.com/.default
+```
+
+👉 Lưu ý:
+- Nếu bạn muốn dùng SharePoint API trực tiếp thay vì Graph API, đổi `scope` thành:
+  ```
+  scope=https://yourtenant.sharepoint.com/.default
+  ```
+
+---
+
+### 🔍 **Bước 3: Parse access token**
+
+Dùng activity `Deserialize JSON` để đọc nội dung từ `tokenResponse.Content`.
+
+Tạo biến `tokenJson` và trích xuất:
+
+```vb
+accessToken = tokenJson("access_token").ToString
+```
+
+---
+
+### 📡 **Bước 4: Gọi API SharePoint hoặc Graph**
+
+Tạo `HTTP Request` mới để gọi API bạn muốn, ví dụ:
+
+- **Lấy danh sách file trong thư mục SharePoint:**
+```http
+GET https://graph.microsoft.com/v1.0/sites/yourtenant.sharepoint.com:/sites/yoursite:/drive/root/children
+```
+
+- **Headers:**
+```json
+{
+  "Authorization": "Bearer " + accessToken,
+  "Accept": "application/json"
+}
+```
+
+---
+
+## 🧠 Ví dụ kết quả JSON từ token request:
+
+```json
+{
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "access_token": "eyJ0eXAiOiJKV1QiL..."
+}
+```
+
+---
+
+## 📂 Bước tiếp theo bạn có thể làm:
+
+- Dùng API để **tải file**, **ghi danh sách file vào Excel**, hoặc **di chuyển file SharePoint**
+- Mình có thể giúp bạn build luồng đầy đủ: Lấy token → Gọi API → Ghi Excel → Di chuyển file
+
+---
+
+## 🧱 Mình có thể dựng mẫu .xaml nếu bạn cần:
+
+Bạn chỉ cần cung cấp:
+- Tên site SharePoint và thư mục bạn muốn xử lý
+- Bạn muốn thao tác gì (đọc file, di chuyển file, lọc dữ liệu…)
+
+👉 Mình sẽ dựng flow mẫu đầy đủ (không cần Azure Portal, không cần quyền admin) để bạn chạy ngay.
+
+Bạn muốn mình gửi mẫu file không?
