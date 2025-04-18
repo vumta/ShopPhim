@@ -1,0 +1,87 @@
+Tuyệt vời! Dưới đây là **hướng dẫn chi tiết từng bước** để cấu hình **gửi HTTP Request lấy Access Token** từ Microsoft trong **UiPath**, sử dụng **tài khoản người dùng (ROPC flow - không dùng MFA)**.
+
+---
+
+## 🎯 Mục tiêu:
+Dùng UiPath để gửi HTTP POST đến:
+```
+https://login.microsoftonline.com/common/oauth2/v2.0/token
+```
+Nhằm **lấy access token** để gọi SharePoint API (Graph API).
+
+---
+
+## 🧰 Bạn cần:
+
+| Thông tin           | Ví dụ                                   |
+|---------------------|------------------------------------------|
+| Username            | `abc@contoso.com`                        |
+| Password            | Mật khẩu tài khoản SharePoint            |
+| Client ID           | `d3590ed6-52b3-4102-aeff-aad2292ab01c` *(ứng dụng mặc định cho ROPC)* |
+| Scope               | `https://graph.microsoft.com/.default`   |
+| Grant Type          | `password`                               |
+
+---
+
+## 🪜 GUIDE STEP BY STEP – GỬI HTTP REQUEST LẤY TOKEN
+
+### ✅ Bước 1: Thêm activity `HTTP Request`
+
+- Kéo **HTTP Request** từ `UiPath.WebAPI.Activities`
+- Đổi tên activity thành: `Get Access Token`
+
+---
+
+### ✅ Bước 2: Cấu hình properties như sau:
+
+| Thuộc tính       | Giá trị |
+|------------------|---------|
+| **EndPoint**     | `https://login.microsoftonline.com/common/oauth2/v2.0/token` |
+| **Method**       | `POST` |
+| **BodyFormat**   | `application/x-www-form-urlencoded` |
+| **Body**         |  
+```plaintext
+client_id=d3590ed6-52b3-4102-aeff-aad2292ab01c&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&username=abc@contoso.com&password=your_password_here&grant_type=password
+```
+*(Thay `abc@contoso.com` và `your_password_here` bằng biến nếu cần)*
+
+| **Headers**      | Thêm 1 header:  
+Key = `Content-Type`  
+Value = `application/x-www-form-urlencoded` |
+
+| **Output** → Response | Gán vào biến: `accessTokenResponse` (kiểu `String`) |
+
+---
+
+### ✅ Bước 3: Tách Access Token từ response
+
+- Dùng `Deserialize JSON` để tách token:
+```vb
+JObject.Parse(accessTokenResponse)("access_token").ToString
+```
+
+- Gán giá trị này vào biến `accessToken` (kiểu String) để dùng ở các bước sau.
+
+---
+
+## ✅ Mẫu UiPath Flow sơ lược:
+
+```
+[HTTP Request] Get Access Token → lưu vào: accessTokenResponse
+[Assign] accessToken = JObject.Parse(accessTokenResponse)("access_token").ToString
+```
+
+---
+
+✅ Sau khi lấy `accessToken`, bạn có thể dùng nó để gọi SharePoint API như:
+```http
+GET https://graph.microsoft.com/v1.0/sites/{domain}:/sites/{siteName}:/drive/root:/Documents/Reports:/children
+```
+→ Thêm vào header:
+```
+Authorization: Bearer your_access_token_here
+```
+
+---
+
+Bạn muốn mình demo đoạn này luôn trong `.xaml` mẫu để dễ hình dung hơn không? Mình có thể cập nhật thêm!
