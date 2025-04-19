@@ -1,0 +1,121 @@
+Câu trả lời ngắn: ✅ **Có thể**, nhưng bạn **phải có quyền đăng ký App** và App đó phải được **cấp quyền truy cập SharePoint Online API (Graph hoặc REST)** trong Azure — nếu không sẽ **không thể truy cập SharePoint bằng HTTP Request dù có Username, Password, Client ID**.
+
+---
+
+## 🎯 Trường hợp của bạn:
+
+Bạn có:
+- ✅ `Client ID` (Application ID)
+- ✅ `Username` (người dùng không MFA)
+- ✅ `Password`
+- ✅ Muốn truy cập SharePoint để **lấy tất cả file trong folder (kể cả subfolder)** bằng UiPath
+
+Vậy ta sẽ dùng **ROPC flow** để lấy Access Token → Gọi SharePoint REST API.
+
+---
+
+## 🔐 1. ROPC Flow - Lấy Access Token
+
+### 📌 Endpoint:
+
+```
+https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token
+```
+
+**Nếu không có Tenant ID** → có thể dùng `common` hoặc `organizations`, nhưng **khuyến nghị có tenant ID rõ ràng**.
+
+---
+
+### 📌 Body (x-www-form-urlencoded):
+
+```text
+client_id=YOUR_CLIENT_ID
+&scope=https%3A%2F%2F<sharepoint_domain>%2F.default
+&username=YOUR_USERNAME
+&password=YOUR_PASSWORD
+&grant_type=password
+```
+
+> ❗ `scope` với SharePoint phải là:  
+> `https://contoso.sharepoint.com/.default`
+
+---
+
+### 🛑 Lưu ý:
+- App phải được **cấp quyền SharePoint (Delegated)** trong Azure App Registration.
+- Nếu chưa được cấp → bạn sẽ nhận lỗi `access_denied` hoặc `invalid_scope`.
+
+---
+
+## 🌐 2. Gọi SharePoint REST API để lấy danh sách file
+
+### 📌 Endpoint:
+
+```http
+GET https://contoso.sharepoint.com/sites/TestSite/_api/web/GetFolderByServerRelativeUrl('/sites/TestSite/Shared Documents/Reports')/Files?$expand=ListItemAllFields
+```
+
+- Hoặc để lấy cả **subfolder**, bạn sẽ phải dùng:
+```http
+GET .../Folders?$expand=Folders,Files
+```
+
+---
+
+### 📌 Header:
+
+```
+Authorization: Bearer <ACCESS_TOKEN>
+Accept: application/json;odata=verbose
+```
+
+---
+
+## ✅ Các bước trong UiPath
+
+### Step-by-step:
+
+#### 1. `Assign`: Chuẩn bị `requestBody` (cho ROPC)
+
+```vb
+requestBody = "client_id=" + clientId + 
+              "&scope=https%3A%2F%2Fcontoso.sharepoint.com%2F.default" + 
+              "&username=" + username + 
+              "&password=" + password + 
+              "&grant_type=password"
+```
+
+#### 2. `HTTP Request`: Lấy token
+
+- Method: `POST`
+- URL: `https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token`
+- Headers: `Content-Type = application/x-www-form-urlencoded`
+- Body: `requestBody`
+- Output: `tokenResponse`
+
+#### 3. `Deserialize JSON`: Lấy `access_token` từ `tokenResponse`
+
+```vb
+accessToken = jsonObj("access_token").ToString
+```
+
+#### 4. `HTTP Request`: Gọi SharePoint API
+
+- Method: `GET`
+- URL: `https://contoso.sharepoint.com/sites/TestSite/_api/web/GetFolderByServerRelativeUrl('/sites/TestSite/Shared Documents/Reports')/Folders?$expand=Folders,Files`
+- Headers:
+  - `Authorization = Bearer ` + accessToken
+  - `Accept = application/json;odata=verbose`
+- Output: `folderListJson`
+
+#### 5. `Deserialize JSON` + `Loop` để đọc danh sách file
+
+---
+
+## 🎁 Bạn cần gì tiếp theo?
+
+- 📂 File `.xaml` mẫu lấy token và gọi SharePoint
+- 📄 Gợi ý mẫu cấu trúc response JSON để đọc file
+- 📥 Mẫu flow Power Automate thay thế nếu không có quyền cấp API
+
+Chỉ cần nói: **“Gửi mẫu .xaml”** là mình gửi liền nhé!
