@@ -1,3 +1,76 @@
+Dưới đây là hướng dẫn **Step-by-step** để gửi HTTP request từ **UiPath** đến một Power Automate Flow (trigger bằng “When an HTTP request is received”) và truyền giá trị `FolderPath` đúng cách:
+
+---
+
+## 🎯 MỤC TIÊU
+- Gửi giá trị `"FolderPath"` từ UiPath đến Power Automate Flow qua **body JSON**.
+- Flow sẽ đọc `FolderPath` bằng `triggerBody()?['FolderPath']`.
+
+---
+
+## 🧩 GIẢ SỬ
+
+- URL Power Automate Flow:
+```
+https://prod-00.westeurope.logic.azure.com:443/workflows/abc123/...
+```
+
+- Input cần gửi:  
+```json
+{
+  "FolderPath": "Shared Documents/Báo cáo tháng 4"
+}
+```
+
+---
+
+## ✅ CÁCH LÀM TRONG UIPATH
+
+### 🔹 Bước 1: Kéo activity `HTTP Request`
+
+Tìm **activity "HTTP Request"** trong UiPath (System > Net.Http).
+
+---
+
+### 🔹 Bước 2: Cấu hình các thuộc tính
+
+| Thuộc tính | Giá trị |
+|------------|--------|
+| **EndPoint** | `"https://...logic.azure.com/..."` *(Power Automate URL)* |
+| **Method** | `POST` |
+| **Body** | `"{"FolderPath":"Shared Documents/Báo cáo tháng 4"}"` |
+| **BodyFormat** | `Application/Json` |
+| **AcceptFormat** | `Application/Json` *(optional)* |
+| **Headers** | Thêm: `Content-Type` = `application/json` |
+
+📌 **Tip:** Body nên là **chuỗi JSON đúng định dạng**, nếu bạn truyền biến:
+```vb
+"{""FolderPath"":""" & myFolderPath & """}"
+```
+
+---
+
+### 🔹 Bước 3: Đọc kết quả trả về
+
+- Nếu Flow Power Automate `Response` trả về JSON, bạn có thể dùng:
+  - `Deserialize JSON` để xử lý kết quả
+  - Trích xuất trường như: `files`, `status`, v.v.
+
+---
+
+## ✅ KẾT LUẬN
+
+Khi gọi từ UiPath, bạn **nên dùng phương thức POST với body JSON**, vì:
+- Power Automate dễ xử lý `triggerBody()`
+- Đường dẫn `FolderPath` có thể chứa khoảng trắng, dấu tiếng Việt/Unicode → sẽ an toàn hơn trong body
+
+---
+
+Nếu bạn cần, mình có thể giúp:
+- Viết sẵn đoạn UiPath XAML cho HTTP request này
+- Hoặc mock toàn bộ Flow để bạn test với Postman/Uipath dễ hơn.
+
+========================================
 Khi bạn dùng **trigger "When an HTTP request is received"** trong Power Automate, có 2 cách để giá trị được truyền vào:
 
 ---
