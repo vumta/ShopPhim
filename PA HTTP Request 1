@@ -1,3 +1,105 @@
+Để **xác định một item trong JSON trả về từ SharePoint là file hay folder**, bạn chỉ cần nhìn vào **cấu trúc dữ liệu trả về từ API** — mỗi loại (`File` và `Folder`) sẽ có các đặc điểm khác nhau. Dưới đây là hướng dẫn chi tiết:
+
+---
+
+## ✅ 1. **Nếu bạn dùng API**:
+```http
+/_api/web/GetFolderByServerRelativeUrl('<path>')?$expand=Folders,Files
+```
+
+Thì:
+- `Files` sẽ là một **mảng các file**.
+- `Folders` sẽ là một **mảng các folder**.
+
+Vì vậy bạn **đã biết chắc** cái nào là file và cái nào là folder vì chúng nằm trong 2 mảng riêng biệt.
+
+---
+
+## ✅ 2. **Nếu bạn dùng API list all items trong folder (Files + Folders lẫn lộn)**
+
+Ví dụ:
+```http
+/_api/web/GetFolderByServerRelativeUrl('<path>')/ListItemAllFields?$expand=File,Folder
+```
+
+Hoặc:
+```http
+/_api/web/GetFolderByServerRelativeUrl('<path>')/Folders?$expand=ListItemAllFields
+```
+
+Khi đó bạn **phải kiểm tra trong từng item để biết nó là file hay folder**.
+
+---
+
+## ✅ 3. **Cách xác định File hay Folder trong JSON (khi lẫn lộn)**
+
+Trong mỗi item trả về, bạn có thể dựa vào các trường sau:
+
+| Cách | Mô tả | Công thức dùng trong Power Automate |
+|------|------|-------------------------------------|
+| `FSObjType` | `0 = File`, `1 = Folder` | `item()?['FSObjType']` |
+| `FileSystemObjectType` | `0 = File`, `1 = Folder` | `item()?['FileSystemObjectType']` |
+| Có `File` hay `Folder` object | Nếu có trường `File` là file, nếu có `Folder` là folder | `if(contains(keys(item()), 'File'), 'File', 'Folder')` |
+| `ItemType` (nếu lấy từ SharePoint list) | Cũng thường là `0 = file`, `1 = folder` | `item()?['ItemType']` |
+
+---
+
+### ✅ Cách phổ biến nhất: **Dựa vào `FileSystemObjectType` hoặc `FSObjType`**
+
+Trong Power Automate, bạn có thể dùng `Condition`:
+
+```plaintext
+Condition: item()?['FileSystemObjectType'] is equal to 1
+```
+→ Đây là folder.
+
+```plaintext
+Condition: item()?['FileSystemObjectType'] is equal to 0
+```
+→ Đây là file.
+
+---
+
+## 🧪 Ví dụ JSON trả về
+
+```json
+{
+  "Name": "Document1.pdf",
+  "ServerRelativeUrl": "/sites/yoursite/Shared Documents/Document1.pdf",
+  "FSObjType": 0,
+  "FileSystemObjectType": 0,
+  "File": {
+    "Name": "Document1.pdf"
+  }
+}
+```
+
+```json
+{
+  "Name": "SubFolder",
+  "ServerRelativeUrl": "/sites/yoursite/Shared Documents/SubFolder",
+  "FSObjType": 1,
+  "FileSystemObjectType": 1,
+  "Folder": {
+    "Name": "SubFolder"
+  }
+}
+```
+
+---
+
+## ✅ Tóm tắt
+
+| Dấu hiệu | File | Folder |
+|----------|------|--------|
+| `FSObjType` hoặc `FileSystemObjectType` | `0` | `1` |
+| Có trường `File` | ✅ | ❌ |
+| Có trường `Folder` | ❌ | ✅ |
+
+---
+
+Nếu bạn cần mình giúp bạn viết một khối `Condition` hoặc xử lý JSON này trong Power Automate cho file/folder, mình có thể viết mẫu cụ thể luôn. Bạn đang lấy dữ liệu từ action nào vậy? REST API hay "Get files (properties only)"?
+================================
 Nếu bạn thấy `Files = null` trong kết quả trả về từ SharePoint REST API, có một vài nguyên nhân thường gặp, và mình sẽ hướng dẫn cách **xử lý triệt để** để bạn luôn lấy được danh sách file chính xác, kể cả khi có subfolder hoặc không có file nào.
 
 ---
