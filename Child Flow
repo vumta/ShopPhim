@@ -1,3 +1,67 @@
+Cảm ơn bạn! Đây là một lỗi **rất phổ biến** khi xử lý mảng trong Power Automate — liên quan đến việc **gán giá trị mới cho biến kiểu Array** bằng cách sử dụng biểu thức như `skip(...)`.
+
+---
+
+## 🟥 Lý do lỗi:
+Action **“Set variable”** chỉ chấp nhận **giá trị kiểu đơn giản**, không phải là **biểu thức hàm như `skip(...)`** áp dụng trực tiếp cho biến array.
+
+---
+
+## ✅ Cách khắc phục đúng chuẩn:
+
+### 🟨 1. Dùng action **“Set variable”** nhưng bọc trong `Expression`
+Khi chọn action **Set variable**, ở phần **Value**, bạn:
+- Bấm vào `fx`
+- Dán vào biểu thức:
+
+```plaintext
+skip(variables('PendingFolders'), 1)
+```
+
+⚠️ Lưu ý: **Không bấm dynamic content**, phải **nhập bằng tay** hoặc dùng **expression tab**
+
+---
+
+### 🟩 2. Hoặc dùng action **“Compose” trung gian**
+
+Nếu `Set variable` vẫn báo lỗi hoặc không hoạt động theo ý, bạn có thể dùng phương pháp **tạm lưu giá trị mảng mới vào Compose**, rồi mới gán:
+
+#### a. Add action: `Compose`
+- Expression:
+  ```plaintext
+  skip(variables('PendingFolders'), 1)
+  ```
+
+#### b. Add action: `Set variable`
+- Value: `outputs('Compose')`
+
+👉 Cách này đặc biệt hữu ích khi Power Automate không parse đúng kiểu dữ liệu array.
+
+---
+
+## 🎯 Giải thích nhanh `skip()`
+
+- `skip(array, n)` sẽ bỏ qua `n` phần tử đầu tiên.
+- Trong ví dụ của bạn:
+  ```plaintext
+  skip(variables('PendingFolders'), 1)
+  ```
+  → bỏ phần tử đầu tiên khỏi mảng `PendingFolders`.
+
+---
+
+## ✅ Tổng kết sửa lỗi:
+
+| Vấn đề | Giải pháp |
+|--------|-----------|
+| `Set variable` lỗi khi dùng `skip(...)` | Nhập trực tiếp bằng tab **fx Expression** |
+| Lỗi kiểu dữ liệu array | Dùng `Compose` → rồi `Set variable` từ đó |
+| Bấm nhầm Dynamic Content | Tránh, luôn dùng Expression tab |
+
+---
+
+Nếu bạn vẫn thấy lỗi cụ thể nào, có thể chụp screenshot hoặc paste dòng lỗi vào đây, mình sẽ giúp bạn debug ngay nhé!
+=====================================================================================================================================================
 Khi bạn gặp lỗi với action **"Run a Child Flow"** như `"Run a Child Flow not only user run"` hoặc tương tự, thì nguyên nhân thường là do **quyền truy cập (permissions)** và **kiểu Flow trigger** chưa đúng. Dưới đây là phân tích và cách khắc phục.
 
 ---
