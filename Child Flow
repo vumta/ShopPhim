@@ -1,0 +1,127 @@
+Dưới đây là **hướng dẫn step-by-step sử dụng Child Flow** trong Power Automate để **lấy toàn bộ file trong SharePoint bao gồm cả subfolder**, bằng cách đệ quy chính Flow con gọi lại chính nó.
+
+---
+
+## ✅ Tổng quan giải pháp dùng **Child Flow (Recursive)**
+
+1. Tạo **1 Child Flow** (Flow con), nhận `FolderPath` làm input.
+2. Flow con:
+   - Gọi `List folder` để lấy file và folder con.
+   - Nếu gặp **file** → lưu vào mảng kết quả.
+   - Nếu gặp **folder** → gọi lại chính **Child Flow**, truyền vào path folder con.
+   - Gộp kết quả file của mình + từ các flow con trả về.
+3. Tạo **Parent Flow** (Flow chính) → chỉ việc gọi Child Flow 1 lần với Folder gốc.
+
+---
+
+## 🧱 Điều kiện bắt buộc:
+- Flow phải nằm trong **Solution**
+- Bật **Child Flows support**
+- Cần sử dụng action **"Run a Child Flow"**
+
+---
+
+## 🟨 Bước 1: Tạo Solution và Flow
+
+1. Vào Power Automate > Chọn **Solutions** > New Solution (nếu chưa có)
+2. Mở Solution → chọn **+ New > Cloud flow > Instant cloud flow**
+3. Tạo Flow con: đặt tên ví dụ `GetFilesRecursively`
+   - Trigger: **Manually trigger a flow**
+   - Add input: `FolderPath` (kiểu Text)
+
+---
+
+## 🟩 Bước 2: Trong Flow con – xử lý đệ quy
+
+### 🟦 Biến khởi tạo:
+
+- **Initialize Variable**: `AllFiles`  
+  - Type: Array  
+  - Value: `[]`
+
+---
+
+### 🟦 List folder content:
+
+- Action: `List folder`
+  - Site: chọn Site SharePoint
+  - Folder path: `FolderPath` (lấy từ trigger input)
+
+---
+
+### 🟦 Loop qua từng item (file/folder)
+
+- **Apply to each**: `value` của `List folder`
+
+Bên trong:
+
+#### ➤ Nếu là **file**:
+- Điều kiện:
+  ```plaintext
+  empty(items('Apply_to_each')?['Folder'])
+  ```
+- Nếu đúng → `Append to array variable` → `AllFiles`
+  - Value:
+    ```json
+    {
+      "Name": "@items('Apply_to_each')?['Name']",
+      "Path": "@items('Apply_to_each')?['Path']"
+    }
+    ```
+
+#### ➤ Nếu là **folder**:
+- Gọi lại chính Flow con (đệ quy):
+
+- **Run a Child Flow**:
+  - Flow: chọn chính `GetFilesRecursively`
+  - Input:  
+    `FolderPath`: `items('Apply_to_each')?['Path']`
+
+- Sau đó, **Append kết quả** vào `AllFiles`
+
+  - Dùng action: `Append to array variable`
+  - Value: `outputs('Run_a_Child_Flow')?['body']`
+
+---
+
+### 🟦 Sau vòng lặp: Trả kết quả ra
+
+- **Response**: Trả lại `AllFiles`  
+  - Body: `AllFiles`
+
+---
+
+## 🟨 Bước 3: Tạo Flow chính gọi Child Flow
+
+1. Trong cùng Solution → tạo 1 Cloud Flow mới (Instant hoặc Scheduled)
+2. Add action: **Run a Child Flow**
+   - Chọn flow: `GetFilesRecursively`
+   - Input: `FolderPath`: ví dụ `"Shared Documents/Reports"`
+
+3. Sau đó có thể:
+   - Log ra kết quả
+   - Xuất ra Excel
+   - Dùng kết quả tiếp tục xử lý
+
+---
+
+## ✅ Kết quả
+- `AllFiles` là mảng chứa **toàn bộ file trong thư mục gốc và mọi subfolder**, không giới hạn cấp độ lồng.
+
+---
+
+## 🔁 Ưu điểm của dùng Child Flow:
+
+- Cực kỳ dễ hiểu & gọn.
+- Không cần xử lý queue hay vòng lặp thủ công.
+- Mỗi folder xử lý riêng → dễ debug và chia nhỏ thời gian chạy.
+
+---
+
+## 🚀 Nếu bạn muốn:
+Mình có thể cung cấp **Flow mẫu JSON** cho cả Parent và Child Flow để bạn import trực tiếp – chỉ cần bạn cho mình:
+
+- **Site SharePoint**
+- **Thư mục gốc cần duyệt**
+
+Bạn muốn mình xuất JSON mẫu không?
