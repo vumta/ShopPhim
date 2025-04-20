@@ -1,3 +1,44 @@
+Để **remove dấu `/` ở đầu chuỗi đường dẫn** trong Power Automate, bạn có thể dùng biểu thức sau trong action `Set variable` hoặc `Compose`:
+
+---
+
+### ✅ **Biểu thức loại bỏ dấu `/` ở đầu chuỗi (nếu có):**
+
+```plaintext
+if(startsWith(variables('InputPath'), '/'), substring(variables('InputPath'), 1), variables('InputPath'))
+```
+
+---
+
+### 🧠 Giải thích:
+
+| Thành phần | Ý nghĩa |
+|------------|--------|
+| `startsWith(..., '/')` | Kiểm tra nếu chuỗi bắt đầu bằng dấu `/` |
+| `substring(..., 1)` | Cắt bỏ ký tự đầu tiên (bắt đầu từ index 1) |
+| `if(...)` | Nếu có dấu `/` thì bỏ, còn không thì giữ nguyên |
+
+---
+
+### 📌 Ví dụ:
+
+| `InputPath` (giá trị gốc)         | Kết quả sau xử lý                    |
+|-----------------------------------|--------------------------------------|
+| `/Shared Documents/Reports`      | `Shared Documents/Reports`          |
+| `Shared Documents/Reports`       | `Shared Documents/Reports` *(không đổi)* |
+
+---
+
+### ✅ Nếu dùng trong Compose:
+
+```plaintext
+if(startsWith(outputs('Compose_InputPath'), '/'), substring(outputs('Compose_InputPath'), 1), outputs('Compose_InputPath'))
+```
+
+---
+
+Cần mình hỗ trợ đưa vào flow cụ thể nào bạn đang dùng cũng được nhé!
+===================
 Cảm ơn bạn đã chia sẻ chi tiết – mình hiểu vấn đề bạn gặp phải: **khi truy cập `Files` hoặc `Folders` từ kết quả trả về của `Send an HTTP request to SharePoint`, giá trị luôn bị `null` trong action `Condition` hoặc vòng lặp**, dù bạn chắc chắn API trả về đúng.
 
 ---
