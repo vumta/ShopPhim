@@ -1,0 +1,124 @@
+Dưới đây là **hướng dẫn step-by-step** để tạo **Power Automate Cloud Flow đệ quy với “List folder”** nhằm **lấy tất cả file trong thư mục SharePoint bao gồm cả subfolder**:
+
+---
+
+## 🧠 Ý tưởng chính:
+1. **Bắt đầu với thư mục gốc** → đưa vào danh sách đợi (`FolderQueue`)
+2. **Lặp (Do Until)**:
+   - Lấy ra 1 folder từ queue
+   - Gọi `List folder` để lấy danh sách mục con
+   - Nếu là file → lưu vào `AllFiles`
+   - Nếu là folder → thêm vào `FolderQueue`
+3. Dừng khi không còn folder nào trong queue.
+
+---
+
+## ✅ Các bước chi tiết:
+
+### 🟨 **Step 1: Tạo Flow và các biến khởi tạo**
+
+1. **Tạo Cloud Flow** (Scheduled hoặc Instant tùy bạn).
+2. **Add "Initialize variable"**:
+   - `Name`: `FolderQueue`
+   - `Type`: `Array`
+   - `Value`: `["Shared Documents/Reports"]` (folder gốc)
+
+3. **Add "Initialize variable"**:
+   - `Name`: `AllFiles`
+   - `Type`: `Array`
+   - `Value`: `[]`
+
+---
+
+### 🟨 **Step 2: Tạo Do Until loop để duyệt hết folder**
+
+**Add "Do Until"**
+
+- **Condition**: `length(variables('FolderQueue'))` is equal to `0`  
+  (ý là lặp đến khi queue rỗng)
+
+---
+
+### 🟩 **Bên trong "Do Until":**
+
+#### 🔹 1. Get current folder to process
+
+- **Add "Compose"**
+  - `Inputs`: `first(variables('FolderQueue'))`
+
+#### 🔹 2. Remove it from FolderQueue
+
+- **Add "Append to array variable" (tạm thời tạo biến mới nếu muốn, hoặc dùng expression)**
+
+- **Set variable `FolderQueue`**:
+  - **Value**:  
+    ```json
+    skip(variables('FolderQueue'), 1)
+    ```
+
+#### 🔹 3. List folder content
+
+- **Add action**: `List folder`
+  - **Site Address**: site của bạn
+  - **Folder Path**: `Outputs` của step Compose ở trên
+
+---
+
+#### 🔹 4. Apply to each → từng item trong "List folder"
+
+- **Apply to each**: `value` từ kết quả `List folder`
+
+Bên trong:
+
+##### 🔸 a. Nếu là file → Add vào `AllFiles`
+
+- **Condition**:  
+  ```plaintext
+  empty(items('Apply_to_each')?['Folder'])
+  ```
+
+  Nếu TRUE → là file
+
+- Nếu đúng: **Append to array variable `AllFiles`**  
+  Với item dạng:
+  ```json
+  {
+    "Name": "@items('Apply_to_each')?['Name']",
+    "Path": "@items('Apply_to_each')?['Path']",
+    "Link": "@items('Apply_to_each')?['Link']"
+  }
+  ```
+
+##### 🔸 b. Nếu là folder → add vào `FolderQueue`
+
+- Nếu FALSE (nghĩa là folder), thì:
+  - **Append to array variable `FolderQueue`**
+  - Value:  
+    ```plaintext
+    items('Apply_to_each')?['Path']
+    ```
+
+---
+
+### 🟩 Sau Do Until: Xuất danh sách file
+
+- Bạn có thể log `AllFiles`, xuất ra file Excel, gửi qua email, v.v.
+
+---
+
+## ✅ Kết quả:
+- Mảng `AllFiles` sẽ chứa **toàn bộ file từ thư mục SharePoint gốc và tất cả subfolder không giới hạn cấp độ**.
+
+---
+
+## ⚡ Gợi ý nâng cao:
+- Bạn có thể thêm **filter theo loại file**, **cỡ file**, hoặc thêm log thời gian cho từng folder nếu cần debug.
+- Nếu muốn tránh chạy quá lâu, có thể giới hạn `Do Until` theo thời gian hoặc số vòng lặp.
+
+---
+
+Nếu bạn muốn mình **xuất ra bản mẫu Flow JSON** để import vào Power Automate cho nhanh, chỉ cần cho mình biết chính xác:
+- Đường dẫn thư mục gốc
+- Site name SharePoint
+
+Mình sẽ tạo sẵn bản để bạn chỉ việc import 👌
