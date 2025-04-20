@@ -1,3 +1,89 @@
+Rất tốt! Nếu bạn **không muốn dùng `union()`** (vì có thể lỗi hoặc không rõ ràng), thì mình sẽ hướng dẫn bạn giải pháp **step-by-step** để **cập nhật `PendingFolders` mà không dùng `union()`**, vẫn đảm bảo:
+
+- Bỏ phần tử đầu của `PendingFolders`  
+- Thêm các `Subfolders` trả về từ flow con (nếu có)
+
+---
+
+## ✅ MỤC TIÊU
+Giả sử bạn có:
+- `PendingFolders` = `["FolderA", "FolderB", "FolderC"]`
+- `Subfolders` từ flow con trả về = `["FolderA/Sub1", "FolderA/Sub2"]`
+
+Bạn muốn cập nhật lại `PendingFolders` thành:
+```json
+["FolderB", "FolderC", "FolderA/Sub1", "FolderA/Sub2"]
+```
+
+---
+
+## 🧩 GIẢI PHÁP KHÔNG DÙNG `union()`
+
+### 🔹 **Bước 1 – Tạo biến tạm để chứa `Subfolders` an toàn**
+
+👉 **Action**: `Set variable` → `TempSubfolders`
+
+```plaintext
+if(
+  empty(outputs('Child_ProcessFolder')?['Subfolders']),
+  createArray(),
+  outputs('Child_ProcessFolder')?['Subfolders']
+)
+```
+
+---
+
+### 🔹 **Bước 2 – Bỏ phần tử đầu tiên của `PendingFolders`**
+
+👉 **Action**: `Set variable` → `NextPendingFolders`  
+```plaintext
+skip(variables('PendingFolders'), 1)
+```
+
+---
+
+### 🔹 **Bước 3 – Duyệt từng phần tử trong `TempSubfolders` và thêm vào `NextPendingFolders`**
+
+👉 Dùng `Apply to each` (với `TempSubfolders`)
+- **Input**: `variables('TempSubfolders')`
+- Trong vòng lặp:
+  - `Append to array variable` → `NextPendingFolders`
+
+---
+
+### 🔹 **Bước 4 – Gán lại `PendingFolders` = `NextPendingFolders`**
+
+👉 **Set variable**:
+```plaintext
+PendingFolders = variables('NextPendingFolders')
+```
+
+---
+
+## 🔁 TỔNG THỂ TRONG `Do Until`
+
+| Step | Action | Mục đích |
+|------|--------|----------|
+| ✅ | `first(PendingFolders)` | Current folder |
+| ✅ | Gọi `Child Flow` với Current Folder |
+| ✅ | Append file vào `AllFiles` |
+| ✅ | Tạo `TempSubfolders` (safe check) |
+| ✅ | `skip()` PendingFolders để tạo `NextPendingFolders` |
+| ✅ | Duyệt `TempSubfolders` → `append` vào `NextPendingFolders` |
+| ✅ | Gán `PendingFolders = NextPendingFolders` |
+
+---
+
+## ✅ Ưu điểm giải pháp này:
+- Không dùng `union()` nên tránh lỗi `null`
+- Rõ ràng và dễ debug từng bước
+- Có thể dễ dàng mở rộng logic khi cần
+
+---
+
+Mình có thể tạo **file Flow mẫu (.zip)** giúp bạn import vào Power Automate nếu cần. Bạn muốn mình làm luôn không?
+
+================================
 Rất hay! Nếu bạn dùng biểu thức như sau trong **Power Automate**:
 
 ```plaintext
