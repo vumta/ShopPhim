@@ -1,3 +1,55 @@
+Khi bạn dùng **trigger "When an HTTP request is received"** trong Power Automate, có 2 cách để giá trị được truyền vào:
+
+---
+
+### ✅ **1. Dữ liệu truyền vào qua Body** (phổ biến nhất)
+
+Nếu bạn gửi JSON trong phần **body**, ví dụ:
+
+```json
+{
+  "FolderPath": "Shared Documents/Folder A"
+}
+```
+
+👉 Bạn sẽ lấy được `FolderPath` bằng biểu thức:
+```plaintext
+triggerBody()?['FolderPath']
+```
+
+---
+
+### ❗ **2. Dữ liệu truyền vào qua Query String** (ít phổ biến hơn)
+
+Ví dụ bạn gọi API với URL:
+```
+https://yourflowurl?FolderPath=Shared%20Documents/Folder%20A
+```
+
+👉 Khi đó, Power Automate sẽ coi `FolderPath` là **query parameter**, và bạn cần dùng biểu thức:
+
+```plaintext
+triggerOutputs()?['queries']?['FolderPath']
+```
+
+---
+
+### ✅ **Tóm tắt – Cách lấy `FolderPath`**
+
+| Truyền kiểu gì | Biểu thức lấy giá trị |
+|----------------|------------------------|
+| **Trong body JSON** | `triggerBody()?['FolderPath']` |
+| **Trong query string** | `triggerOutputs()?['queries']?['FolderPath']` |
+
+---
+
+Nếu bạn đang dùng cách gọi từ **UiPath**, hãy xác định bạn đang **POST với body JSON** hay **GET có query string**, để dùng biểu thức tương ứng nhé.
+
+Nếu bạn muốn, mình có thể giúp viết đoạn HTTP request tương ứng từ UiPath hoặc Postman luôn.
+====================================================================================================
+
+
+
 Dưới đây là hướng dẫn **chi tiết từng bước (step-by-step)** để xây dựng giải pháp **Power Automate sử dụng Child Flow kết hợp `Do Until` + `Queue`** nhằm lấy tất cả file trong SharePoint bao gồm mọi cấp subfolder.
 
 ---
