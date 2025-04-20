@@ -1,3 +1,60 @@
+Trong Power Automate, nếu bạn dùng `createArray()` và nó trả về `[]`, tức là mảng rỗng – thì để **kiểm tra xem mảng có rỗng hay không**, bạn dùng biểu thức:
+
+---
+
+### ✅ **Cách kiểm tra mảng rỗng (`[]`):**
+
+```plaintext
+empty( createArray(...) )
+```
+
+📌 Ví dụ:
+```plaintext
+empty(createArray(items('Apply_to_each')))
+```
+
+---
+
+### ✅ Nếu bạn đang kiểm tra sau khi gọi Child Flow:
+
+Giả sử bạn có mảng trả về từ Child Flow là:
+
+```plaintext
+outputs('ChildFlow')?['Subfolders']
+```
+
+Thì kiểm tra rỗng:
+```plaintext
+empty(outputs('ChildFlow')?['Subfolders'])
+```
+
+---
+
+### ✅ Dùng trong Condition:
+
+Trong khối `Condition`, bạn:
+- Chọn kiểu “Expression”
+- Dán:  
+```plaintext
+empty(outputs('ChildFlow')?['Subfolders'])
+```
+
+Rồi nhấn “OK” là được.
+
+---
+
+### 🎯 Mẹo:
+Bạn có thể kết hợp `if()` để rẽ nhánh:
+```plaintext
+if(empty(outputs('ChildFlow')?['Subfolders']), 'Trống', 'Có dữ liệu')
+```
+
+---
+
+Cần mình build flow mẫu hoặc giúp kiểm tra điều kiện thực tế bạn đang gặp thì gửi thêm chi tiết nhé!
+
+
+======
 Bạn đúng rồi – Power Automate **không hỗ trợ toán tử `+` để nối array**, nên biểu thức:
 
 ```plaintext
