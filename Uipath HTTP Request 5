@@ -1,0 +1,125 @@
+Dưới đây là hướng dẫn **step-by-step** cách cập nhật biến `AllFiles` trong Power Automate để **đảm bảo không bị trùng lặp dữ liệu**, sử dụng logic chuẩn:
+
+---
+
+## 🎯 Mục tiêu:
+Tạo và duy trì một biến `AllFiles` dạng mảng, mỗi lần Flow con được gọi sẽ:
+
+- **Reset AllFiles** về rỗng.
+- **Append từng file** vào mảng.
+- **Đảm bảo không trùng lặp.**
+- **Trả về mảng `AllFiles` chuẩn** về Flow cha.
+
+---
+
+## ✅ Step-by-step chi tiết
+
+---
+
+### 🔹 **Bước 1 – Khởi tạo biến `AllFiles`**
+
+- **Action**: `Initialize variable`
+- **Name**: `AllFiles`
+- **Type**: Array
+- **Value**: `[]`
+
+🟡 Vị trí: Đặt ở đầu Flow con (sau các input đầu vào).
+
+---
+
+### 🔹 **Bước 2 – Reset `AllFiles` mỗi lần chạy**
+
+➡️ Thêm ngay sau bước `Initialize variable`:
+
+- **Action**: `Set variable`
+- **Name**: `AllFiles`
+- **Value**: `[]`
+
+> ✅ Đảm bảo biến không bị dính dữ liệu từ các lần chạy trước.
+
+---
+
+### 🔹 **Bước 3 – Duyệt qua từng file để Append**
+
+➡️ Giả sử bạn có mảng `Files` từ Parse JSON hoặc HTTP:
+
+1. **Action**: `Apply to each`
+   - **Input**: `Files`
+
+2. Bên trong vòng lặp:
+
+- **Action**: `Append to array variable`
+  - **Name**: `AllFiles`
+  - **Value**:
+
+```json
+{
+  "Name": "@items('Apply_to_each')?['Name']",
+  "Path": "@items('Apply_to_each')?['ServerRelativeUrl']"
+}
+```
+
+---
+
+### 🔹 **Bước 4 – (Tùy chọn) Loại bỏ trùng lặp**
+
+> Nếu bạn thấy có khả năng dữ liệu bị trùng, thêm một bước xử lý:
+
+- **Action**: `Set variable`
+  - **Name**: `AllFiles`
+  - **Value** (Expression):
+
+```plaintext
+union(variables('AllFiles'), variables('AllFiles'))
+```
+
+> ⚠️ `union()` giữa chính nó sẽ loại object trùng nhau.
+
+---
+
+### 🔹 **Bước 5 – Return `AllFiles` về Flow cha**
+
+- **Action**: `Respond to a PowerApp or flow`
+- **Output**:
+  - **Type**: Array
+  - **Name**: `AllFiles`
+  - **Value**: `variables('AllFiles')`
+
+---
+
+## 🧪 Flow cha có thể dùng trực tiếp:
+
+- Gọi Child Flow → output:
+```plaintext
+outputs('Child_Flow')?['AllFiles']
+```
+
+Hoặc gán qua Parse JSON:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "Name": { "type": "string" },
+      "Path": { "type": "string" }
+    }
+  }
+}
+```
+
+---
+
+## ✅ Kết quả đạt được:
+
+| Mục tiêu                         | Đã xử lý bằng                         |
+|----------------------------------|----------------------------------------|
+| Reset dữ liệu AllFiles           | `Set variable('AllFiles', [])`         |
+| Duyệt và append file             | `Apply to each` + `Append to array`    |
+| Tránh trùng dữ liệu              | `union(AllFiles, AllFiles)`            |
+| Trả về đúng kiểu array of object| Output dạng **Array** với object JSON |
+
+---
+
+Nếu bạn cần mình tạo **file `.zip` cho Flow con mẫu này** để import nhanh, chỉ cần nói nhé!
