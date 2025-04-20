@@ -1,0 +1,174 @@
+Dưới đây là hướng dẫn **chi tiết từng bước (step-by-step)** để xây dựng giải pháp **Power Automate sử dụng Child Flow kết hợp `Do Until` + `Queue`** nhằm lấy tất cả file trong SharePoint bao gồm mọi cấp subfolder.
+
+---
+
+# 📘 MỤC TIÊU
+- Gọi Flow chính từ **UiPath (HTTP trigger)**.
+- Duyệt đệ quy toàn bộ thư mục SharePoint thông qua kỹ thuật **mô phỏng đệ quy** với `Queue`.
+- **Flow con xử lý từng folder**, Flow cha gom toàn bộ kết quả → trả về JSON danh sách file.
+
+---
+
+## 🔹 PHẦN 1 – TẠO FLOW CON `Child_ProcessFolder`
+
+### 🎯 Chức năng:
+Nhận một `FolderPath`, trả về:
+- `Files`: Các file trong folder.
+- `Subfolders`: Các folder con (đường dẫn tương đối).
+
+---
+
+### 🔧 Bước 1 – Tạo Flow mới
+- Tên: **Child_ProcessFolder**
+- Kiểu: **Instant cloud flow**
+- Trigger: **Manually trigger a flow**
+  - Thêm input: `FolderPath` – kiểu **string**
+
+---
+
+### 🔧 Bước 2 – Gửi HTTP Request đến SharePoint
+
+**Action**: `Send an HTTP request to SharePoint`  
+- Site Address: chọn site tương ứng  
+- Method: `GET`  
+- Uri:
+```http
+_api/web/GetFolderByServerRelativeUrl('@{triggerBody()['FolderPath']}')?$expand=Files,Folders
+```
+
+---
+
+### 🔧 Bước 3 – Parse JSON kết quả
+
+- Content: `body('Send_an_HTTP_request_to_SharePoint')`
+- Schema: sử dụng "Generate from sample" với mẫu sau:
+```json
+{
+  "Files": { "results": [] },
+  "Folders": { "results": [] }
+}
+```
+
+---
+
+### 🔧 Bước 4 – Lấy danh sách `Files` và `Subfolders`
+
+**Compose Files**:  
+```json
+@body('Parse_JSON')?['Files']?['results']
+```
+
+**Select Subfolders**:
+- From: `body('Parse_JSON')?['Folders']?['results']`
+- Map:  
+  - Name: `item()?['Name']`  
+  - Path: `item()?['ServerRelativeUrl']`
+
+---
+
+### 🔧 Bước 5 – Kết thúc Flow con
+
+**Action**: `Respond to a PowerApp or flow`
+- Outputs:
+  - `Files`: từ Compose Files
+  - `Subfolders`: từ Select Subfolders
+
+---
+
+## 🔹 PHẦN 2 – TẠO FLOW CHA `Main_GetAllFiles`
+
+### 🎯 Chức năng:
+Nhận 1 folder từ UiPath → duyệt subfolders bằng `Queue` → gọi Flow con → gom toàn bộ `Files`.
+
+---
+
+### 🔧 Bước 1 – Tạo Flow mới
+- Tên: **Main_GetAllFiles**
+- Trigger: **When an HTTP request is received**
+  - Request Body Schema:
+```json
+{
+  "FolderPath": "string"
+}
+```
+
+---
+
+### 🔧 Bước 2 – Khởi tạo biến
+
+- **Initialize variable – PendingFolders**  
+  - Type: **Array**  
+  - Value:
+```json
+[
+  "@{triggerBody()?['FolderPath']}"
+]
+```
+
+- **Initialize variable – AllFiles**  
+  - Type: **Array**
+  - Value: `[]`
+
+---
+
+### 🔧 Bước 3 – `Do Until` loop: Khi `PendingFolders` rỗng
+
+**Condition**:  
+```plaintext
+length(variables('PendingFolders')) is equal to 0
+```
+
+---
+
+### Bên trong `Do Until`
+
+#### 🔸 1. Get Current Folder
+**Compose – CurrentFolder**:
+```plaintext
+first(variables('PendingFolders'))
+```
+
+#### 🔸 2. Gọi Flow con
+**Run Child Flow – Child_ProcessFolder**
+- Input: `FolderPath = outputs('CurrentFolder')`
+
+#### 🔸 3. Append Files vào AllFiles
+```json
+union(variables('AllFiles'), outputs('Child_ProcessFolder')?['Files'])
+```
+
+#### 🔸 4. Cập nhật PendingFolders
+```json
+union(
+  skip(variables('PendingFolders'), 1),
+  outputs('Child_ProcessFolder')?['Subfolders']
+)
+```
+
+---
+
+### 🔧 Bước 4 – Sau khi hoàn tất vòng lặp
+
+**Response**:  
+```json
+{
+  "files": "@variables('AllFiles')"
+}
+```
+
+> Gửi toàn bộ danh sách file cho UiPath.
+
+---
+
+## 📝 GHI CHÚ QUAN TRỌNG
+
+| Lưu ý | Nội dung |
+|-------|---------|
+| 🔹 Đường dẫn `FolderPath` | Là **ServerRelativeUrl**, không có dấu `/` đầu dòng. Ex: `"Shared Documents/Báo cáo"` |
+| 🔹 Ký tự Unicode | Nếu có tiếng Nhật, tiếng Việt,... cần `uriComponent()` khi gọi API |
+| 🔹 Đệ quy mô phỏng | Không gọi lại chính Flow con → dùng `Queue` để xử lý nhiều cấp folder |
+| 🔹 Performance | Có thể cải thiện bằng cách gọi song song nhiều Flow con nếu cần |
+
+---
+
+Nếu bạn muốn mình tạo sẵn 2 file `.zip` mẫu cho 2 Flow để bạn import, chỉ cần upload 1 file `.txt` bất kỳ, mình sẽ dùng đó để đính kèm file. Hoặc bạn muốn xem thêm ví dụ cho phần `Parse JSON`, mình cũng có thể tạo mẫu cụ thể cho bạn.
