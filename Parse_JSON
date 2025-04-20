@@ -1,3 +1,93 @@
+Vấn đề bạn gặp phải là rất phổ biến: khi sử dụng `Send an HTTP request to SharePoint` với `GetFolderByServerRelativeUrl('<path>')`, nếu đường dẫn chứa ký tự đặc biệt (như tiếng Nhật, dấu cách, ký tự unicode, v.v.), **Power Automate sẽ tự động mã hóa đường dẫn (URL encode)** → và SharePoint có thể **không hiểu chính xác** đường dẫn đó nữa → dẫn tới lỗi **"File not found"** hoặc **"The resource cannot be found."**
+
+---
+
+## ✅ Giải pháp: **Tự encode đúng cách và truyền vào API chuẩn**
+
+---
+
+### 🧩 Vấn đề:
+- Đường dẫn như:
+  ```
+  /Shared Documents/日本語/レポート 2024
+  ```
+  sẽ bị Power Automate mã hóa thành:
+  ```
+  /Shared%20Documents/%E6%97%A5%E6%9C%AC%E8%AA%9E/%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88%202024
+  ```
+  nhưng SharePoint cần bạn xử lý encode đúng cách — nhất là với hàm như `GetFolderByServerRelativeUrl()`.
+
+---
+
+## ✅ Giải pháp 1: Dùng **uriComponent()** để encode chính xác từng phần
+
+### 👉 Cách làm:
+
+Thay vì truyền nguyên chuỗi dài vào, bạn nên encode bằng tay bằng cách:
+
+### 🔹 Bước 1: Encode từng phần đường dẫn
+```plaintext
+concat(
+  '/_api/web/GetFolderByServerRelativeUrl(''',
+  uriComponent('Shared Documents/日本語/レポート 2024'),
+  ''')?$expand=Folders,Files'
+)
+```
+
+> 🧠 `uriComponent()` sẽ giúp encode đúng theo chuẩn URI SharePoint cần.
+
+---
+
+### 🔹 Bước 2: Dùng biểu thức trên trong field "Uri" của `Send an HTTP request to SharePoint`
+
+- HTTP method: `GET`
+- Uri: dùng biểu thức trên (bấm vào **fx** để viết công thức)
+- Headers: thêm nếu cần:
+  ```json
+  {
+    "Accept": "application/json;odata=verbose"
+  }
+  ```
+
+---
+
+## ✅ Giải pháp 2: Tách từng phần rồi encode
+
+Nếu bạn có đường dẫn như biến:  
+`/Shared Documents/日本語/レポート 2024`
+
+### Bạn có thể:
+
+1. Dùng `split()` để chia các phần theo `/`
+2. Encode từng phần bằng `uriComponent()`
+3. Nối lại bằng `%2F`
+
+🔧 Biểu thức mẫu:
+```plaintext
+concat(
+  '/_api/web/GetFolderByServerRelativeUrl(''',
+  join(apply(uriComponent, skip(split(variables('InputPath'), '/'), 1)), '%2F'),
+  ''')?$expand=Folders,Files'
+)
+```
+
+📌 Ghi chú:
+- `skip(..., 1)` để loại bỏ dấu `/` ở đầu.
+- `apply(uriComponent, ...)` dùng để encode từng phần.
+- `join(..., '%2F')` thay vì `/` để tránh bị lỗi khi ghép lại.
+
+---
+
+## ✅ Nếu vẫn lỗi: hãy kiểm tra thêm
+
+- **Không dùng dấu `'` đơn hoặc `" "` thừa trong URL**
+- Đảm bảo URL không chứa **space hoặc `#`, `?` mà chưa được encode**
+- Test URL encode ở ngoài (VD: [https://www.urlencoder.io/](https://www.urlencoder.io/)) để đối chiếu
+
+---
+
+Nếu bạn chia sẻ chuỗi URL cụ thể bạn đang dùng (gồm các thư mục có tiếng Nhật), mình có thể viết sẵn biểu thức hoàn chỉnh để bạn copy vào Power Automate nhé!
+====
 Để **remove dấu `/` ở đầu chuỗi đường dẫn** trong Power Automate, bạn có thể dùng biểu thức sau trong action `Set variable` hoặc `Compose`:
 
 ---
