@@ -1,3 +1,88 @@
+Chính xác! Theo mặc định, **`Append to array variable` luôn thêm vào cuối**, nên thứ tự xử lý sẽ là:
+
+```
+FolderA → A1 → A2 → A1a → FolderB
+```
+
+Nhưng bạn muốn xử lý theo chiều **Depth-First** đúng chuẩn:
+
+```
+FolderA → A1 → A1a → A2 → FolderB
+```
+
+---
+
+## ✅ Giải pháp: **Insert vào đầu mảng (giống stack)**
+Power Automate không có action sẵn để *insert at beginning*, nhưng ta có thể làm **thủ công** như sau:
+
+---
+
+### 🧱 Step-by-step: Insert từng `Subfolder` vào đầu `PendingFolders`
+
+#### 🔹 1. Tạo lại `NextPendingFolders` từ `skip(PendingFolders, 1)`
+
+```plaintext
+skip(variables('PendingFolders'), 1)
+```
+
+→ Gán vào biến `NextPendingFolders` (mảng tạm)
+
+---
+
+#### 🔹 2. **Apply to each – Ngược chiều** (xử lý đảo mảng)
+
+Đảo thứ tự mảng `Subfolders` trước để khi chèn vào đầu, vẫn giữ đúng thứ tự DFS:
+
+👉 **Input**:
+```plaintext
+reverse(outputs('ChildFlow')?['Subfolders'])
+```
+
+---
+
+#### 🔹 3. Trong `Apply to each`:
+
+👉 **Action**: `Set variable - NextPendingFolders`
+
+```plaintext
+createArray(items('Apply_to_each')) + variables('NextPendingFolders')
+```
+
+> 📝 Lưu ý: `createArray(x)` + array là cách chèn `x` vào đầu mảng!
+
+---
+
+#### 🔹 4. Gán `PendingFolders = NextPendingFolders`
+
+---
+
+## 🧪 Ví dụ
+
+Giả sử:
+- `PendingFolders = ["FolderA", "FolderB"]`
+- `Subfolders = ["A1", "A2"]`
+
+Thì sau khi xử lý:
+```
+PendingFolders = ["A1", "A2", "FolderB"]
+```
+
+---
+
+## 🔁 Kết quả duyệt sẽ là:
+
+```
+FolderA
+→ A1
+→ A1a
+→ A2
+FolderB
+```
+
+---
+
+Nếu bạn cần mình **tạo Flow mẫu (.zip)** với cách xử lý `insert at beginning` như trên, chỉ cần nói nhé!
+===============================================
 Bạn hoàn toàn đúng! Trong Power Automate:
 
 > ❌ `concat()` **chỉ hoạt động với chuỗi (string)**, **không hoạt động với array**.
