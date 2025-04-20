@@ -1,3 +1,106 @@
+Để **trả về đúng kiểu `array of object` trong Flow con** (thay vì bị ép thành chuỗi), bạn cần **sửa lại cách bạn cấu hình `Return value`** ở bước cuối của Child Flow. Dưới đây là hướng dẫn chi tiết từng bước.
+
+---
+
+## ✅ **🎯 Mục tiêu:**
+Trả về `AllFiles` (kiểu array of object) từ Child Flow **giữ đúng định dạng**, không bị chuyển thành chuỗi JSON.
+
+---
+
+## 🛠️ **Step-by-step sửa phần Return Value trong Child Flow**
+
+### 🔹 **Giả sử bạn có biến `AllFiles` là array dạng:**
+```json
+[
+  {
+    "Name": "file1.txt",
+    "Path": "/sites/TestSite/file1.txt"
+  },
+  {
+    "Name": "file2.txt",
+    "Path": "/sites/TestSite/file2.txt"
+  }
+]
+```
+
+---
+
+### ✅ **Bước 1: Mở Flow con (Child Flow)**
+
+1. Vào flow con.
+2. Tìm đến action `Respond to a PowerApp or flow` (hoặc `Return Values to Parent Flow`).
+
+---
+
+### ✅ **Bước 2: Thêm Output mới**
+
+- Nhấn **“+ Add an output”**
+- Chọn: **Array**
+- Đặt tên: `AllFiles`
+
+> ⛔ **Lưu ý quan trọng:** Không chọn kiểu **Text** (vì nó sẽ ép thành chuỗi JSON)
+
+---
+
+### ✅ **Bước 3: Gán biến `AllFiles` vào Output**
+
+- Ở phần **Value**, bạn bấm vào biểu tượng **fx (Expression)**.
+- Dán biểu thức:
+
+```plaintext
+variables('AllFiles')
+```
+
+- Bấm **OK**
+
+> ⚠️ **Không nhập thủ công vào ô Text**, vì nếu nhập `[{"Name":"abc"}]`, Power Automate hiểu là **chuỗi**, không phải array.
+
+---
+
+### ✅ **Bước 4: Lưu và chạy thử Flow**
+
+- Gọi Child Flow từ Flow cha.
+- Kiểm tra kết quả trong output của bước gọi Child Flow → nếu `AllFiles` hiển thị đúng như mảng object thì đã OK.
+
+---
+
+## 🧪 Kiểm tra trong Flow cha
+
+Bạn có thể dùng luôn trong `Apply to each`:
+```plaintext
+outputs('Child_Flow')?['AllFiles']
+```
+
+Hoặc nếu muốn `Parse JSON`, thì schema sẽ là:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "Name": { "type": "string" },
+      "Path": { "type": "string" }
+    }
+  }
+}
+```
+
+---
+
+## ✅ Tóm tắt nhanh
+
+| Việc cần làm                 | Cách làm đúng                                                   |
+|-----------------------------|------------------------------------------------------------------|
+| Output type trong Child Flow| Chọn **Array**, không phải Text                                 |
+| Gán giá trị vào Output      | Dùng `Expression`: `variables('AllFiles')`                      |
+| Tránh                       | Không dán thủ công chuỗi JSON vào ô Text                        |
+| Kết quả                     | Flow cha nhận đúng array of object → không cần xử lý lại nữa    |
+
+---
+
+Cần mình làm mẫu file `.zip` import cho Flow cha + Flow con đúng chuẩn thì mình có thể làm giúp ngay nhé!
+====================
 Bạn đang gặp vấn đề rất phổ biến khi:
 
 > **Append to array variable (kiểu object)** → nhưng sau đó lại **gán biến kiểu array đó vào output của Child Flow**, và kết quả bị **ép thành chuỗi (string)**.
