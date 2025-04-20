@@ -1,3 +1,73 @@
+Bạn hoàn toàn đúng! Trong Power Automate:
+
+> ❌ `concat()` **chỉ hoạt động với chuỗi (string)**, **không hoạt động với array**.
+
+---
+
+## ✅ Mục tiêu của bạn là:
+Bạn muốn **nối 2 mảng**:
+- `Subfolders` trả về từ Child Flow  
+- `PendingFolders` sau khi đã `skip(1)`
+
+---
+
+## ✅ Giải pháp: Dùng `join arrays` thủ công bằng cách `append each`
+
+Vì bạn **không thể dùng `concat()` cho mảng**, bạn có thể làm như sau:
+
+---
+
+### 🧱 Step-by-step thay thế `concat()` cho array
+
+#### 🔹 1. **Compose – CurrentFolder**
+```plaintext
+first(variables('PendingFolders'))
+```
+
+---
+
+#### 🔹 2. **Child Flow – input: CurrentFolder**
+- Output: `Files[]`, `Subfolders[]`
+
+---
+
+#### 🔹 3. **Append `Files[]` vào AllFiles**
+```plaintext
+Set variable → AllFiles = concat(variables('AllFiles'), outputs('ChildFlow')?['Files'])
+```
+
+👉 `AllFiles` vẫn là mảng, bạn có thể dùng `union()` hoặc `concat()` vì bạn **đã đảm bảo 2 mảng cùng kiểu dữ liệu**.
+
+---
+
+#### 🔹 4. **Tạo biến tạm `NextPendingFolders`**
+- **Initialize variable** (array): `NextPendingFolders = skip(variables('PendingFolders'), 1)`
+
+---
+
+#### 🔹 5. **Apply to each - Subfolder**
+- Input: `outputs('ChildFlow')?['Subfolders']`  
+- Trong loop:
+  - `Append to array variable` → `NextPendingFolders`
+
+---
+
+#### 🔹 6. **Set lại `PendingFolders = NextPendingFolders`**
+
+---
+
+## 🎯 Tóm lại:
+Bạn thay vì dùng `concat(mảng1, mảng2)` → bạn:
+1. Dùng `skip()` tạo mảng mới
+2. Dùng `Apply to each` để thêm từng phần tử Subfolders vào mảng tạm
+3. Gán lại `PendingFolders`
+
+---
+
+Nếu bạn muốn mình tạo `.zip` mẫu với cách này để import thẳng vào Power Automate thì mình có thể làm giúp luôn!
+
+
+========================
 Tuyệt vời, mình sẽ hướng dẫn bạn **step-by-step chi tiết** để xây dựng Flow cha theo đúng yêu cầu:
 
 ---
