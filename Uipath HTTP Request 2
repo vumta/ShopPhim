@@ -1,0 +1,153 @@
+Tuyệt vời! Dưới đây là **tài liệu hướng dẫn hoàn chỉnh step-by-step** cho giải pháp dùng **Child Flow kết hợp `Do Until + Queue`** trong **Power Automate** để **lấy tất cả file trong thư mục SharePoint (bao gồm subfolder nhiều cấp)** — mô phỏng đệ quy nhưng **không vi phạm hạn chế Child Flow tự gọi chính nó**.
+
+---
+
+# 📘 Hướng Dẫn Hoàn Chỉnh  
+## Lấy toàn bộ file trong SharePoint (bao gồm subfolder)  
+**Giải pháp: Child Flow + Do Until + Queue tự quản lý**
+
+---
+
+## 🎯 Mục tiêu
+
+- Flow **cha** được gọi từ **UiPath** qua HTTP.
+- Flow cha duyệt tất cả subfolder của một thư mục SharePoint bất kỳ (mọi cấp).
+- **Flow con** chỉ xử lý một folder đơn, trả về:
+  - Danh sách file trong folder đó.
+  - Danh sách các subfolder.
+- Kết quả trả về cho UiPath là: **Toàn bộ file** ở mọi cấp thư mục SharePoint.
+
+---
+
+## 🧱 Cấu trúc tổng thể
+
+| Thành phần               | Mô tả |
+|--------------------------|------|
+| **Flow cha** `Main_GetAllFiles` | Điều khiển chính, duyệt folder theo queue. |
+| **Flow con** `Child_ProcessFolder` | Nhận 1 folder → trả về `Files` và `Subfolders`. |
+
+---
+
+## 🧩 1. Tạo Flow con: `Child_ProcessFolder`
+
+### 🎯 Chức năng:
+Nhận 1 thư mục SharePoint → Trả về:
+- `Files`: Danh sách file trong folder đó.
+- `Subfolders`: Danh sách đường dẫn tương đối của các folder con.
+
+### 🛠 Step-by-step:
+
+1. **Trigger**: `Manually trigger a flow` (nên đổi thành "Instant" > "Manually").
+   - Input: `FolderPath` (string)
+
+2. **Gửi HTTP Request đến SharePoint**:
+   - Action: `Send an HTTP request to SharePoint`
+   - Method: `GET`
+   - URI:
+     ```http
+     _api/web/GetFolderByServerRelativeUrl('<FolderPath>')?$expand=Files,Folders
+     ```
+     > `FolderPath` phải là **ServerRelativeUrl**, ví dụ: `"Shared Documents/Folder A"`
+
+3. **Parse JSON**:
+   - Parse `Files` và `Folders` từ kết quả.
+
+4. **Chuẩn hóa output**:
+   - `Files`: Trả về như là mảng gốc từ JSON.
+   - `Subfolders`: Duyệt `Folders.results` → lấy `ServerRelativeUrl` → đưa thành mảng.
+
+5. **Outputs**:
+   - `Files` (array)
+   - `Subfolders` (array)
+
+---
+
+## 🏗 2. Tạo Flow cha: `Main_GetAllFiles`
+
+### 🎯 Chức năng:
+Duyệt tất cả folder/subfolder thông qua 1 queue (`PendingFolders`)  
+→ Gọi Child Flow nhiều lần, gom dữ liệu lại → Trả về JSON kết quả.
+
+### 🛠 Step-by-step:
+
+1. **Trigger**: `When a HTTP request is received`
+   - Body:
+     ```json
+     {
+       "FolderPath": "Shared Documents/YourRootFolder"
+     }
+     ```
+
+2. **Initialize Variables**:
+   - `PendingFolders` (array) = `[triggerBody()?['FolderPath']]`
+   - `AllFiles` (array) = `[]`
+
+3. **Do Until** `length(PendingFolders) is equal to 0`:
+
+   Trong vòng lặp:
+
+   a. **Lấy folder đầu tiên**:
+   ```plaintext
+   first(variables('PendingFolders'))
+   ```
+
+   b. **Gọi Child Flow `Child_ProcessFolder`**:
+   - Input: thư mục vừa lấy.
+
+   c. **Append `Files` vào `AllFiles`**:
+   ```plaintext
+   append to array variable('AllFiles', outputs('Child_ProcessFolder')?['Files'])
+   ```
+
+   d. **Append `Subfolders` vào `PendingFolders`**:
+   ```plaintext
+   union(skip(variables('PendingFolders'), 1), outputs('Child_ProcessFolder')?['Subfolders'])
+   ```
+
+   > Giải thích:
+   > - `skip(...)`: bỏ folder đã xử lý.
+   > - `union(...)`: thêm các subfolder mới vào queue tiếp theo.
+
+4. **Sau khi Do Until hoàn tất**:
+   - Action: `Response` → Trả JSON:
+     ```json
+     {
+       "files": "@variables('AllFiles')"
+     }
+     ```
+
+---
+
+## 📦 Cách Xuất/Nhập Flow dưới dạng .zip
+
+### 📤 Export:
+- Vào `My Flows` > Chọn Flow > ⋯ > Export > `Package (.zip)`
+
+### 📥 Import:
+- Vào Power Automate > `Import` > Chọn file `.zip`
+- Thiết lập lại kết nối (SharePoint, HTTP...)
+
+---
+
+## 📌 Lưu ý
+
+- `FolderPath` luôn là **Server Relative Path**, không có dấu `/` ở đầu.
+  - Ví dụ: `"Shared Documents"` hoặc `"Shared Documents/2025/Báo cáo"`
+
+- Nếu tên folder chứa ký tự đặc biệt (ví dụ: tiếng Nhật), hãy **`uriComponent()`** hóa trước khi gọi trong Flow.
+
+- Trong `Do Until`, luôn cập nhật `PendingFolders` để tránh lặp vô hạn.
+
+- Child Flow không thể gọi lại chính nó → Giải pháp dùng Flow cha để mô phỏng đệ quy bằng `queue`.
+
+---
+
+## ✅ Ưu điểm giải pháp
+
+- Không vi phạm hạn chế kỹ thuật Power Automate (child flow recursion).
+- Có thể xử lý hàng ngàn thư mục/file.
+- Dễ mở rộng & tái sử dụng.
+
+---
+
+Bạn có muốn mình gửi luôn 2 file `.zip` mẫu Flow cha + Flow con để bạn import trực tiếp không? Nếu có, hãy upload 1 file `.txt` bất kỳ và mình sẽ gửi lại file `.zip` qua đó nhé.
