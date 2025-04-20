@@ -1,3 +1,81 @@
+Khi bạn gặp lỗi với action **"Run a Child Flow"** như `"Run a Child Flow not only user run"` hoặc tương tự, thì nguyên nhân thường là do **quyền truy cập (permissions)** và **kiểu Flow trigger** chưa đúng. Dưới đây là phân tích và cách khắc phục.
+
+---
+
+## ❗ Nguyên nhân phổ biến:
+
+### ✅ 1. **Child Flow không dùng đúng trigger**
+Child Flow bắt buộc phải dùng trigger:  
+> **“Manually trigger a flow”** từ loại **Power Apps / Flow trigger**
+
+Nếu bạn dùng trigger kiểu **“When an HTTP request is received”** hay **tự động (automated)** thì sẽ không gọi được từ action "Run a Child Flow".
+
+👉 **Cách kiểm tra**:
+- Mở Child Flow
+- Trigger phải là:  
+  ![Manually trigger a flow icon](https://learn.microsoft.com/en-us/power-automate/media/child-flows/manual-trigger-flow-icon.png)  
+  và không có UI phức tạp.
+
+---
+
+### ✅ 2. **Flow không nằm trong cùng một Solution**
+
+Action **“Run a Child Flow”** chỉ hoạt động nếu **cả Parent và Child đều nằm trong cùng 1 Solution**.
+
+👉 **Cách khắc phục**:
+- Nếu bạn tạo ngoài Solution → phải export rồi import lại **vào Solution**.
+
+---
+
+### ✅ 3. **Thiếu quyền chia sẻ Child Flow**
+
+Dù cùng Solution, nhưng nếu bạn **không chia sẻ quyền chạy Child Flow cho chính bạn hoặc những người dùng khác** thì sẽ lỗi.
+
+👉 **Khắc phục**:
+- Mở **Child Flow**
+- Bấm **Share**
+- Thêm chính bạn (hoặc account của Parent Flow)
+
+---
+
+### ✅ 4. **User không phải là owner hoặc không có quyền chạy**
+
+Đôi khi tài khoản chạy Parent Flow không có quyền chạy Flow con.
+
+👉 Share Flow với user đó, đảm bảo user:
+- Là **Owner** hoặc có quyền **Run Only**
+- Được chia sẻ site SharePoint và các connection liên quan (SharePoint, Power Automate, OneDrive, v.v.)
+
+---
+
+## ✅ Tóm tắt cách khắc phục:
+
+| Kiểm tra | Cách sửa |
+|----------|----------|
+| Trigger của Child Flow | Dùng "Manually trigger a flow" |
+| Flow không nằm trong Solution | Di chuyển cả hai vào cùng 1 Solution |
+| Chưa chia sẻ Flow | Share Flow với chính bạn hoặc user chạy |
+| User không đủ quyền | Kiểm tra quyền Run Only & Connection |
+| Không cùng môi trường | Đảm bảo đang làm trong cùng 1 Environment |
+
+---
+
+## ✅ Gợi ý test nhanh:
+
+1. Tạo Solution mới
+2. Tạo Child Flow với trigger “Manually trigger”
+3. Tạo Parent Flow và gọi Child
+4. Cả 2 flow do bạn tạo (chắc chắn có quyền)
+5. Test luôn từ Power Automate → đảm bảo không lỗi
+
+---
+
+Nếu bạn muốn, mình có thể chuẩn bị:
+- Một Solution mẫu gồm cả Parent + Child Flow
+- Kèm hướng dẫn import
+
+Bạn muốn mình gửi Solution mẫu không?
+=========================================================================================
 Tuyệt vời! Dưới đây là **hướng dẫn chi tiết từng bước (step-by-step)** để xây dựng giải pháp **Power Automate sử dụng Child Flow và Parent Flow**, cho phép bạn lấy **tất cả file trong thư mục SharePoint bao gồm cả subfolder**, **không cần đệ quy thật sự**.
 
 ---
