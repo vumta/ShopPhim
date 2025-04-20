@@ -1,0 +1,96 @@
+Có! Trong **UiPath**, bạn hoàn toàn có thể **truyền biến vào phần Body** khi gửi **HTTP POST** tới Power Automate (hoặc bất kỳ API nào).
+
+---
+
+## ✅ Cách truyền biến vào Body của HTTP Request trong UiPath
+
+Giả sử bạn có biến:
+
+```vb
+folderPath = "/Shared Documents/Reports"
+```
+
+---
+
+### 🔷 Cách 1: Dùng **String Interpolation (VB.NET)**
+
+Gán biến `jsonBody` kiểu `String` như sau:
+
+```vb
+jsonBody = "{
+  ""FolderPath"": """ + folderPath + """
+}"
+```
+
+💡 Lưu ý:
+- Sử dụng `""` để escape dấu `"` trong chuỗi
+- Đây là cách nhanh và dễ kiểm soát
+
+---
+
+### 🔷 Cách 2: Dùng **`JObject` hoặc `SerializeObject`**
+
+Nếu bạn muốn chuẩn hơn:
+
+#### ✔ Bước 1: Tạo Dictionary
+
+```vb
+dictBody = New Dictionary(Of String, Object)
+dictBody("FolderPath") = folderPath
+```
+
+#### ✔ Bước 2: Serialize thành JSON
+
+```vb
+jsonBody = JsonConvert.SerializeObject(dictBody)
+```
+
+💡 Nhớ import:
+```vb
+Imports Newtonsoft.Json
+```
+
+---
+
+### 🔷 Dùng trong HTTP Request
+
+Gán `jsonBody` vào **Body** của activity `HTTP Request`:
+
+| Thuộc tính     | Giá trị                            |
+|----------------|-------------------------------------|
+| Method         | `POST`                              |
+| Body           | `jsonBody` (kiểu string JSON)       |
+| Headers        | `{ "Content-Type": "application/json" }` |
+
+---
+
+### 📦 Ví dụ Body thực tế gửi tới Power Automate:
+
+```json
+{
+  "FolderPath": "/Shared Documents/Reports"
+}
+```
+
+---
+
+## 🧠 Bonus: Kiểm tra JSON trước khi gửi
+
+In ra Log hoặc Message Box:
+
+```vb
+MessageBox.Show(jsonBody)
+```
+
+---
+
+## ✅ Tổng kết
+
+| Cách | Ưu điểm |
+|------|---------|
+| String nối `""` | Nhanh gọn, dễ áp dụng |
+| Dictionary + Serialize | Chuẩn, dễ mở rộng nhiều biến |
+
+---
+
+Muốn mình gửi mẫu workflow `HTTP Request` đầy đủ từ UiPath kèm biến truyền động không?
