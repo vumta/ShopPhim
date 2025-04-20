@@ -1,3 +1,172 @@
+Tuyệt vời! Dưới đây là **hướng dẫn chi tiết từng bước (step-by-step)** để xây dựng giải pháp **Power Automate sử dụng Child Flow và Parent Flow**, cho phép bạn lấy **tất cả file trong thư mục SharePoint bao gồm cả subfolder**, **không cần đệ quy thật sự**.
+
+---
+
+## 🧱 Tổng quan giải pháp
+
+| Flow | Vai trò |
+|------|--------|
+| **Child Flow** | Nhận `FolderPath`, trả về danh sách file & subfolder 1 cấp |
+| **Parent Flow** | Quản lý danh sách folder chờ xử lý (giả lập đệ quy), gọi Child Flow cho từng folder |
+
+---
+
+## 🧰 Yêu cầu trước khi bắt đầu:
+
+- Tạo một **Solution** trong Power Automate
+- Bật **Child Flow Support**
+- Tạo cả **Child Flow và Parent Flow trong cùng Solution**
+
+---
+
+## 🟨 BƯỚC 1: Tạo Solution
+
+1. Truy cập [Power Automate Portal](https://make.powerautomate.com)
+2. Chọn **Solutions** > **+ New solution**
+   - **Name**: `GetAllFilesSolution`
+   - **Publisher**: Chọn hoặc tạo
+3. Mở Solution đó
+
+---
+
+## 🟩 BƯỚC 2: Tạo **Child Flow** – xử lý 1 folder
+
+### 🎯 Mục tiêu:
+- Input: `FolderPath`
+- Output:
+  - `Files`: Danh sách file trong thư mục
+  - `SubFolders`: Danh sách folder con
+
+### ✍️ Tạo Flow
+
+1. Trong Solution: **+ New > Cloud Flow > Instant Cloud Flow**
+2. Tên: `GetFolderContent`
+3. Trigger: **Manually trigger a flow**
+4. Add Input:
+   - `FolderPath` (Kiểu Text)
+
+### 🔧 Các bước trong Flow
+
+#### 1. Khởi tạo biến:
+- `Files` (Array): `[]`
+- `SubFolders` (Array): `[]`
+
+#### 2. Action: `List folder`
+- **Site**: chọn site SharePoint
+- **Folder Path**: `FolderPath` (input của trigger)
+
+#### 3. Apply to each: `value` của `List folder`
+
+Bên trong:
+
+##### a. Nếu là file:
+- Dùng điều kiện:
+```plaintext
+empty(items('Apply_to_each')?['Folder'])
+```
+- Nếu đúng → `Append to array variable` `Files`
+  ```json
+  {
+    "Name": "@items('Apply_to_each')?['Name']",
+    "Path": "@items('Apply_to_each')?['Path']"
+  }
+  ```
+
+##### b. Nếu là folder:
+- `Append to array variable` `SubFolders` → `items('Apply_to_each')?['Path']`
+
+#### 4. Response:
+- Add action: `Respond to a PowerApp or flow`
+- Output:
+  - `Files` → variable `Files`
+  - `SubFolders` → variable `SubFolders`
+
+---
+
+## 🟦 BƯỚC 3: Tạo **Parent Flow** – xử lý đệ quy
+
+1. Trong cùng Solution → **+ New > Cloud Flow > Instant**
+2. Tên: `GetAllFilesRecursively`
+3. Trigger: `Manually trigger a flow`
+4. Input: `RootFolderPath` (Text)
+
+---
+
+### ✍️ Bên trong Parent Flow
+
+#### 1. Khởi tạo biến:
+- `PendingFolders` (Array) → `createArray(triggerBody()['RootFolderPath'])`
+- `AllFiles` (Array) → `[]`
+
+#### 2. Do Until:
+- Điều kiện: `length(variables('PendingFolders'))` is equal to `0`
+
+---
+
+### 🧩 Bên trong Do Until
+
+#### a. **Lấy folder đầu tiên**
+- Compose: `first(variables('PendingFolders'))`
+
+#### b. **Cập nhật PendingFolders (xóa folder đầu tiên)**
+- Set variable `PendingFolders`:
+  - `skip(variables('PendingFolders'), 1)`
+
+#### c. **Gọi Child Flow**
+- Action: `Run a Child Flow`
+  - Flow: `GetFolderContent`
+  - Input: `FolderPath`: output của Compose
+
+→ Child Flow sẽ trả về:
+- `Files`
+- `SubFolders`
+
+#### d. **Append vào AllFiles**
+- `Append to array variable` → `AllFiles`
+- Value: `outputs('Run_a_Child_Flow')?['body/Files']`  
+  (nhớ chọn đúng tên output)
+
+> **Nếu cần gộp mảng**: dùng `union(variables('AllFiles'), body('Run_a_Child_Flow')?['Files'])`
+
+#### e. **Append SubFolders vào PendingFolders**
+- Append array: `PendingFolders` ← `outputs('Run_a_Child_Flow')?['body/SubFolders']`
+
+---
+
+### ✅ Sau `Do Until`: AllFiles chứa toàn bộ danh sách file SharePoint.
+
+Bạn có thể:
+- Export ra Excel
+- Log bằng Compose
+- Gửi mail
+- Upload file log
+
+---
+
+## 🎁 BONUS: Gợi ý xuất ra Excel (nếu cần)
+- Tạo mảng `AllFiles` với các field như `Name`, `Path`
+- Dùng "Create CSV table" → từ `AllFiles`
+- "Create file" → Excel/CSV trong OneDrive/SharePoint
+
+---
+
+## ❓Bạn có thể muốn:
+- JSON mẫu để import vào Power Automate?
+- Hướng dẫn thêm xuất kết quả ra Excel?
+
+Chỉ cần gửi cho mình:
+- Tên site SharePoint
+- Folder gốc (nếu bạn có cụ thể)
+Mình sẽ chuẩn bị luôn Flow mẫu để bạn chỉ cần import và chỉnh sửa nhẹ 🔧
+
+
+
+
+
+
+
+
+=======================================================================================================================================================================================================
 Dưới đây là **hướng dẫn step-by-step sử dụng Child Flow** trong Power Automate để **lấy toàn bộ file trong SharePoint bao gồm cả subfolder**, bằng cách đệ quy chính Flow con gọi lại chính nó.
 
 ---
