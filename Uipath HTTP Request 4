@@ -1,3 +1,80 @@
+Bạn đang gặp vấn đề rất phổ biến khi:
+
+> **Append to array variable (kiểu object)** → nhưng sau đó lại **gán biến kiểu array đó vào output của Child Flow**, và kết quả bị **ép thành chuỗi (string)**.
+
+---
+
+## 🧨 Vấn đề:
+- Khi bạn append object như:
+  ```json
+  {
+    "Name": "@items('Apply_to_each')?['Name']",
+    "Path": "@items('Apply_to_each')?['ServerRelativeUrl']"
+  }
+  ```
+  → Đây là mảng `Array of Object`, rất chuẩn.
+
+- Nhưng khi bạn **trả `AllFiles` ra khỏi Child Flow** qua field output, và trong `Return value` bạn làm như sau:
+  ```plaintext
+  AllFiles
+  ```
+  thì Power Automate sẽ **coi đó là string**, và serialize thành chuỗi JSON trong chuỗi → `"[{\"Name\":\"abc\",...}]"`, chứ không còn là mảng thực sự nữa.
+
+---
+
+## ✅ Cách giải quyết: Trả mảng thực sự từ Child Flow
+
+### 🔧 Bước 1: **Trong Child Flow – Return Outputs**
+Khi trả về `AllFiles` từ `Child Flow`, bạn **phải dùng biểu thức** chứ không nhập thủ công.
+
+- Chọn kiểu: `Expression`
+- Dán vào:
+  ```plaintext
+  variables('AllFiles')
+  ```
+
+🟢 Điều này giúp Power Automate biết **đây là kiểu mảng**, chứ không serialize thành chuỗi.
+
+---
+
+### 🔧 Bước 2: **Trong Flow cha – Không cần Parse lại nếu đã là array**
+
+Khi bạn lấy `outputs('ChildFlow')?['AllFiles']`, nếu bạn đã trả đúng kiểu mảng ở trên, thì **không cần Parse JSON**, bạn có thể dùng trực tiếp luôn trong `Apply to each`.
+
+---
+
+### 🔧 (Tuỳ chọn) Nếu bạn vẫn muốn Parse JSON:
+Bạn cần tạo đúng schema:
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "Name": { "type": "string" },
+      "Path": { "type": "string" }
+    }
+  }
+}
+```
+
+---
+
+## ✅ Tổng kết lại
+
+| Giai đoạn         | Làm gì                                                                 |
+|-------------------|------------------------------------------------------------------------|
+| Append to array   | Append object (Name, Path) → vào `AllFiles` (kiểu array)              |
+| Return trong Child| Dùng `Expression` → `variables('AllFiles')` để giữ đúng kiểu dữ liệu |
+| Dùng ở Flow Cha   | Gọi `outputs('ChildFlow')?['AllFiles']` là mảng thực sự               |
+| Parse JSON (nếu cần) | Dùng schema kiểu array như trên                                     |
+
+---
+
+Nếu bạn vẫn gặp lỗi hoặc muốn mình tạo `.zip` mẫu flow đầy đủ, chỉ cần nói nhé!
+
+
+=============
 Trong Power Automate, nếu bạn dùng `createArray()` và nó trả về `[]`, tức là mảng rỗng – thì để **kiểm tra xem mảng có rỗng hay không**, bạn dùng biểu thức:
 
 ---
