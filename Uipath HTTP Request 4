@@ -1,3 +1,53 @@
+Bạn đúng rồi – Power Automate **không hỗ trợ toán tử `+` để nối array**, nên biểu thức:
+
+```plaintext
+createArray(items('Apply_to_each')) + variables('NextPendingFolders')
+```
+
+sẽ bị **lỗi**.
+
+---
+
+## ✅ Giải pháp đúng: Dùng hàm `union()` để "nối mảng"
+Bạn có thể thay thế bằng cách dùng `union()` như sau:
+
+```plaintext
+union(createArray(items('Apply_to_each')), variables('NextPendingFolders'))
+```
+
+- `createArray(items('Apply_to_each'))` → chuyển item hiện tại thành mảng
+- `union()` sẽ nối mảng đó vào đầu `NextPendingFolders`
+
+📌 Vì `union()` **bỏ trùng**, nếu bạn muốn **giữ trùng**, thì dùng `array concat workaround` như dưới:
+
+---
+
+## 🔁 Nếu bạn cần giữ **trùng lặp**, dùng trick với `concat()` chuỗi và `json()`
+
+### Cách 1: Biểu thức đầy đủ
+```plaintext
+json(concat('[', json(items('Apply_to_each')), ',', substring(string(variables('NextPendingFolders')), 1)))
+```
+
+Nhưng cái này khó bảo trì.
+
+---
+
+## ✅ Cách đơn giản & chuẩn nhất
+**Cập nhật `NextPendingFolders`** với:
+```plaintext
+Set variable - NextPendingFolders =
+union(createArray(items('Apply_to_each')), variables('NextPendingFolders'))
+```
+
+Dùng được luôn, dễ hiểu, và đúng thứ tự DFS.
+
+---
+
+Nếu bạn muốn mình build và gửi bạn `.zip` mẫu của flow này để import thẳng thì mình có thể tạo giúp nhé!
+
+
+==================
 Chính xác! Theo mặc định, **`Append to array variable` luôn thêm vào cuối**, nên thứ tự xử lý sẽ là:
 
 ```
