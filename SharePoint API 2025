@@ -1,0 +1,303 @@
+Tuyệt vời! Dưới đây là **hướng dẫn chi tiết từng bước** để bạn xây dựng giải pháp **Power Automate sử dụng `Do Until` + hàng đợi tự quản lý (`PendingFolders`)**, **không dùng Child Flow**, nhằm **duyệt toàn bộ file trong SharePoint bao gồm subfolder**, **không giới hạn cấp độ folder**.
+
+---
+
+## 🔁 Tổng quan giải pháp
+
+| Thành phần         | Mục đích                                      |
+|-------------------|-----------------------------------------------|
+| `Do Until` loop   | Duyệt qua từng folder còn trong danh sách     |
+| `PendingFolders`  | Mảng chứa các folder cần xử lý (mô phỏng queue) |
+| `AllFiles`        | Mảng chứa toàn bộ file tìm được               |
+| `List folder`     | Trả về danh sách item (gồm file + folder)     |
+
+---
+
+## 🏗 STEP-BY-STEP XÂY DỰNG FLOW
+
+---
+
+### 🟢 **1. Tạo Flow mới**
+
+1. Truy cập [Power Automate Portal](https://make.powerautomate.com)
+2. Chọn **+ Create > Instant Cloud Flow**
+3. Tên: `GetAllFilesRecursively`
+4. Trigger: `Manually trigger a flow`
+5. Add input: `RootFolderPath` (Text)
+
+---
+
+### 🟡 **2. Khởi tạo biến**
+
+| Tên biến         | Kiểu dữ liệu | Giá trị khởi tạo                         |
+|------------------|--------------|------------------------------------------|
+| `PendingFolders` | Array        | `createArray(triggerBody()['RootFolderPath'])` |
+| `AllFiles`       | Array        | `[]`                                      |
+
+---
+
+### 🔁 **3. Tạo Do Until**
+
+**Điều kiện dừng:**  
+`length(variables('PendingFolders'))` is equal to `0`
+
+---
+
+### 🔄 **4. Trong Do Until: Các bước xử lý**
+
+#### 🟦 a. Lấy folder đầu tiên
+- **Compose** (Tên: `CurrentFolder`)
+  - Expression:
+    ```plaintext
+    first(variables('PendingFolders'))
+    ```
+
+#### 🟧 b. Xóa folder đầu tiên khỏi queue
+- **Compose** (Tên: `RemainingFolders`)
+  - Expression:
+    ```plaintext
+    skip(variables('PendingFolders'), 1)
+    ```
+
+#### 🟨 c. Dùng action `List folder`
+- Action: `List folder`
+- Site: chọn site của bạn
+- Folder Path: `outputs('CurrentFolder')`
+
+> Lưu ý: `List folder` trả về cả **file và folder** trong thư mục đó.
+
+#### 🟩 d. Duyệt từng item (Apply to each)
+
+- **Apply to each**: `value` của output từ `List folder`
+
+**Bên trong Apply to each:**
+
+##### i. Điều kiện: là file hay folder?
+
+- Add Condition:
+  ```plaintext
+  empty(items('Apply_to_each')?['Folder'])
+  ```
+
+- Nếu là **file** (tức điều kiện đúng):
+  - `Append to array variable`: `AllFiles`
+    - Giá trị:
+      ```json
+      {
+        "Name": "@items('Apply_to_each')?['Name']",
+        "Path": "@items('Apply_to_each')?['Path']"
+      }
+      ```
+
+- Nếu là **folder**:
+  - `Append to array variable`: `RemainingFolders`  
+    (thêm path của subfolder vào queue)
+    - Giá trị: `items('Apply_to_each')?['Path']`
+
+> Bạn đang tự cập nhật queue trong vòng lặp.
+
+#### 🟪 e. Cập nhật lại PendingFolders sau vòng lặp
+
+- Action: `Set variable`: `PendingFolders`  
+  - Giá trị: `outputs('RemainingFolders')`
+
+---
+
+### 🟫 **5. Sau khi kết thúc Do Until**
+
+Bạn đã có toàn bộ file trong biến `AllFiles`.
+
+Bạn có thể:
+- Xuất ra Excel (`Create CSV table`)
+- Tạo file log
+- Gửi email, hoặc
+- Dùng cho các bước tiếp theo trong quy trình
+
+---
+
+## ✅ Tóm tắt các bước
+
+| Bước | Mục tiêu |
+|------|----------|
+| 1    | Nhận folder gốc |
+| 2    | Khởi tạo `PendingFolders` = `[gốc]`, `AllFiles = []` |
+| 3    | `Do Until` khi queue còn phần tử |
+| 4    | Lặp:
+   - Lấy folder đầu tiên
+   - Xóa khỏi queue
+   - `List folder` → phân loại file / folder
+   - Gộp file vào `AllFiles`
+   - Thêm subfolder vào queue |
+| 5    | Sau Do Until: bạn có tất cả file |
+
+---
+
+## 🔁 Ghi nhớ:
+
+- **Không cần child flow**
+- Chạy được với **folder sâu nhiều cấp**
+- Không phụ thuộc số lượng subfolder
+- Tốc độ sẽ chậm nếu folder có hàng ngàn file → cân nhắc chia batch
+
+---
+
+## 📥 Bạn cần file mẫu .zip để import?
+
+Mình có thể chuẩn bị sẵn để bạn chỉ cần:
+- Import vào Power Automate
+- Chỉnh sửa Site URL và thư mục gốc
+
+Nếu bạn cần, nhắn mình ngay nhé!
+===========================================
+Dưới đây là **hướng dẫn step-by-step** chi tiết về cách **gọi lại API cho mỗi subfolder** trong SharePoint để tiếp tục lấy file từ các folder con mà không biết trước số lượng subfolder và cấp độ. Cách này sẽ sử dụng **đệ quy** để tiếp tục gọi API cho các subfolder đến khi không còn subfolder nào.
+
+---
+
+## 🏗 **Bước 1: Tạo Flow và Trigger**
+
+1. **Tạo Flow mới** trong Power Automate:
+   - Truy cập vào Power Automate Portal.
+   - Chọn **Create > Instant Cloud Flow**.
+   - Chọn trigger: **Manually trigger a flow** (hoặc trigger theo yêu cầu của bạn).
+   - Thêm **Input**: 
+     - `RootFolderPath` (Text): Đường dẫn folder gốc trong SharePoint mà bạn muốn bắt đầu tìm kiếm (VD: `Shared Documents/Reports`).
+
+---
+
+## 🧑‍💻 **Bước 2: Gọi API lần đầu để lấy folder và file trong folder gốc**
+
+1. **Add action** `Send an HTTP request to SharePoint`:
+   - **Site Address**: Chọn site SharePoint của bạn (ví dụ: `https://contoso.sharepoint.com/sites/yoursite`).
+   - **Method**: `GET`.
+   - **Uri**: Cấu trúc đường dẫn API để lấy file và folder:
+     ```plaintext
+     /_api/web/GetFolderByServerRelativeUrl('@{triggerBody()['RootFolderPath']}')/Folders?$expand=Folders,Files
+     ```
+     > Lưu ý: `@{triggerBody()['RootFolderPath']}` là giá trị bạn nhập từ trigger (đường dẫn của folder gốc).
+
+2. **Cấu hình Headers** (tùy chọn):
+   - **Accept**: `application/json`.
+   - **Content-Type**: `application/json`.
+
+---
+
+## 🧑‍💻 **Bước 3: Parse JSON để xử lý kết quả từ API**
+
+1. **Add action** `Parse JSON` để phân tích kết quả trả về từ API:
+   - **Content**: Chọn `Body` của action `Send an HTTP request to SharePoint`.
+   - **Schema**: Sử dụng schema sau để phân tích dữ liệu trả về:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "Files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": { "type": "string" },
+          "ServerRelativeUrl": { "type": "string" }
+        }
+      }
+    },
+    "Folders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": { "type": "string" },
+          "ServerRelativeUrl": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🧑‍💻 **Bước 4: Xử lý các file và subfolder**
+
+1. **Duyệt qua các file trong folder**:
+   - **Add action** `Apply to each` để duyệt qua mảng `Files` trong kết quả `Parse JSON`.
+   - Trong vòng lặp này, bạn có thể lưu lại tên file, đường dẫn hoặc tải file về.
+
+   Ví dụ, lưu lại tên và đường dẫn file:
+   - **Append to array variable**: `AllFiles`
+     ```json
+     {
+       "Name": "@items('Apply_to_each')?['Name']",
+       "Path": "@items('Apply_to_each')?['ServerRelativeUrl']"
+     }
+     ```
+
+2. **Duyệt qua các subfolder**:
+   - **Add action** `Apply to each` để duyệt qua mảng `Folders` trong kết quả `Parse JSON`.
+   - Trong vòng lặp này, bạn cần tiếp tục gọi lại **API** cho mỗi subfolder để lấy các file và folder bên trong.
+
+---
+
+## 🧑‍💻 **Bước 5: Đệ quy (Gọi lại API cho subfolder)**
+
+### a. **Tạo một function hoặc gọi API trong vòng lặp**
+
+1. **Duyệt các subfolder**:
+   - Thêm action `Apply to each` cho mảng `Folders` (từ kết quả `Parse JSON`).
+   - **Value**: `Folders` (từ output của Parse JSON).
+
+2. **Gọi lại API cho subfolder**:
+   - Trong vòng lặp này, bạn sẽ cần gọi lại API **Send an HTTP request to SharePoint** cho mỗi subfolder:
+   
+   - **Uri**: Cập nhật URI để lấy các file và folder trong subfolder:
+     ```plaintext
+     /_api/web/GetFolderByServerRelativeUrl('@{items('Apply_to_each')?['ServerRelativeUrl']}')/Folders?$expand=Folders,Files
+     ```
+     Ở đây, `@{items('Apply_to_each')?['ServerRelativeUrl']}` chính là đường dẫn của subfolder mà bạn đang duyệt.
+
+   - **Phân tích JSON** cho kết quả trả về của API.
+   
+3. **Xử lý kết quả từ subfolder**:
+   - Sau khi gọi lại API, bạn cần:
+     - Duyệt qua các file trong subfolder như bước 4.
+     - Duyệt qua các subfolder con (nếu có), gọi lại API cho các subfolder đó.
+
+---
+
+### b. **Lặp lại cho mỗi cấp subfolder**
+
+Nếu có nhiều cấp folder, bạn cần tiếp tục gọi lại API cho các subfolder cấp sau cho đến khi không còn folder con nào.
+
+---
+
+## 🧑‍💻 **Bước 6: Kết thúc và xử lý kết quả**
+
+Sau khi gọi đệ quy và duyệt qua tất cả các file và subfolder:
+
+1. **Lưu trữ các file**: Bạn có thể lưu tất cả file vào một mảng, lưu ra Excel, hoặc thực hiện thao tác khác với các file đã lấy được.
+2. **Gửi kết quả**: Xuất ra bảng dữ liệu, gửi email, hoặc các thao tác xử lý tiếp theo.
+
+---
+
+## 📋 **Tóm tắt Flow**:
+
+| Bước | Action                                | Mô tả                              |
+|------|---------------------------------------|------------------------------------|
+| 1    | **Manually trigger a flow**           | Nhập đường dẫn folder gốc         |
+| 2    | **Send an HTTP request to SharePoint** | Gọi API lấy file và subfolder    |
+| 3    | **Parse JSON**                        | Phân tích kết quả trả về từ API   |
+| 4    | **Apply to each (Files)**             | Duyệt qua từng file               |
+| 5    | **Apply to each (Folders)**           | Duyệt qua từng subfolder          |
+| 6    | **Send HTTP request (recursive)**     | Gọi lại API cho mỗi subfolder     |
+| 7    | **Export/Process Files**              | Xuất dữ liệu hoặc xử lý tiếp      |
+
+---
+
+### 📈 **Lưu ý**:
+- **Không giới hạn số lượng subfolder**: Quy trình này sẽ tiếp tục gọi lại API cho mỗi subfolder cho đến khi không còn subfolder nào.
+- **Hiệu quả hơn `Do Until`**: Đệ quy giúp xử lý hiệu quả và không cần duy trì một mảng quá lớn trong bộ nhớ.
+- **Đảm bảo có paging**: Nếu có hàng nghìn folder, SharePoint sẽ trả về kết quả theo từng trang. Bạn cần xử lý paging khi số lượng item vượt quá giới hạn (mặc định 100).
+
+---
+
+Nếu bạn cần thêm hướng dẫn về cách xử lý paging trong SharePoint API hoặc muốn tôi giúp bạn tạo sẵn flow mẫu, đừng ngần ngại yêu cầu nhé!
