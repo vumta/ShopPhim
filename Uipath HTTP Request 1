@@ -1,0 +1,152 @@
+Hoàn hảo! 🎯  
+Bạn muốn dùng **Child Flow** nhưng **không để Flow con tự gọi lại chính nó** (vì Power Automate không cho phép điều đó), nên chúng ta sẽ:
+
+✅ Vẫn sử dụng **Flow con** để xử lý **một folder đơn lẻ** (trả về file + subfolder).
+
+✅ Trong **Flow cha**, dùng **`Do Until` + Queue tự quản lý** để thực hiện **duyệt thư mục sâu nhiều cấp**, mô phỏng đệ quy.
+
+---
+
+## 🧭 Mục tiêu:
+- **Flow cha**: nhận thư mục gốc từ UiPath, duyệt qua tất cả subfolder mọi cấp bằng `Do Until`, gọi **Flow con** để xử lý từng folder.
+- **Flow con**: nhận 1 folder path, trả về file & subfolder trong đó.
+
+---
+
+## ✅ Step-by-step
+
+---
+
+### 💡 Tổng quan Flow:
+| Thành phần     | Vai trò                                   |
+|----------------|--------------------------------------------|
+| `Main_GetAllFiles` (Flow cha) | Duyệt folder bằng queue + gọi Child Flow |
+| `Child_ProcessFolder` (Flow con) | Nhận 1 folder → trả `Files` + `Subfolders` |
+
+---
+
+## 🔧 1. Tạo Child Flow – `Child_ProcessFolder`
+
+---
+
+### **Inputs**:
+- `FolderPath` (string)
+
+### **Outputs**:
+- `Files` (array)
+- `Subfolders` (array)
+
+---
+
+### **Bên trong Flow con**:
+
+#### 🧩 Step 1: Gọi SharePoint API
+Action: `Send an HTTP request to SharePoint`
+
+- Method: `GET`  
+- Uri:
+```plaintext
+_api/web/GetFolderByServerRelativeUrl('@{triggerOutputs()?['headers']['x-sharepointsite']}/@{triggerBody()['FolderPath']}')?$expand=Files,Folders
+```
+
+> Lưu ý: Bạn cần encode `FolderPath` đúng nếu có ký tự đặc biệt (dùng `uriComponent()` trong Flow cha).
+
+#### 🧩 Step 2: Parse JSON để lấy:
+
+- `Files`:  
+```plaintext
+body('Send_an_HTTP_request_to_SharePoint')?['d']?['Files']?['results']
+```
+
+- `Folders`:  
+```plaintext
+body('Send_an_HTTP_request_to_SharePoint')?['d']?['Folders']?['results']
+```
+
+#### 🧩 Step 3: Trả kết quả
+
+- Output: `Files` → array các file  
+- Output: `Subfolders` → map sang array các `ServerRelativeUrl` của folder con.
+
+---
+
+## 🏗️ 2. Tạo Flow cha – `Main_GetAllFiles`
+
+---
+
+### **Trigger**: HTTP Request (UiPath gọi vào)
+
+Schema:
+```json
+{
+  "type": "object",
+  "properties": {
+    "FolderPath": {
+      "type": "string"
+    }
+  }
+}
+```
+
+---
+
+### **Step-by-step Flow Cha**
+
+#### 🔹 Initialize:
+
+- `PendingFolders` = `createArray(triggerBody()?['FolderPath'])`
+- `AllFiles` = `createArray()`
+
+---
+
+### 🔁 `Do Until` – `length(PendingFolders) == 0`
+
+**Bên trong `Do Until`:**
+
+#### 1. Lấy thư mục đầu tiên:
+```plaintext
+first(variables('PendingFolders'))
+```
+
+#### 2. Gọi Child Flow: `Child_ProcessFolder`
+- Input: thư mục đang xử lý
+
+#### 3. Append `Files` vào `AllFiles`
+
+```plaintext
+append to array variable('AllFiles', outputs('Child_ProcessFolder')?['Files'])
+```
+
+#### 4. Append `Subfolders` vào `PendingFolders`:
+```plaintext
+union(variables('PendingFolders'), outputs('Child_ProcessFolder')?['Subfolders'])
+```
+
+#### 5. Xoá folder đã xử lý:
+```plaintext
+set variable 'PendingFolders' = skip(variables('PendingFolders'), 1)
+```
+
+---
+
+### ✅ Sau vòng lặp `Do Until`
+
+- Action: `Response`
+- Body:
+```json
+{
+  "files": "@variables('AllFiles')"
+}
+```
+
+---
+
+## 🎁 Tóm tắt
+
+- **Không đệ quy** thật sự, nhưng hoạt động y hệt.
+- Dễ mở rộng: Child Flow có thể xử lý logic phức tạp từng folder.
+- UiPath chỉ cần gọi 1 lần, nhận đầy đủ kết quả.
+
+---
+
+Bạn muốn mình cung cấp mẫu JSON để dán vào `Send HTTP request`, hay cần giúp xuất file `.zip` mẫu cho Flow con + Flow cha?
