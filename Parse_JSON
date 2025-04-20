@@ -1,0 +1,179 @@
+Cảm ơn bạn đã chia sẻ chi tiết – mình hiểu vấn đề bạn gặp phải: **khi truy cập `Files` hoặc `Folders` từ kết quả trả về của `Send an HTTP request to SharePoint`, giá trị luôn bị `null` trong action `Condition` hoặc vòng lặp**, dù bạn chắc chắn API trả về đúng.
+
+---
+
+## 🎯 Vấn đề thực sự là gì?
+
+SharePoint REST API khi gọi qua `Send an HTTP request to SharePoint` **không tự động trả về cấu trúc JSON gọn gàng như `Files` hoặc `Folders` mà bạn có thể truy cập trực tiếp**. Thay vào đó, **dữ liệu thường nằm trong phần `d/results`**, hoặc bạn cần `Parse JSON` để tách chính xác.
+
+---
+
+## ✅ Giải pháp từng bước để truy cập `Files` / `Folders` chính xác:
+
+---
+
+### 🔹 **Bước 1: Gọi API đúng**
+
+```http
+/_api/web/GetFolderByServerRelativeUrl('/sites/TestSite/Shared Documents/Reports')?$expand=Folders,Files
+```
+
+---
+
+### 🔹 **Bước 2: Thêm action `Parse JSON` để tách dữ liệu chuẩn**
+
+1. **Action**: `Parse JSON`
+2. **Content**: Body của kết quả HTTP trả về.
+3. **Schema**: Nếu không chắc schema, bạn có thể:
+   - Chạy flow 1 lần.
+   - Copy output mẫu của `Send an HTTP request to SharePoint`.
+   - Dán vào “Generate from sample” trong Parse JSON để tạo schema.
+
+> ⚠️ Quan trọng: Schema phải chứa các mảng `Files` và `Folders`.
+
+---
+
+### 🔹 **Bước 3: Truy cập `Files` / `Folders` một cách an toàn**
+
+Giả sử bạn đã parse được JSON rồi, thì:
+
+- Để duyệt `Files`: dùng `coalesce(body('Parse_JSON')?['Files'], [])`
+- Để duyệt `Folders`: dùng `coalesce(body('Parse_JSON')?['Folders'], [])`
+
+### ✅ Giải thích:
+
+| Hàm | Ý nghĩa |
+|-----|--------|
+| `coalesce(x, [])` | Nếu `x` là `null`, sẽ thay thế bằng mảng rỗng `[]`, tránh lỗi |
+
+---
+
+### 🔹 **Bước 4: Ví dụ điều kiện kiểm tra tên file (trong Apply to each Files)**
+
+Giả sử bạn đang trong vòng lặp `Apply to each` cho `Files`:
+
+```plaintext
+item()?['Name'] ends with '.pdf'
+```
+
+Hoặc kiểm tra path:
+
+```plaintext
+item()?['ServerRelativeUrl']
+```
+
+---
+
+### 🧪 Nếu bạn vẫn gặp lỗi: Hãy debug bằng `Compose`
+
+Thêm action `Compose` và set content là:
+
+```plaintext
+body('Send_an_HTTP_request_to_SharePoint')
+```
+
+Kiểm tra xem `Files` và `Folders` nằm ở đâu? Có thể chúng nằm lồng sâu như:
+
+```json
+{
+  "d": {
+    "Files": { "results": [...] },
+    "Folders": { "results": [...] }
+  }
+}
+```
+
+Khi đó, bạn cần truy cập:
+
+```plaintext
+body('Send_an_HTTP_request_to_SharePoint')?['d']?['Files']?['results']
+```
+
+---
+
+## ✅ Tổng kết cách làm chuẩn:
+
+| Bước | Hành động |
+|------|-----------|
+| 1    | Gọi đúng API `/GetFolderByServerRelativeUrl(...)?$expand=Folders,Files` |
+| 2    | Dùng `Parse JSON` hoặc truy cập `body()?['d']?['Files']?['results']` nếu dữ liệu bị lồng |
+| 3    | Dùng `coalesce()` để xử lý null |
+| 4    | Truy cập từng item trong vòng lặp qua `item()?['Name']`, `item()?['ServerRelativeUrl']` |
+
+---
+
+Nếu bạn muốn, mình có thể giúp bạn **xây sẵn 1 mẫu flow JSON mẫu + điều kiện kiểm tra file** để bạn paste vào nhanh. Bạn có dùng action `"Send an HTTP request to SharePoint"` theo chuẩn v2 không? Và bạn đang gặp lỗi cụ thể trong action nào?
+===============
+Hoàn toàn được! Nếu bạn muốn **kiểm tra ngay sau `Parse JSON`** xem phần `Files` hoặc `Folders` có phải là `null` hay không, mình sẽ hướng dẫn chi tiết theo cách dùng `Condition` trong Power Automate chuẩn nhất.
+
+---
+
+## ✅ Mục tiêu:  
+Kiểm tra xem `Files` hoặc `Folders` **có tồn tại không**, sau `Parse JSON`.
+
+---
+
+## 🔧 **Cách làm:**
+
+### ➤ Giả sử bạn có một action `Parse JSON` tên là `Parse_JSON`.
+
+---
+
+### ✅ **Bước 1: Thêm Action "Condition"**
+
+**Kiểm tra `Files` có khác null không:**
+
+**Condition:**
+```plaintext
+not(equals(variables('ParsedFiles'), null))
+```
+
+Nhưng nếu bạn **không dùng biến**, thì hãy dùng trực tiếp:
+
+```plaintext
+not(equals(body('Parse_JSON')?['Files'], null))
+```
+
+Tương tự cho `Folders`:
+
+```plaintext
+not(equals(body('Parse_JSON')?['Folders'], null))
+```
+
+---
+
+### ✅ **Bước 2: Nếu bạn muốn kiểm tra rỗng hoặc null luôn:**
+
+```plaintext
+length(coalesce(body('Parse_JSON')?['Files'], [])) > 0
+```
+
+Cách này đảm bảo:
+- Nếu `Files` là `null` → biến thành `[]` → `length = 0`
+- Nếu có file nào → `length > 0`
+
+---
+
+## 📌 **Tóm tắt các công thức**
+
+| Mục tiêu                            | Biểu thức dùng trong Condition                          |
+|-------------------------------------|----------------------------------------------------------|
+| Kiểm tra `Files` có khác `null`     | `not(equals(body('Parse_JSON')?['Files'], null))`       |
+| Kiểm tra `Files` có ít nhất 1 item  | `length(coalesce(body('Parse_JSON')?['Files'], [])) > 0`|
+| Kiểm tra `Folders` là null          | `equals(body('Parse_JSON')?['Folders'], null)`          |
+| Kiểm tra `Folders` không rỗng       | `length(coalesce(body('Parse_JSON')?['Folders'], [])) > 0` |
+
+---
+
+## 📌 Gợi ý debug:
+Nếu không chắc dữ liệu có đúng không, bạn có thể thêm một `Compose` để kiểm tra:
+
+```plaintext
+body('Parse_JSON')?['Files']
+```
+
+Xem trong run history để biết chính xác kiểu dữ liệu đang về là gì (null, [] hay có mảng).
+
+---
+
+Nếu bạn muốn, mình có thể giúp bạn tạo nhanh 1 đoạn flow mẫu với các điều kiện này. Bạn dùng bản Cloud Flow đúng không?
