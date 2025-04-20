@@ -1,0 +1,91 @@
+Nếu bạn thấy `Files = null` trong kết quả trả về từ SharePoint REST API, có một vài nguyên nhân thường gặp, và mình sẽ hướng dẫn cách **xử lý triệt để** để bạn luôn lấy được danh sách file chính xác, kể cả khi có subfolder hoặc không có file nào.
+
+---
+
+## 🧠 **Hiểu rõ vấn đề: Vì sao `Files = null`**
+
+### ✅ Trường hợp có thể xảy ra:
+| Tình huống                               | Diễn giải                                                                 |
+|-----------------------------------------|--------------------------------------------------------------------------|
+| Folder không chứa file nào              | Giá trị `Files` sẽ là `null` hoặc mảng rỗng.                             |
+| Bạn gọi sai endpoint API                | Có thể `Files` không được expand đúng nên không có trong response.      |
+| Bạn đang lấy thông tin `Folder`, không phải `Folder/File collection` | Có thể chỉ đang xem thông tin folder chứ không lấy nội dung trong đó.   |
+
+---
+
+## ✅ **Cách khắc phục dứt điểm**
+
+### 🔧 Cách gọi REST API đúng:
+
+#### Dùng đúng endpoint để đảm bảo có cả `Files` và `Folders`:
+```plaintext
+/_api/web/GetFolderByServerRelativeUrl('<serverRelativePath>')?$expand=Folders,Files
+```
+
+#### Ví dụ:
+```plaintext
+/_api/web/GetFolderByServerRelativeUrl('/Shared Documents/Reports')?$expand=Folders,Files
+```
+
+> Không nên gọi `/Folders?$expand=Folders,Files` như trước, vì nó chỉ liệt kê các folder con, **không hiển thị `Files` trực tiếp trong folder cha**.
+
+---
+
+## ✅ **Cách xử lý nếu `Files` là `null`**
+
+Trong Power Automate, khi `Files` là `null`, bạn phải kiểm tra trước khi duyệt mảng:
+
+### 👇 Cách xử lý an toàn trong `Apply to each`:
+
+1. **Sử dụng `coalesce()`**:
+   Dòng này sẽ đảm bảo nếu `Files` null thì thay bằng mảng rỗng `[]`.
+
+```plaintext
+coalesce(body('Parse_JSON')?['Files'], [])
+```
+
+2. **Dùng trong vòng lặp Apply to each**:
+
+```plaintext
+Apply to each: value = coalesce(body('Parse_JSON')?['Files'], [])
+```
+
+➡️ Điều này giúp bạn tránh lỗi khi `Files = null` và vẫn tiếp tục flow.
+
+---
+
+## ✅ **Cách test nhanh**
+
+Thêm một action `Compose` sau khi gọi API và gán:
+```plaintext
+body('Send_an_HTTP_request_to_SharePoint')?['Files']
+```
+
+Chạy thử và xem kết quả:  
+- Nếu là `null`: folder không có file nào hoặc bạn dùng sai API.
+- Nếu là `[]`: không có file nhưng API đúng.
+- Nếu có mảng: bạn có thể tiếp tục xử lý bình thường.
+
+---
+
+## ✅ **Gợi ý mở rộng**
+Nếu bạn đang duyệt đệ quy các subfolder:
+
+- Với mỗi lần gọi API, hãy gọi đúng endpoint:
+```plaintext
+/_api/web/GetFolderByServerRelativeUrl('@{items('Apply_to_each')?['ServerRelativeUrl']}')?$expand=Folders,Files
+```
+
+---
+
+## 📌 Tổng kết
+
+| Vấn đề                        | Cách xử lý                                 |
+|------------------------------|--------------------------------------------|
+| `Files = null`               | Dùng `coalesce()` để chuyển sang mảng rỗng |
+| Không thấy `Files` trong JSON | Kiểm tra endpoint gọi API đã đúng chưa     |
+| Không có file trong folder   | Đây là bình thường, không phải lỗi         |
+
+---
+
+Cần mình tạo mẫu flow demo dùng `coalesce()` + đệ quy đầy đủ thì mình có thể hướng dẫn bạn tiếp nhé. Bạn muốn dùng trong Cloud Flow hay Power Automate Desktop?
