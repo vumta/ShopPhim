@@ -1,0 +1,117 @@
+Tuyệt vời, mình sẽ hướng dẫn bạn **step-by-step chi tiết** để xây dựng Flow cha theo đúng yêu cầu:
+
+---
+
+## 🎯 Mục tiêu
+- Sử dụng **Child Flow** để đọc 1 folder → trả về mảng `Files[]` và `Subfolders[]`
+- **Flow cha** quản lý hàng đợi (`Queue`) các folder đang chờ xử lý.
+- Duyệt **tuần tự từng nhánh folder** (xử lý hết các con của một folder rồi mới sang folder tiếp theo).
+
+---
+
+## 📂 Cấu trúc xử lý: Giống thuật toán **Depth-First Search (DFS)**
+
+- Sử dụng **biến mảng `PendingFolders`** như một **stack** (thêm bằng `insert at beginning`)
+- Luôn xử lý folder ở đầu danh sách → đảm bảo duyệt theo chiều sâu.
+
+---
+
+## 🏗 Step-by-step xây dựng Flow Cha
+
+### 🔸 Biến cần khai báo:
+| Tên biến | Kiểu | Giá trị khởi tạo |
+|----------|------|------------------|
+| `PendingFolders` | Array | `[‘/Shared Documents’]` hoặc folder gốc |
+| `AllFiles` | Array | `[]` |
+
+---
+
+### 🔄 Bước lặp: `Do Until`  
+**Condition**: `length(variables('PendingFolders')) is equal to 0`
+
+---
+
+### 🧱 Các bước bên trong `Do Until`
+
+#### 🧩 1. **Get folder đầu tiên để xử lý**
+- **Action**: `Compose - CurrentFolder`
+  ```plaintext
+  first(variables('PendingFolders'))
+  ```
+
+---
+
+#### 🧩 2. **Gọi Child Flow**
+- **Input**: `FolderPath = outputs('Compose - CurrentFolder')`
+- **Output giả sử**:
+  - `Files[]`
+  - `Subfolders[]`
+
+---
+
+#### 🧩 3. **Append file vào biến AllFiles**
+- **Action**: `Append to array variable - AllFiles`
+  ```plaintext
+  variables('AllFiles') + outputs('Child_Flow')?['Files']
+  ```
+
+---
+
+#### 🧩 4. **Chuẩn hóa Subfolders**
+- **Action**: `Compose - SafeSubfolders`
+  ```plaintext
+  if(empty(outputs('Child_Flow')?['Subfolders']), createArray(), outputs('Child_Flow')?['Subfolders'])
+  ```
+
+---
+
+#### 🧩 5. **Cập nhật PendingFolders**
+##### a. Remove folder đầu tiên
+- **Action**: `Compose - Remaining`
+  ```plaintext
+  skip(variables('PendingFolders'), 1)
+  ```
+
+##### b. Ghép Subfolders vào đầu danh sách (Duyệt sâu trước)
+- **Action**: `Set variable - PendingFolders`
+  ```plaintext
+  concat(outputs('Compose - SafeSubfolders'), outputs('Compose - Remaining'))
+  ```
+
+---
+
+## ✅ Kết thúc vòng lặp
+Sau khi `PendingFolders` = `[]`, flow đã duyệt toàn bộ cây folder và lưu toàn bộ file vào biến `AllFiles`.
+
+---
+
+## 🔄 Cách Flow xử lý theo Depth-First (DFS):
+
+Giả sử có cấu trúc:
+```
+FolderA/
+  ├── A1/
+  │    └── A1a/
+  └── A2/
+FolderB/
+```
+
+Flow sẽ duyệt:
+```
+FolderA → A1 → A1a → A2 → FolderB
+```
+
+---
+
+## 💡 Gợi ý thêm:
+- Bạn có thể **gọi từ UiPath qua HTTP request**, khi flow cha hoàn tất thì **trả JSON** chứa toàn bộ `AllFiles` về cho UiPath xử lý.
+
+---
+
+## 🗂 Bạn cần Flow mẫu?
+
+Mình có thể tạo file `.zip` mẫu gồm:
+- Flow cha: `Recursive_GetAllFiles_Main`
+- Flow con: `ReadFolder_GetFilesAndSubfolders`
+
+Bạn muốn mình chuẩn bị giúp không? Nếu có thì cho biết tên folder gốc mặc định hoặc bạn muốn truyền từ UiPath.
