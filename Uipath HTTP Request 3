@@ -1,3 +1,95 @@
+Rất hay! Nếu bạn dùng biểu thức như sau trong **Power Automate**:
+
+```plaintext
+union(
+  skip(variables('PendingFolders'), 1),
+  outputs('Child_ProcessFolder')?['Subfolders']
+)
+```
+
+…mà không hoạt động (lỗi do `Subfolders = null` hoặc sai kiểu dữ liệu), thì mình sẽ hướng dẫn bạn giải pháp **step-by-step thay thế an toàn hơn và không bị lỗi**.
+
+---
+
+## 🧠 **Vấn đề chính**
+
+Khi `Child_ProcessFolder` không có subfolder, `outputs('Child_ProcessFolder')?['Subfolders']` sẽ là `null`, khiến `union()` hoặc `append()` lỗi.
+
+---
+
+## ✅ Giải pháp step-by-step an toàn hơn
+
+### 🎯 Mục tiêu:
+**Cập nhật lại biến `PendingFolders`** sao cho:
+- Bỏ phần tử đầu (`skip(...)`)
+- Thêm subfolders (nếu có)
+- Nhưng nếu `Subfolders = null` thì vẫn hoạt động không lỗi
+
+---
+
+### 🧩 Giải pháp chi tiết
+
+#### 🔹 **1. Compose Subfolders An toàn**
+
+**Action**: `Compose - SafeSubfolders`
+```plaintext
+if(
+   empty(outputs('Child_ProcessFolder')?['Subfolders']),
+   createArray(),
+   outputs('Child_ProcessFolder')?['Subfolders']
+)
+```
+
+> Biểu thức này giúp đảm bảo luôn trả về mảng rỗng `[]` nếu `Subfolders = null`.
+
+---
+
+#### 🔹 **2. Compose – NewPending**
+
+**Action**: `Compose - NewPendingFolders`
+```plaintext
+union(
+   skip(variables('PendingFolders'), 1),
+   outputs('Compose - SafeSubfolders')
+)
+```
+
+---
+
+#### 🔹 **3. Set Variable `PendingFolders`**
+
+**Action**: `Set variable - PendingFolders`
+```plaintext
+value = outputs('Compose - NewPendingFolders')
+```
+
+---
+
+## 🔁 Toàn bộ đoạn xử lý trong `Do Until`
+
+| Step | Action | Mục đích |
+|------|--------|----------|
+| ✅ | Compose – CurrentFolder | Lấy `first(variables('PendingFolders'))` |
+| ✅ | Gọi `Child_ProcessFolder` | Gửi `FolderPath = CurrentFolder` |
+| ✅ | Append file vào AllFiles | `union(...)` |
+| ✅ | Compose – SafeSubfolders | Kiểm tra null → trả về array |
+| ✅ | Compose – NewPendingFolders | `skip + union` |
+| ✅ | Set variable – PendingFolders | Cập nhật biến |
+
+---
+
+## ✅ Kết luận
+
+Việc **kiểm tra null** và tách từng bước ra thành nhiều **Compose** giúp Flow:
+- Dễ debug
+- Không lỗi khi `Subfolders = null`
+- Hoạt động ổn định ngay cả với cấu trúc phức tạp
+
+---
+
+Nếu bạn muốn mình tạo nhanh mẫu `.zip` Flow cha + con theo đúng logic này để bạn import dùng ngay thì cho mình biết nhé!
+
+=============================================
 Dưới đây là hướng dẫn **Step-by-step** để gửi HTTP request từ **UiPath** đến một Power Automate Flow (trigger bằng “When an HTTP request is received”) và truyền giá trị `FolderPath` đúng cách:
 
 ---
