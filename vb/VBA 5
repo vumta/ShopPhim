@@ -1,0 +1,89 @@
+Dưới đây là đoạn mã VBA được cập nhật để liệt kê tất cả các tệp trong một thư mục SharePoint và các thư mục con. Mã này sẽ ghi tên file vào cột **A** và đường dẫn file vào cột **B** của một file Excel:
+
+### Code VBA
+```vba
+Sub ListFilesInSharePoint()
+    Dim ws As Worksheet
+    Dim FolderPath As String
+    Dim FilePath As String
+    Dim RowIndex As Long
+
+    ' Đặt tên sheet
+    Set ws = ThisWorkbook.Sheets(1)
+
+    ' Xóa nội dung cũ trong sheet
+    ws.Cells.Clear
+
+    ' Đặt tiêu đề cột
+    ws.Cells(1, 1).Value = "File Name"
+    ws.Cells(1, 2).Value = "File Path"
+
+    ' Đường dẫn SharePoint (cần thay đổi để phù hợp với hệ thống của bạn)
+    FolderPath = "https://sharepoint.com/sites/YourSiteName/SharedDocuments/YourFolder"
+
+    ' Gọi hàm liệt kê file
+    RowIndex = 2
+    Call GetFiles(FolderPath, ws, RowIndex)
+
+    MsgBox "Đã hoàn tất việc liệt kê các tệp trong SharePoint!", vbInformation
+End Sub
+
+Sub GetFiles(ByVal FolderPath As String, ByRef ws As Worksheet, ByRef RowIndex As Long)
+    Dim FileSystemObj As Object
+    Dim FolderObj As Object
+    Dim FileObj As Object
+    Dim SubFolderObj As Object
+
+    ' Tạo đối tượng FileSystemObject
+    Set FileSystemObj = CreateObject("Scripting.FileSystemObject")
+    Set FolderObj = FileSystemObj.GetFolder(FolderPath)
+
+    ' Duyệt qua các file trong thư mục
+    For Each FileObj In FolderObj.Files
+        ws.Cells(RowIndex, 1).Value = FileObj.Name
+        ws.Cells(RowIndex, 2).Value = FileObj.Path
+        RowIndex = RowIndex + 1
+    Next FileObj
+
+    ' Duyệt qua các thư mục con
+    For Each SubFolderObj In FolderObj.SubFolders
+        Call GetFiles(SubFolderObj.Path, ws, RowIndex)
+    Next SubFolderObj
+End Sub
+```
+
+---
+
+### Các lưu ý:
+1. **Cấu hình đường dẫn SharePoint**:
+   - Thay đổi giá trị của biến `FolderPath` thành đường dẫn thư mục SharePoint của bạn (URL đến tài liệu bạn muốn quét).
+
+2. **Phụ thuộc vào FileSystemObject**:
+   - Mã này sử dụng `Scripting.FileSystemObject`, vì vậy bạn cần đảm bảo thư viện này đã được kích hoạt:
+     - Vào `Tools > References` trong VBA Editor.
+     - Kích hoạt **Microsoft Scripting Runtime**.
+
+3. **Quyền truy cập SharePoint**:
+   - Đảm bảo bạn có quyền truy cập vào thư mục SharePoint và thư mục con.
+
+---
+
+### Hướng dẫn Step-by-Step:
+1. **Thiết lập file Excel**:
+   - Tạo một file Excel mới và mở VBA Editor bằng cách nhấn `Alt + F11`.
+   - Chèn module mới (`Insert > Module`) và dán đoạn code vào module.
+
+2. **Cấu hình đường dẫn SharePoint**:
+   - Chỉnh sửa `FolderPath` để trỏ đến thư mục gốc trong SharePoint.
+
+3. **Kích hoạt thư viện `Microsoft Scripting Runtime`**:
+   - Vào `Tools > References` trong VBA Editor và chọn `Microsoft Scripting Runtime`.
+
+4. **Chạy code**:
+   - Đóng VBA Editor và nhấn `Alt + F8`.
+   - Chọn macro `ListFilesInSharePoint` và nhấn **Run**.
+
+5. **Kiểm tra kết quả**:
+   - Sau khi chạy, file Excel sẽ liệt kê tất cả các tệp trong cột **A** (tên tệp) và cột **B** (đường dẫn đầy đủ).
+
+Nếu bạn cần thêm hướng dẫn hoặc tùy chỉnh, hãy cho tôi biết nhé! 😊
