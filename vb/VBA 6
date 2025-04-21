@@ -1,0 +1,114 @@
+Dưới đây là phiên bản dịch sang tiếng Việt của đoạn hướng dẫn và mã VBA:
+
+---
+
+### **Mã cho file .bas**
+
+```vba
+Public Function ListFilesFromSharePoint(ByVal FolderPath As String, ByVal ExcelFilePath As String) As String
+    Dim ExcelWorkbook As Workbook
+    Dim ExcelWorksheet As Worksheet
+    Dim FileSystemObj As Object
+    Dim FolderObj As Object
+    Dim FileObj As Object
+    Dim SubFolderObj As Object
+    Dim RowIndex As Long
+
+    On Error GoTo ErrorHandler
+
+    ' Mở file Excel nơi kết quả sẽ được ghi lại
+    Set ExcelWorkbook = Workbooks.Open(ExcelFilePath)
+    Set ExcelWorksheet = ExcelWorkbook.Sheets(1)
+
+    ' Xóa dữ liệu cũ trong trang tính
+    ExcelWorksheet.Cells.Clear
+
+    ' Ghi tiêu đề cột
+    ExcelWorksheet.Cells(1, 1).Value = "Tên Tệp"
+    ExcelWorksheet.Cells(1, 2).Value = "Đường Dẫn Tệp"
+
+    ' Tạo FileSystemObject và lấy thư mục được chỉ định
+    Set FileSystemObj = CreateObject("Scripting.FileSystemObject")
+    Set FolderObj = FileSystemObj.GetFolder(FolderPath)
+
+    ' Khởi tạo chỉ số hàng để ghi dữ liệu
+    RowIndex = 2
+
+    ' Gọi hàm đệ quy để liệt kê các tệp
+    Call ListFilesRecursive(FolderObj, ExcelWorksheet, RowIndex)
+
+    ' Lưu và đóng file Excel
+    ExcelWorkbook.Save
+    ExcelWorkbook.Close False
+
+    ListFilesFromSharePoint = "Thành công: Đã liệt kê các tệp và lưu vào file Excel."
+    Exit Function
+
+ErrorHandler:
+    ListFilesFromSharePoint = "Lỗi: " & Err.Description
+End Function
+
+Sub ListFilesRecursive(ByVal FolderObj As Object, ByRef ExcelWorksheet As Worksheet, ByRef RowIndex As Long)
+    Dim FileObj As Object
+    Dim SubFolderObj As Object
+
+    ' Liệt kê tất cả các tệp trong thư mục hiện tại
+    For Each FileObj In FolderObj.Files
+        ExcelWorksheet.Cells(RowIndex, 1).Value = FileObj.Name
+        ExcelWorksheet.Cells(RowIndex, 2).Value = FileObj.Path
+        RowIndex = RowIndex + 1
+    Next FileObj
+
+    ' Đệ quy liệt kê các tệp trong các thư mục con
+    For Each SubFolderObj In FolderObj.SubFolders
+        Call ListFilesRecursive(SubFolderObj, ExcelWorksheet, RowIndex)
+    Next SubFolderObj
+End Sub
+```
+
+---
+
+### **Các bước triển khai**
+
+#### **1. Tạo file .bas**
+1. Mở **VBA Editor** trong Excel (nhấn `Alt + F11`).
+2. Tạo module mới (`Insert > Module`).
+3. Dán đoạn mã VBA vào module mới.
+4. Xuất file `.bas`:
+   - Trong Project Explorer, chọn module bạn vừa tạo.
+   - Nhấp chuột phải và chọn `Export File`.
+   - Lưu file với định dạng `.bas`, ví dụ: `ListFiles.bas`.
+
+---
+
+#### **2. Cấu hình trong UiPath**
+
+1. **Chuẩn bị các đường dẫn:**
+   - `FolderPath`: Đường dẫn đầy đủ đến thư mục SharePoint của bạn (thư mục này cần được ánh xạ như một ổ đĩa mạng hoặc có thể truy cập qua File Explorer).
+   - `ExcelFilePath`: Đường dẫn đến file Excel mà bạn muốn lưu kết quả (ví dụ: `C:\Output.xlsx`).
+
+2. **Thêm Invoke VBA trong UiPath:**
+   - Kéo thả hoạt động **Invoke VBA** vào workflow.
+   - Trong `Properties`, cấu hình như sau:
+     - **VBAScriptFilePath**: Đường dẫn đầy đủ tới file `.bas` của bạn (ví dụ: `C:\Path\ListFiles.bas`).
+     - **EntryMethodName**: Tên hàm cần gọi (trong trường hợp này là `ListFilesFromSharePoint`).
+     - **EntryMethodParameters**: Truyền các tham số:
+       - Tham số 1: `FolderPath` (ví dụ: `"C:\SharePointFolder"`).
+       - Tham số 2: `ExcelFilePath` (ví dụ: `"C:\Output.xlsx"`).
+
+---
+
+#### **3. Chạy và xác minh**
+- Chạy workflow trong UiPath.
+- Kiểm tra file Excel tại `ExcelFilePath`. File Excel sẽ chứa tất cả các tệp trong cột A (Tên Tệp) và cột B (Đường Dẫn Tệp).
+
+---
+
+### **Lưu ý**
+1. **Truy cập SharePoint**:
+   - Thư mục SharePoint cần được ánh xạ như một ổ đĩa mạng hoặc có thể duyệt qua File Explorer. Mã này sử dụng `FileSystemObject`, vốn chỉ hoạt động với thư mục cục bộ hoặc được ánh xạ.
+
+2. **Xử lý lỗi**:
+   - Mã có xử lý lỗi để cung cấp thông báo trong trường hợp có lỗi.
+
+Hãy thử triển khai và cho tôi biết nếu bạn cần hỗ trợ thêm! 😊
