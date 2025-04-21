@@ -1,0 +1,102 @@
+Option Explicit
+
+Dim rowIndex As Long
+Dim token As String
+
+'==== Entry Point ====
+Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    ws.Cells.ClearContents
+    ws.Cells(4, 1).Value = "ファイル名" ' Cột A - Tên file (tiếng Nhật)
+    ws.Cells(4, 2).Value = "パス"     ' Cột B - Đường dẫn (tiếng Nhật)
+    
+    rowIndex = 5
+    token = "Bearer [YOUR_ACCESS_TOKEN_HERE]" ' <-- Thay access token thật
+
+    Dim siteUrl As String
+    siteUrl = "https://contoso.sharepoint.com/sites/yoursite"
+
+    Dim rootFolder As String
+    rootFolder = "Shared Documents"
+
+    ProcessFolder siteUrl, rootFolder, ws
+End Sub
+
+'==== Recursive Folder Processor ====
+Sub ProcessFolder(siteUrl As String, folderPath As String, ws As Worksheet)
+    Dim url As String
+    url = siteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & folderPath & "')?$expand=Folders,Files"
+
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", url, False
+    http.setRequestHeader "Authorization", token
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.send
+
+    If http.Status <> 200 Then
+        Debug.Print "Error: " & http.Status & " " & http.responseText
+        Exit Sub
+    End If
+
+    Dim raw As String
+    raw = http.responseText
+
+    ' Parse "Files"
+    Dim i As Long
+    i = InStr(raw, """Files"":{""results"":[")
+    If i > 0 Then
+        Dim filesBlock As String
+        filesBlock = Mid(raw, i + 21)
+        filesBlock = Left(filesBlock, InStr(filesBlock, "]") - 1)
+        If Len(Trim(filesBlock)) > 0 Then
+            Dim files() As String
+            files = Split(filesBlock, "{")
+            Dim j As Long
+            For j = LBound(files) To UBound(files)
+                If InStr(files(j), "Name") > 0 Then
+                    Dim fileName As String
+                    fileName = GetJsonValue("Name", "{" & files(j))
+                    Dim filePath As String
+                    filePath = GetJsonValue("ServerRelativeUrl", "{" & files(j))
+                    ws.Cells(rowIndex, 1).Value = fileName
+                    ws.Cells(rowIndex, 2).Value = filePath
+                    rowIndex = rowIndex + 1
+                End If
+            Next j
+        End If
+    End If
+
+    ' Parse "Folders"
+    i = InStr(raw, """Folders"":{""results"":[")
+    If i > 0 Then
+        Dim foldersBlock As String
+        foldersBlock = Mid(raw, i + 24)
+        foldersBlock = Left(foldersBlock, InStr(foldersBlock, "]") - 1)
+        If Len(Trim(foldersBlock)) > 0 Then
+            Dim folders() As String
+            folders = Split(foldersBlock, "{")
+            For j = LBound(folders) To UBound(folders)
+                If InStr(folders(j), "ServerRelativeUrl") > 0 Then
+                    Dim subFolder As String
+                    subFolder = GetJsonValue("ServerRelativeUrl", "{" & folders(j))
+                    ' Bỏ qua "Forms", "Attachments", v.v.
+                    If InStr(subFolder, "Forms") = 0 And InStr(subFolder, "Attachments") = 0 Then
+                        Call ProcessFolder(siteUrl, subFolder, ws)
+                    End If
+                End If
+            Next j
+        End If
+    End If
+End Sub
+
+'==== Manual JSON Value Extractor ====
+Function GetJsonValue(key As String, json As String) As String
+    Dim i As Long, startPos As Long, endPos As Long
+    i = InStr(json, """" & key & """:")
+    If i = 0 Then Exit Function
+    startPos = InStr(i, json, """") + 1
+    endPos = InStr(startPos, json, """")
+    GetJsonValue = Mid(json, startPos, endPos - startPos)
+End Function
