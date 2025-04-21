@@ -1,0 +1,72 @@
+Lỗi này thường xảy ra do **Power Automate flow của bạn được cấu hình đúng trigger (HTTP request)**, nhưng **chưa có schema trong phần Trigger**, hoặc **Power Automate chưa lưu lại thông tin schema đó**, nên nó **hiểu nhầm yêu cầu chỉ được dùng GET**, dẫn đến từ **UiPath gọi bằng POST thì báo lỗi**.
+
+---
+
+## ✅ Hướng xử lý lỗi: "Expected GET but received POST"
+
+### 🛠 **Bước 1: Đảm bảo Trigger là đúng loại**
+
+Phải là **trigger**:  
+👉 **“When an HTTP request is received”**
+
+---
+
+### 🛠 **Bước 2: Cấu hình đúng Schema trong Trigger**
+
+1. Click vào **"When an HTTP request is received"** trigger  
+2. Chọn dòng: **“Use sample payload to generate schema”**
+
+3. Dán vào ví dụ JSON bạn muốn gửi, ví dụ:
+```json
+{
+  "FolderPath": "/Shared Documents/MyFolder"
+}
+```
+
+4. Bấm **Done**  
+⏳ Power Automate sẽ tự sinh ra schema đầy đủ
+
+---
+
+### 🛠 **Bước 3: Bấm "Save" lại toàn bộ Flow**
+
+> 💡 **Rất quan trọng** – Power Automate chỉ **cập nhật endpoint URL** và ghi nhớ phương thức (POST) sau khi bạn **Save lần đầu sau khi có schema**.
+
+---
+
+### 🛠 **Bước 4: Copy lại URL sau khi Save**
+
+- Sau khi Flow đã có schema và Save xong → click lại vào trigger  
+- Bạn sẽ thấy dòng:
+  > 📎 **HTTP POST URL**  
+  → Copy URL này
+
+---
+
+## ✅ Gọi lại từ UiPath – cấu hình đúng
+
+Trong UiPath, dùng activity **HTTP Request** với thông tin:
+
+| Field           | Value                                                  |
+|----------------|--------------------------------------------------------|
+| Method          | `POST`                                                |
+| EndPoint        | URL bạn vừa copy từ Flow                               |
+| Body            | Ví dụ: `{ "FolderPath": "/Shared Documents/MyFolder" }` |
+| Headers         | `{ "Content-Type": "application/json" }`             |
+| AcceptFormat    | `application/json`                                    |
+
+---
+
+## 🔁 Kiểm tra nhanh nếu vẫn lỗi
+
+| Kiểm tra gì?                     | Gợi ý fix                                      |
+|----------------------------------|------------------------------------------------|
+| Flow đã Save sau khi cấu hình schema chưa? | Phải Save để kích hoạt POST đúng |
+| UiPath gửi đúng Content-Type chưa?         | Luôn cần `application/json` header |
+| Flow có action Response không?            | Cuối Flow nên có `Response` để trả kết quả |
+
+---
+
+### 🔧 Nếu cần: Flow mẫu `.zip` dùng HTTP POST + Response
+
+Bạn muốn mình chuẩn bị một Flow mẫu dạng `.zip` kèm hướng dẫn import không? Mình có thể gửi file mẫu và cách dùng trong UiPath nếu bạn cần.
