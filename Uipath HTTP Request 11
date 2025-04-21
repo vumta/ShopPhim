@@ -1,0 +1,84 @@
+Đây là hướng dẫn chi tiết **step-by-step** để sửa lại cách tạo mảng JSON trong Power Automate, đảm bảo biến `AllFiles` là **mảng các object JSON**, không phải mảng các chuỗi (`string`). Điều này giúp tránh lỗi khi phân tích kết quả trong **UiPath** bằng `Deserialize JSON`.
+
+---
+
+## ✅ Mục tiêu:
+Tạo `AllFiles` dưới dạng:
+```json
+[
+  { "Name": "file1.txt", "Path": "/sites/…/file1.txt" },
+  { "Name": "file2.txt", "Path": "/sites/…/file2.txt" }
+]
+```
+
+Không phải dạng sai:
+```json
+[
+  "{\"Name\":\"file1.txt\",\"Path\":\"/sites/…/file1.txt\"}"
+]
+```
+
+---
+
+## 🛠 Step-by-step trong Power Automate
+
+---
+
+### 🔹 Bước 1: Khởi tạo biến `AllFiles`
+- **Action**: *Initialize variable*
+- **Name**: `AllFiles`
+- **Type**: `Array`
+- **Value**: `[]`
+
+---
+
+### 🔹 Bước 2: Lặp qua danh sách file
+
+- **Action**: *Apply to each*
+- **Input**: Array các file bạn lấy được từ Child Flow hoặc HTTP Request (ví dụ: `body('Parse_JSON')?['Files']`)
+
+---
+
+### 🔹 Bước 3: Tạo object JSON đúng định dạng
+
+Bên trong `Apply to each`, thêm:
+
+- **Action**: *Append to array variable*
+- **Name**: `AllFiles`
+- **Value**:
+```json
+{
+  "Name": @{items('Apply_to_each')?['Name']},
+  "Path": @{items('Apply_to_each')?['ServerRelativeUrl']}
+}
+```
+
+📌 **Lưu ý**: KHÔNG dùng `string()` hoặc `json()` quanh object — điều này sẽ khiến object bị chuyển thành chuỗi JSON không mong muốn.
+
+---
+
+### 🔹 Bước 4: Gửi kết quả qua Action "Response" (nếu có)
+
+- **Action**: *Response*
+  - **Status code**: `200`
+  - **Headers**: `Content-Type: application/json`
+  - **Body**:
+```json
+{
+  "AllFiles": @{variables('AllFiles')}
+}
+```
+
+---
+
+## 🔄 Trên UiPath
+
+- **Activity**: `Deserialize JSON`
+- Input: `responseString`
+- Output: `jsonObject`
+
+Bạn có thể dùng `For Each item in jsonObject("AllFiles")` để đọc từng file.
+
+---
+
+Nếu bạn muốn mình tạo **file `.zip` mẫu cho Flow cha + Flow con**, mình có thể hỗ trợ. Cần không?
