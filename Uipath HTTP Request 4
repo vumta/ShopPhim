@@ -1,3 +1,78 @@
+Đúng rồi! Trong Power Automate, khi bạn dùng **`Append to array variable`** mà **giá trị append không đúng kiểu**, đặc biệt là nếu bạn **append cả mảng (array) vào một array**, thì sẽ bị lỗi.
+
+---
+
+## 🎯 Tình huống thường gặp:
+
+### ❌ Sai cách (gây lỗi):
+```plaintext
+Append to array variable → AllFiles
+Value → variables('NewFiles')  // đây là một array
+```
+
+➡ Power Automate không cho **append nguyên cả array vào array**.
+
+---
+
+## ✅ Cách đúng: Duyệt từng item để append
+
+### 🔹 Bước 1: Dùng `Apply to each`
+
+- Input: `variables('NewFiles')`
+- Trong `Apply to each`, dùng `Append to array variable`:
+
+```plaintext
+Value → items('Apply_to_each')
+```
+
+---
+
+## ✅ Mục tiêu: Gộp mảng `NewFiles` vào `AllFiles`
+
+### 🔁 Ví dụ đầy đủ:
+
+#### Biến ban đầu:
+
+- `AllFiles`: array (rỗng hoặc đã có dữ liệu)
+- `NewFiles`: array (từ Child Flow hoặc từ xử lý nào đó)
+
+---
+
+#### Cách hợp nhất đúng:
+
+1. **Apply to each**
+   - Input: `variables('NewFiles')`
+2. **Bên trong Apply to each → Append to array**
+   - To: `AllFiles`
+   - Value: `items('Apply_to_each')`
+
+---
+
+## 🧠 Hoặc dùng expression (nâng cao)
+
+Nếu bạn muốn **gộp nhanh 2 array** mà không dùng loop (với Flow nhỏ), bạn có thể dùng expression:
+
+```plaintext
+set variable → AllFiles  
+value → union(variables('AllFiles'), variables('NewFiles'))
+```
+
+> `union()` sẽ nối 2 array và tự loại bỏ phần tử trùng nếu có
+
+---
+
+## ✅ Kết luận
+
+| Cách                     | Dùng khi nào                 |
+|--------------------------|------------------------------|
+| `Apply to each + Append` | Luôn hoạt động, an toàn      |
+| `union()`                | Gọn hơn nhưng loại phần tử trùng |
+
+---
+
+Muốn mình tạo demo nhỏ và gửi file `.zip` bạn import thử không?
+
+=======================
 Có! Nếu bạn **không muốn dùng Parse JSON**, bạn **vẫn có thể truy cập trực tiếp các giá trị trong mảng JSON** (`AllFilesJson`) sau khi Flow con trả về, bằng cách dùng:
 
 ```plaintext
