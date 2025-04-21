@@ -1,0 +1,29 @@
+✅ Mình đã gộp **JsonConverter.bas** và mã **get all file SharePoint** thành 1 file `.bas`. Bạn có thể dùng file này để **Invoke VBA trong UiPath** (không cần gắn vào file Excel).
+
+📁 Tải file `.bas` tại đây: [SharePoint_All_In_One.bas](sandbox:/mnt/data/SharePoint_All_In_One.bas)
+
+---
+
+### 🟦 Hướng dẫn sử dụng trong UiPath:
+
+#### 1. **Dùng “Invoke VBA”**
+
+- **FilePath**: Trỏ đến file `.bas` này
+- **EntryMethodName**: `GetAllSharePointFiles`
+- **TargetObject**: Excel Application Scope
+- **Parameters**: Không cần truyền tham số
+
+#### 2. **Chuẩn bị trước**
+
+- Mở Excel trước bằng “Excel Application Scope”
+- Sheet đầu tiên cần có sẵn cột A & B (đặt tên tiếng Nhật nếu cần)
+- Dòng bắt đầu ghi là dòng 5 (hoặc bạn chỉnh trong mã)
+
+---
+
+Nếu bạn muốn:
+- Thay đổi cột ghi (ví dụ C & D)
+- Bắt đầu từ dòng khác
+- Trỏ đến site SharePoint khác
+
+➡️ Mình có thể sửa nhanh giúp!
