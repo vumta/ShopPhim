@@ -1,0 +1,98 @@
+Cấu trúc bạn đang gặp phải cho biết **mỗi phần tử trong mảng JSON trả về là một chuỗi (string), không phải là object thực sự**. Ví dụ:
+
+Thay vì đúng dạng:
+```json
+[
+  { "Name": "file1.txt", "Path": "/sites/.../file1.txt" },
+  { "Name": "file2.txt", "Path": "/sites/.../file2.txt" }
+]
+```
+
+Thì bạn đang nhận về:
+```json
+[
+  "{\"Name\":\"file1.txt\",\"Path\":\"/sites/.../file1.txt\"}",
+  "{\"Name\":\"file2.txt\",\"Path\":\"/sites/.../file2.txt\"}"
+]
+```
+
+> 👉 Mỗi item là một **string chứa JSON**, chứ không phải **JSON object**.
+
+---
+
+## ✅ Nguyên nhân
+
+Trong Power Automate, có thể bạn đã:
+- Dùng `Append to array variable` nhưng phần tử được append là **string JSON**, ví dụ:
+
+```json
+"{\"Name\":\"file1.txt\",\"Path\":\"/sites/.../file1.txt\"}"
+```
+
+Thay vì đúng:
+```json
+{
+  "Name": "file1.txt",
+  "Path": "/sites/.../file1.txt"
+}
+```
+
+---
+
+## ✅ Giải pháp: Sửa lại trong Power Automate (Flow con)
+
+### Bước 1: Đừng tạo phần tử như chuỗi JSON
+
+Không nên làm như:
+```json
+"{\"Name\":\"" & variables('Name') & "\",\"Path\":\"" & variables('Path') & "\"}"
+```
+
+Mà hãy làm như sau:
+- Dùng action `Append to array variable`
+- Bấm vào `{}` trong giá trị
+- Thêm object trực tiếp:
+```json
+{
+  "Name": <dynamic name>,
+  "Path": <dynamic path>
+}
+```
+
+Ví dụ:
+```json
+{
+  "Name": "@items('Apply_to_each')?['Name']",
+  "Path": "@items('Apply_to_each')?['ServerRelativeUrl']"
+}
+```
+
+---
+
+## ✅ Nếu bạn đã nhận về kết quả sai (string chứa JSON), thì trong UiPath:
+
+### Cách sửa trong UiPath nếu chưa fix được ở Power Automate
+
+1. **Deserialize lần đầu** – `responseString` chứa mảng chuỗi:
+   - Kết quả là `JArray<string>` → bạn phải **vòng lặp qua từng item**
+
+2. **Trong For Each**: Dùng `Deserialize JSON` một lần nữa cho từng chuỗi → để nhận được `JObject`
+
+```vb
+For each item in filesArray (JArray of String)
+    Deserialize JSON → item → thành JObject
+    Then:
+        fileName = jsonObject("Name").ToString
+        filePath = jsonObject("Path").ToString
+```
+
+---
+
+## ✅ Khuyến nghị: Fix tại Power Automate
+
+Tốt nhất bạn nên sửa lại cách tạo mảng JSON **ngay trong Flow con**, để biến `AllFiles` là **mảng các object**, không phải **mảng các chuỗi**.  
+→ Như vậy, UiPath chỉ cần **một lần `Deserialize JSON Array`**, không cần lặp để xử lý từng item thủ công.
+
+---
+
+Nếu bạn muốn mình **check lại Power Automate flow (Flow con)** để đảm bảo đúng cách tạo `AllFiles`, gửi mình cấu trúc hoặc ảnh chụp Flow hiện tại nhé. Mình có thể hướng dẫn fix cụ thể luôn.
