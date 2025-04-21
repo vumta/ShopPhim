@@ -1,0 +1,85 @@
+Hoàn hảo rồi! Sau khi bạn đã **lấy được `Name` và `Path`** từ kết quả JSON trong UiPath, giờ chúng ta sẽ thực hiện **ghi dữ liệu vào file Excel có sẵn**, trong đó 2 cột đã cố định bằng **tiếng Nhật** (ví dụ: `名前`, `パス` tương ứng với Name và Path).
+
+---
+
+## ✅ Step-by-step: Ghi dữ liệu vào Excel (có sẵn cột tiếng Nhật)
+
+### ⚙️ Yêu cầu ban đầu
+
+- File Excel đã có sẵn cột **"名前" (Name)** và **"パス" (Path)** (ví dụ ở hàng 1).
+- Dữ liệu mới sẽ được **ghi tiếp bên dưới dòng cuối cùng** (append).
+
+---
+
+### 🔹 Bước 1: Chuẩn bị DataTable trong UiPath
+
+#### 1.1 – Tạo DataTable rỗng
+
+Dùng `Build DataTable` activity:
+
+- Tên: `dtFiles`
+- Cột:
+  - `名前` (Kiểu: String)
+  - `パス` (Kiểu: String)
+
+#### 1.2 – Trong vòng lặp đã có `Name` và `Path` từ JSON
+
+Dùng `Add Data Row`:
+
+- **DataTable**: `dtFiles`
+- **ArrayRow**:
+```vb
+{ fileObject("Name").ToString, fileObject("Path").ToString }
+```
+
+---
+
+### 🔹 Bước 2: Ghi vào Excel
+
+Dùng Excel Application Scope:
+
+- **Path**: `filePath` (đường dẫn tới Excel có sẵn)
+
+#### 2.1 – Dùng `Read Range` để lấy số dòng hiện có (sheet name = "Sheet1")
+
+- **Output**: `dtExisting`
+
+#### 2.2 – Tính dòng bắt đầu ghi:
+
+```vb
+startRow = dtExisting.Rows.Count + 2  ' +2 để vượt qua tiêu đề
+```
+
+#### 2.3 – Dùng `Write Range` (Excel):
+
+- **Sheet**: `"Sheet1"`
+- **Starting Cell**: `"A" + startRow.ToString`
+- **DataTable**: `dtFiles`
+- **Add Headers**: `False`
+
+---
+
+### 📌 Tips nếu tiêu đề cột bằng tiếng Nhật:
+
+| 日本語列名 | Ý nghĩa    |
+|------------|------------|
+| 名前       | Name       |
+| パス       | Path       |
+
+Bạn chỉ cần dùng đúng tên này trong `Build DataTable`, UiPath sẽ ghi vào đúng cột nếu bạn chọn đúng vị trí dòng đầu.
+
+---
+
+## ✅ Tổng kết:
+
+| Bước | Mục tiêu                      | Activity               |
+|------|-------------------------------|------------------------|
+| 1    | Parse JSON đến từng file     | `Deserialize JSON`     |
+| 2    | Tạo bảng kết quả              | `Build DataTable`      |
+| 3    | Add từng file vào DataTable  | `Add Data Row`         |
+| 4    | Tính dòng ghi mới            | `Read Range`, tính `Row.Count` |
+| 5    | Ghi thêm vào Excel           | `Write Range`          |
+
+---
+
+Muốn mình gửi file **.xaml demo** không? Hoặc bạn có thể gửi tên cụ thể cột tiếng Nhật nếu khác để mình chỉnh giùm.
