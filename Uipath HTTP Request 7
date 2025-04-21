@@ -1,0 +1,113 @@
+Tuyệt vời, dưới đây là **đoạn hướng dẫn đầy đủ Step-by-Step trong UiPath** để gọi **Power Automate qua HTTP POST**, truyền JSON, và nhận lại **dữ liệu JSON (như danh sách file)** từ Flow.
+
+---
+
+## ✅ Mục tiêu:
+- Từ UiPath, gọi Power Automate Flow bằng HTTP POST.
+- Truyền input `"FolderPath"` (hoặc nhiều tham số nếu cần).
+- Nhận `JSON` kết quả từ Flow (danh sách file, v.v.).
+- Dễ mở rộng.
+
+---
+
+## 🔧 Step-by-Step trong UiPath:
+
+### 🟦 **1. Kéo "HTTP Request" Activity vào Workflow**
+> Gói mặc định: **UiPath.WebAPI.Activities**
+
+---
+
+### 🟦 **2. Cấu hình Activity**
+
+| **Field**            | **Value**                                                                 |
+|----------------------|---------------------------------------------------------------------------|
+| **EndPoint**         | Dán URL của Power Automate Flow *(from trigger)*                          |
+| **Method**           | `POST`                                                                    |
+| **Headers**          | `{ "Content-Type": "application/json" }` *(add via Dictionary)*           |
+| **BodyFormat**       | `Application/Json`                                                        |
+| **Body**             | `"{""FolderPath"": ""/Shared Documents/YourFolder""}"` *(chuỗi JSON)*     |
+| **AcceptFormat**     | `Application/Json` *(hoặc để mặc định)*                                   |
+| **Response**         | Output lưu vào `responseString` (kiểu `String`)                           |
+
+---
+
+### ✨ Gợi ý cấu hình Headers (dạng Dictionary):
+
+```vb
+New Dictionary(Of String, String) From {
+  {"Content-Type", "application/json"}
+}
+```
+
+---
+
+### 🟩 **3. (Tùy chọn) Parse response JSON trả về từ Flow**
+
+Dùng `Deserialize JSON` activity để phân tích kết quả JSON từ biến `responseString`:
+
+```vb
+JObject.Parse(responseString)
+```
+
+Hoặc để lấy danh sách file:
+
+```vb
+JObject.Parse(responseString)("files")
+```
+
+---
+
+## 📥 Ví dụ JSON Body (POST request)
+
+```json
+{
+  "FolderPath": "/Shared Documents/Reports/2024"
+}
+```
+
+---
+
+## 🟦 Power Automate (Flow) – Trigger và Response
+
+### ✅ Trigger: `When an HTTP request is received`
+
+#### Schema:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "FolderPath": {
+      "type": "string"
+    }
+  }
+}
+```
+
+---
+
+### ✅ Cuối Flow: Action "Response"
+
+| Field          | Value                         |
+|----------------|-------------------------------|
+| Status Code    | `200`                         |
+| Headers        | `Content-Type: application/json` |
+| Body           | `{"files": @{variables('AllFiles')}}` |
+
+---
+
+## 🧪 Debug Tip
+
+Nếu vẫn lỗi, bạn có thể:
+- Gửi test từ **Postman** trước → xác minh Flow nhận được.
+- Thêm Compose để xem giá trị `triggerBody()?['FolderPath']`
+- Thêm log file ở UiPath: `Log Message → responseString`
+
+---
+
+## 🧰 Bạn cần gì thêm?
+
+✅ Mẫu `.xaml` gửi HTTP?  
+✅ Tạo Flow mẫu `.zip` chứa Flow HTTP + xử lý file từ SharePoint?
+
+Chỉ cần nói nhé, mình sẽ gửi bạn luôn!
