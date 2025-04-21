@@ -1,0 +1,126 @@
+Cảm ơn bạn đã phản hồi! Khi `.bas` không thể **run trong UiPath**, có thể do một số nguyên nhân kỹ thuật. Mình sẽ hướng dẫn bạn **step-by-step kiểm tra và sửa lỗi** để đảm bảo `Invoke VBA` chạy được macro từ file `.bas`.
+
+---
+
+## ✅ Check nhanh trước:
+
+### 🔹 1. **File Excel bạn mở bằng `Excel Application Scope` có được lưu?**
+- File Excel **phải có đuôi `.xlsm`**
+- Phải **đã được lưu thủ công một lần trước** để chứa macro
+
+> 🔧 Nếu bạn mới tạo file Excel từ UiPath, hãy mở bằng tay, lưu lại một lần, rồi chạy lại Flow.
+
+---
+
+### 🔹 2. **Kiểm tra cấu trúc UiPath**
+
+| Step | Activity | Ghi chú |
+|------|----------|---------|
+| 1 | **Excel Application Scope** | Trỏ đến file `.xlsm` đã có macro |
+| 2 | **Invoke VBA** | Import file `.bas` và gọi macro |
+
+### Cấu hình của **Invoke VBA**:
+
+- **Code File Path**: đường dẫn tới file `GetAllSharePointFiles.bas`
+- **EntryMethodName**: `GetAllSharePointFiles`
+- **IsFromFile**: `True`
+- **Input Parameters**: để trống nếu macro không cần argument
+
+---
+
+### 🔹 3. **Excel bật chế độ "Enable Macros" chưa?**
+
+Mở file `.xlsm` bằng tay 1 lần → chọn **"Enable Content"** nếu có cảnh báo.
+
+---
+
+## ✅ Kiểm tra lỗi thường gặp
+
+| Lỗi | Nguyên nhân |
+|-----|-------------|
+| Macro not found | Tên hàm sai, hoặc `.bas` chưa được import đúng |
+| Cannot run macro | File không lưu, hoặc không phải `.xlsm` |
+| Object variable not set | Biến chưa khai báo hoặc Excel chưa sẵn sàng |
+| Excel lỗi văng | File đang mở từ lần trước chưa được đóng đúng |
+
+---
+
+## ✅ Kiểm tra chính xác: Bạn có thể thử bằng tay trong Excel
+
+1. Mở file `.xlsm`
+2. Mở tab **Developer > Macros**
+3. Xem macro `GetAllSharePointFiles` có xuất hiện không
+4. Nhấn **Run** → kiểm tra kết quả
+
+---
+
+## ✅ Tối ưu lại: Mình gửi bạn phiên bản `.bas` đã sửa gọn cho chạy tốt từ UiPath:
+
+### 🧩 Đảm bảo định dạng:
+
+```vb
+Attribute VB_Name = "GetAllSharePointFiles"
+Option Explicit
+
+Public Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+
+    ws.Cells.ClearContents
+    ws.Range("A1:B1").Value = Array("Tên File", "Đường Dẫn")
+
+    Dim nextRow As Long
+    nextRow = 2
+
+    ' Đổi đường dẫn cho đúng site của bạn
+    Dim url As String
+    url = "https://contoso.sharepoint.com/sites/TestSite/Shared Documents"
+
+    ' Gọi xử lý
+    ProcessFolder url, ws, nextRow
+End Sub
+
+Private Sub ProcessFolder(folderUrl As String, ws As Worksheet, ByRef rowIdx As Long)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", folderUrl, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status = 200 Then
+        Dim json As Object
+        Set json = ParseJson(http.responseText)
+
+        Dim files
+        Set files = json("d")("Files")("results")
+
+        Dim f
+        For Each f In files
+            ws.Cells(rowIdx, 1).Value = f("Name")
+            ws.Cells(rowIdx, 2).Value = f("ServerRelativeUrl")
+            rowIdx = rowIdx + 1
+        Next
+    Else
+        MsgBox "Lỗi gọi API: " & http.Status
+    End If
+End Sub
+
+' JsonConverter tối giản dùng ScriptControl
+Private Function ParseJson(jsonText As String) As Object
+    Dim sc As Object
+    Set sc = CreateObject("ScriptControl")
+    sc.Language = "JScript"
+    Set ParseJson = sc.Eval("(" & jsonText & ")")
+End Function
+```
+
+---
+
+## 💡 Gợi ý: Debug trong Excel trước, sau đó gọi từ UiPath
+
+- Gỡ lỗi dễ hơn
+- Sau khi chắc chắn chạy được từ Excel, hãy chuyển sang UiPath
+
+---
+
+Nếu bạn cần, mình có thể gửi file `.bas` đúng định dạng để bạn import trực tiếp. Hoặc bạn có thể gửi ảnh lỗi cụ thể khi chạy trong UiPath để mình fix chuẩn luôn nhé!
