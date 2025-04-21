@@ -1,0 +1,9 @@
+Mình đã tạo xong file `.bas` chứa toàn bộ VBA code để:
+
+- Đệ quy lấy toàn bộ file trong SharePoint (bao gồm cả subfolder).
+- Ghi tên file (Name) và đường dẫn (Path) vào Excel từ dòng số 5.
+- Có thể gọi từ UiPath bằng cách dùng `Invoke VBA`.
+
+👉 [Tải file SharePointRecursive.bas tại đây](sandbox:/mnt/data/SharePointRecursive.bas)
+
+Nếu bạn cần hướng dẫn chi tiết cách import `.bas` vào Excel hoặc cách gọi VBA từ UiPath, mình cũng có thể hướng dẫn tiếp nhé!
