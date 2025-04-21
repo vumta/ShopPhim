@@ -1,0 +1,97 @@
+It seems like I can’t do more advanced data analysis right now. Please try again later.
+
+Tuy nhiên, bạn vẫn có thể làm theo hướng dẫn dưới đây để tự tạo file `.bas` gộp cả `JsonConverter` và đoạn mã đệ quy SharePoint:
+
+---
+
+## ✅ Hướng dẫn thủ công tạo file `.bas` hoàn chỉnh
+
+### 🔹 Bước 1: Tải `JsonConverter.bas` gốc
+
+- Truy cập link chính thức của dự án:
+  [https://github.com/VBA-tools/VBA-JSON/blob/master/JsonConverter.bas](https://github.com/VBA-tools/VBA-JSON/blob/master/JsonConverter.bas)
+- Nhấn vào nút **Raw** → Ctrl + A → Ctrl + C
+- Dán toàn bộ vào một file mới.
+
+---
+
+### 🔹 Bước 2: Thêm đoạn mã đệ quy lấy file từ SharePoint
+
+Ở **cuối file JsonConverter.bas**, thêm đoạn mã sau:
+
+```vb
+' ---------------------------------------------
+' Recursive SharePoint Explorer
+' ---------------------------------------------
+Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    ws.Cells.ClearContents
+    ws.Range("A1").Value = "名前" ' Tên
+    ws.Range("B1").Value = "パス" ' Đường dẫn
+
+    Dim ROOT_FOLDER As String
+    ROOT_FOLDER = "Shared Documents" ' Thay bằng thư mục gốc của bạn
+
+    ProcessFolder "/" & ROOT_FOLDER, ws, 2
+End Sub
+
+Sub ProcessFolder(FolderPath As String, ws As Worksheet, ByRef nextRow As Long)
+    Dim Http As Object
+    Set Http = CreateObject("MSXML2.XMLHTTP")
+    
+    Dim SiteUrl As String
+    SiteUrl = "https://contoso.sharepoint.com/sites/TestSite"
+
+    Dim Endpoint As String
+    Endpoint = SiteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & FolderPath & "')?$expand=Folders,Files"
+
+    Http.Open "GET", Endpoint, False
+    Http.setRequestHeader "Accept", "application/json;odata=verbose"
+    Http.Send
+
+    If Http.Status = 200 Then
+        Dim JSON As Object
+        Set JSON = ParseJson(Http.responseText)
+        
+        Dim folder As Object
+        Set folder = JSON("d")
+        
+        Dim fileItem As Variant
+        For Each fileItem In folder("Files")("results")
+            ws.Cells(nextRow, 1).Value = fileItem("Name")
+            ws.Cells(nextRow, 2).Value = fileItem("ServerRelativeUrl")
+            nextRow = nextRow + 1
+        Next fileItem
+
+        Dim subfolder As Variant
+        For Each subfolder In folder("Folders")("results")
+            If subfolder("Name") <> "Forms" Then
+                ProcessFolder subfolder("ServerRelativeUrl"), ws, nextRow
+            End If
+        Next subfolder
+    Else
+        MsgBox "HTTP Error: " & Http.Status
+    End If
+End Sub
+```
+
+---
+
+### 🔹 Bước 3: Lưu file
+
+- Mở Notepad hoặc VSCode
+- Dán toàn bộ nội dung (JsonConverter + đoạn đệ quy trên)
+- Lưu thành: `SharePoint_Full.bas`
+
+---
+
+### 🔹 Bước 4: Gọi từ UiPath
+
+- Dùng **Invoke VBA**
+- Gắn file `.bas` bạn vừa tạo
+- Gọi hàm `GetAllSharePointFiles` mà không cần chèn code vào trong Excel
+
+---
+
+Nếu bạn muốn mình tạo lại file `.bas` đúng chuẩn cho bạn để tải về, mình sẽ hỗ trợ khi công cụ hoạt động lại. Bạn chỉ cần nói: **“Tạo lại file .bas cho tôi khi tool hoạt động”** nhé!
