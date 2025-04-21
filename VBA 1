@@ -1,0 +1,120 @@
+OK! Mình sẽ giúp bạn chuyển toàn bộ quy trình lấy tất cả file trong SharePoint (bao gồm subfolder các cấp) từ Power Automate sang VBA.
+
+### 🎯 Mục tiêu:
+- Duyệt tất cả thư mục và file trong SharePoint (bao gồm subfolder).
+- Ghi tên file và đường dẫn vào Excel từ dòng số 5.
+- Sử dụng VBA (không cần Power Automate hay UiPath).
+
+---
+
+## ✅ Yêu cầu ban đầu:
+Để sử dụng VBA truy cập SharePoint, bạn cần:
+1. **URL SharePoint site** (ví dụ: `https://contoso.sharepoint.com/sites/YourSite`)
+2. **Đường dẫn thư mục gốc cần duyệt** (ví dụ: `Shared Documents`)
+3. Excel đã bật **Microsoft Scripting Runtime** và **Microsoft XML, v6.0**
+
+---
+
+## 🔧 Step-by-step hướng dẫn VBA
+
+### 📌 Bước 1: Mở Excel > nhấn `Alt + F11` để mở VBA Editor
+
+### 📌 Bước 2: Vào `Tools > References`
+- Tick chọn:
+  - ✅ Microsoft Scripting Runtime
+  - ✅ Microsoft XML, v6.0
+
+---
+
+### 📌 Bước 3: Dán đoạn code sau vào Module
+
+```vba
+Option Explicit
+
+Const BASE_URL As String = "https://contoso.sharepoint.com/sites/YourSite"
+Const ROOT_FOLDER As String = "Shared Documents"
+Const START_ROW As Long = 5
+
+Dim rowIndex As Long
+
+Sub GetAllFilesFromSharePoint()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    rowIndex = START_ROW
+
+    ' Xóa dữ liệu cũ nếu cần
+    ws.Range("A" & rowIndex & ":B" & ws.Rows.Count).ClearContents
+
+    ' Gọi hàm đệ quy
+    ProcessFolder "/" & ROOT_FOLDER, ws
+
+    MsgBox "Done!"
+End Sub
+
+Sub ProcessFolder(folderPath As String, ws As Worksheet)
+    Dim xhr As Object
+    Set xhr = CreateObject("MSXML2.XMLHTTP")
+    
+    Dim url As String
+    url = BASE_URL & "/_api/web/GetFolderByServerRelativeUrl('" & EncodeURL(folderPath) & "')?$expand=Folders,Files"
+
+    xhr.Open "GET", url, False
+    xhr.setRequestHeader "Accept", "application/json;odata=verbose"
+    xhr.Send
+
+    If xhr.Status = 200 Then
+        Dim response As Object
+        Set response = JsonConverter.ParseJson(xhr.responseText)
+
+        Dim files As Object, file As Object
+        Set files = response("d")("Files")("results")
+        For Each file In files
+            ws.Cells(rowIndex, 1).Value = file("Name")
+            ws.Cells(rowIndex, 2).Value = file("ServerRelativeUrl")
+            rowIndex = rowIndex + 1
+        Next
+
+        Dim folders As Object, folder As Object
+        Set folders = response("d")("Folders")("results")
+        For Each folder In folders
+            ' Bỏ qua thư mục Forms mặc định
+            If folder("Name") <> "Forms" Then
+                ProcessFolder folder("ServerRelativeUrl"), ws
+            End If
+        Next
+    Else
+        Debug.Print "Error: " & xhr.Status & " - " & xhr.statusText
+    End If
+End Sub
+
+Function EncodeURL(url As String) As String
+    url = Replace(url, " ", "%20")
+    url = Replace(url, "'", "%27")
+    EncodeURL = url
+End Function
+```
+
+---
+
+### 📌 Bước 4: Thêm **JSON parser** cho VBA
+
+1. Tải thư viện [VBA-JSON](https://github.com/VBA-tools/VBA-JSON) tại đây: [https://github.com/VBA-tools/VBA-JSON](https://github.com/VBA-tools/VBA-JSON)
+2. Thêm vào VBA Editor bằng cách `File > Import File...` → chọn file `JsonConverter.bas`
+
+---
+
+### 📌 Bước 5: Chạy macro
+
+1. Quay lại Excel
+2. Nhấn `Alt + F8`, chọn `GetAllFilesFromSharePoint`, rồi nhấn **Run**
+
+---
+
+## 📝 Kết quả:
+- File và đường dẫn sẽ được ghi từ dòng số 5 trở đi.
+- Cột 1: Name (tên file)
+- Cột 2: Path (đường dẫn SharePoint)
+
+---
+
+Bạn cần mình xuất sẵn file Excel mẫu có sẵn macro không? Hoặc bạn có muốn hỗ trợ thêm phần xác thực nếu site bạn yêu cầu đăng nhập?
