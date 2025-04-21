@@ -1,0 +1,139 @@
+Dưới đây là mã VBA hoàn chỉnh giúp bạn:
+
+- **Gửi HTTP request đến SharePoint Online**
+- **Lấy danh sách tất cả các file trong folder + subfolder (đệ quy)**
+- **Ghi vào cột A (Tên file) và B (Đường dẫn) của Excel**
+- **Không sử dụng thư viện `JsonConverter`**
+
+---
+
+### ✅ Mã VBA `.bas` đầy đủ (không dùng JsonConverter)
+
+```vba
+Attribute VB_Name = "GetAllSharePointFiles"
+
+Dim rowIndex As Long
+
+Sub StartGetAllFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    ws.Cells.ClearContents
+    ws.Cells(4, 1).Value = "Tên file"
+    ws.Cells(4, 2).Value = "Đường dẫn"
+    rowIndex = 5
+    
+    Dim rootFolder As String
+    rootFolder = "/sites/YOURSITE/Shared Documents" ' ← Thay đường dẫn đúng SharePoint
+
+    ProcessFolder rootFolder, ws
+    MsgBox "Hoàn tất!"
+End Sub
+
+Sub ProcessFolder(folderPath As String, ws As Worksheet)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    
+    Dim siteUrl As String
+    siteUrl = "https://contoso.sharepoint.com" ' ← Thay domain đúng
+    
+    Dim apiUrl As String
+    apiUrl = siteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & folderPath & "')?$expand=Folders,Files"
+    
+    http.Open "GET", apiUrl, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+    
+    If http.Status = 200 Then
+        Dim json As String
+        json = http.responseText
+        ParseJson folderPath, json, ws
+    End If
+End Sub
+
+Sub ParseJson(folderPath As String, json As String, ws As Worksheet)
+    Dim filesData As String, foldersData As String
+    Dim i As Long, startPos As Long, endPos As Long
+    
+    ' Lấy phần Files
+    startPos = InStr(json, """Files"":{""results"":[")
+    If startPos > 0 Then
+        startPos = startPos + Len("""Files"":{""results"":[")
+        endPos = InStr(startPos, json, "]}")
+        filesData = Mid(json, startPos, endPos - startPos)
+        
+        Dim fileItems() As String
+        fileItems = Split(filesData, "},{")
+        For i = LBound(fileItems) To UBound(fileItems)
+            Dim fileName As String, filePath As String
+            fileName = ExtractValue(fileItems(i), "Name")
+            filePath = ExtractValue(fileItems(i), "ServerRelativeUrl")
+            If fileName <> "" Then
+                ws.Cells(rowIndex, 1).Value = fileName
+                ws.Cells(rowIndex, 2).Value = filePath
+                rowIndex = rowIndex + 1
+            End If
+        Next i
+    End If
+    
+    ' Lấy phần Folders
+    startPos = InStr(json, """Folders"":{""results"":[")
+    If startPos > 0 Then
+        startPos = startPos + Len("""Folders"":{""results"":[")
+        endPos = InStr(startPos, json, "]}")
+        foldersData = Mid(json, startPos, endPos - startPos)
+        
+        Dim folderItems() As String
+        folderItems = Split(foldersData, "},{")
+        For i = LBound(folderItems) To UBound(folderItems)
+            Dim subFolder As String
+            subFolder = ExtractValue(folderItems(i), "ServerRelativeUrl")
+            If subFolder <> "" Then
+                ProcessFolder subFolder, ws
+            End If
+        Next i
+    End If
+End Sub
+
+Function ExtractValue(jsonChunk As String, key As String) As String
+    On Error Resume Next
+    Dim keyPattern As String
+    keyPattern = """" & key & """:"""
+    Dim pos1 As Long, pos2 As Long
+    pos1 = InStr(jsonChunk, keyPattern)
+    If pos1 > 0 Then
+        pos1 = pos1 + Len(keyPattern)
+        pos2 = InStr(pos1, jsonChunk, """")
+        ExtractValue = Mid(jsonChunk, pos1, pos2 - pos1)
+    Else
+        ExtractValue = ""
+    End If
+End Function
+```
+
+---
+
+### ✅ Cách sử dụng `.bas` trong UiPath (Step-by-step)
+
+1. **Lưu đoạn code trên vào file `.bas`**
+   - Tên file: `GetAllSharePointFiles.bas`
+
+2. **Import file vào Excel:**
+   - Mở Excel
+   - Alt + F11 để mở VBA Editor
+   - File → Import File... → Chọn `GetAllSharePointFiles.bas`
+
+3. **Tạo Sheet trống và đặt tên cột tại A4, B4**
+   - A4: ファイル名 (Tên file – tiếng Nhật)
+   - B4: パス (Đường dẫn – tiếng Nhật)
+   - Dữ liệu bắt đầu ghi từ dòng 5
+
+4. **Trong UiPath:**
+   - Dùng activity **Invoke VBA**
+   - Path: trỏ đến `.bas` (không cần nhúng trong file Excel)
+   - Entry method: `"StartGetAllFiles"`
+   - TargetObject: Excel Application Scope
+   - Không cần tham số
+
+---
+
+Bạn có muốn mình tạo file `.bas` sẵn và gửi cho bạn luôn không?
