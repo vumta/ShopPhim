@@ -1,0 +1,143 @@
+Dưới đây là **VBA code hoàn chỉnh** đã được cập nhật để:
+
+- Gọi API SharePoint Online để lấy danh sách file theo chiều sâu (depth-first).
+- Tự parse JSON mà **không dùng JsonConverter**.
+- Ghi tên file và path vào Excel (bắt đầu từ hàng 5, cột A và B).
+- Hoạt động ổn định với UiPath thông qua `Invoke VBA`.
+
+---
+
+### 🔧 **VBA CODE - Save thành file `.bas` (ví dụ: `GetAllSharePointFiles.bas`)**
+
+```vba
+Option Explicit
+
+' ===== Hàm chính được gọi từ UiPath =====
+Public Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    ws.Cells.ClearContents
+    ws.Cells(2, 1).Value = "ファイル名"  ' Tiêu đề tiếng Nhật (Tên file)
+    ws.Cells(2, 2).Value = "パス"       ' Tiêu đề tiếng Nhật (Đường dẫn)
+    
+    Dim token As String
+    token = "Bearer [ACCESS_TOKEN]" ' <-- Nhớ thay bằng access token thật nếu gọi ngoài UiPath
+
+    Dim siteUrl As String
+    siteUrl = "https://contoso.sharepoint.com/sites/TestSite"
+
+    Dim rootFolder As String
+    rootFolder = "/Shared Documents"
+
+    Dim rowIndex As Long
+    rowIndex = 5
+
+    Call ProcessFolder(siteUrl, rootFolder, token, ws, rowIndex)
+End Sub
+
+' ===== Đệ quy duyệt folder theo chiều sâu =====
+Private Sub ProcessFolder(siteUrl As String, folderPath As String, token As String, ws As Worksheet, ByRef rowIndex As Long)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+
+    Dim url As String
+    url = siteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & folderPath & "')?$expand=Files,Folders"
+
+    With http
+        .Open "GET", url, False
+        .setRequestHeader "Authorization", token
+        .setRequestHeader "Accept", "application/json;odata=verbose"
+        .Send
+    End With
+
+    If http.Status <> 200 Then Exit Sub
+
+    Dim json As String
+    json = http.responseText
+
+    Dim filesJson As String
+    filesJson = GetBetween(json, """Files"":{""results"":[", "]},") & "]"
+
+    Dim foldersJson As String
+    foldersJson = GetBetween(json, """Folders"":{""results"":[", "]},") & "]"
+
+    ' Parse và ghi từng file
+    Dim fileEntries() As String
+    fileEntries = Split(filesJson, "},{")
+    Dim f As Variant
+    For Each f In fileEntries
+        Dim nameVal As String
+        nameVal = GetBetween(f, """Name"":""", """")
+
+        Dim pathVal As String
+        pathVal = GetBetween(f, """ServerRelativeUrl"":""", """")
+
+        If nameVal <> "" And pathVal <> "" Then
+            ws.Cells(rowIndex, 1).Value = nameVal
+            ws.Cells(rowIndex, 2).Value = pathVal
+            rowIndex = rowIndex + 1
+        End If
+    Next
+
+    ' Đệ quy với từng folder con
+    Dim folderEntries() As String
+    folderEntries = Split(foldersJson, "},{")
+    Dim fd As Variant
+    For Each fd In folderEntries
+        Dim folderName As String
+        folderName = GetBetween(fd, """Name"":""", """")
+
+        If folderName <> "" And folderName <> "Forms" Then
+            Call ProcessFolder(siteUrl, folderPath & "/" & folderName, token, ws, rowIndex)
+        End If
+    Next
+End Sub
+
+' ===== Hàm cắt chuỗi đơn giản thay cho JSON Parser =====
+Private Function GetBetween(text As String, startStr As String, endStr As String) As String
+    On Error GoTo Fail
+    Dim startPos As Long, endPos As Long
+    startPos = InStr(text, startStr)
+    If startPos = 0 Then GoTo Fail
+    startPos = startPos + Len(startStr)
+    endPos = InStr(startPos, text, endStr)
+    If endPos = 0 Then GoTo Fail
+    GetBetween = Mid(text, startPos, endPos - startPos)
+    Exit Function
+Fail:
+    GetBetween = ""
+End Function
+```
+
+---
+
+### 🪜 **Step-by-Step hướng dẫn dùng với UiPath**
+
+1. **Tạo file `.bas`**  
+   - Mở Notepad, dán đoạn code trên.
+   - Lưu với tên: `GetAllSharePointFiles.bas`
+
+2. **Import vào Excel (thử thủ công nếu cần)**
+   - ALT + F11 → File → Import File → chọn `GetAllSharePointFiles.bas`
+
+3. **Trong UiPath: Dùng “Invoke VBA”**
+   - `WorkbookPath`: Đường dẫn tới file Excel.
+   - `MacroName`: `"GetAllSharePointFiles"`
+   - `EntryMethodParameters`: `null` hoặc `New Object() {}`
+
+4. **Đảm bảo các điều kiện sau**
+   - File Excel **không chứa macro (.xlsx)** → cần đổi sang `.xlsm` nếu muốn lưu macro (nếu test).
+   - Nếu dùng `.xlsx`, thì chỉ cần `.bas` nằm ngoài và không cần lưu kèm macro.
+
+---
+
+### ✅ Ưu điểm giải pháp
+
+- Không cần JsonConverter
+- Đệ quy theo chiều sâu (depth-first)
+- Ghi thẳng vào Excel
+- Tương thích UiPath
+
+---
+
+Nếu bạn muốn mình xuất luôn file `.bas` để đính kèm hoặc viết thêm log/debug trong Excel, mình hỗ trợ ngay nhé.
