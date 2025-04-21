@@ -1,3 +1,79 @@
+Có! Nếu bạn **không muốn dùng Parse JSON**, bạn **vẫn có thể truy cập trực tiếp các giá trị trong mảng JSON** (`AllFilesJson`) sau khi Flow con trả về, bằng cách dùng:
+
+```plaintext
+outputs('Run_a_Child_Flow')?['body/AllFilesJson']
+```
+
+Sau đó sử dụng **`Apply to each`** để duyệt từng item, và trích xuất `Name` hoặc `Path` bằng **cú pháp expression chuẩn**.
+
+---
+
+## ✅ Giải pháp: Truy cập trực tiếp `Name`, `Path` mà không cần Parse JSON
+
+---
+
+### 🔹 **1. Gọi Child Flow và nhận output**
+
+```plaintext
+outputs('Run_a_Child_Flow')?['body/AllFilesJson']
+```
+
+> Đây là một **string chứa JSON array**, ví dụ:
+
+```json
+[
+  { "Name": "file1.txt", "Path": "/sites/documents/file1.txt" },
+  { "Name": "file2.txt", "Path": "/sites/documents/folder/file2.txt" }
+]
+```
+
+---
+
+### 🔹 **2. Apply to each**
+
+- **Select an output from previous steps**:  
+  → `json(outputs('Run_a_Child_Flow')?['body/AllFilesJson'])`
+
+> ⚠ Bạn cần dùng hàm `json()` để ép chuỗi thành mảng JSON
+
+---
+
+### 🔹 **3. Trong Apply to each – Truy cập trực tiếp `Name` và `Path`**
+
+- Lấy `Name`:
+```plaintext
+items('Apply_to_each')?['Name']
+```
+
+- Lấy `Path`:
+```plaintext
+items('Apply_to_each')?['Path']
+```
+
+---
+
+## ✅ Ưu điểm
+
+| Ưu điểm                    | Giải thích                         |
+|----------------------------|------------------------------------|
+| ❌ Không dùng Parse JSON    | Gọn nhẹ, đỡ phức tạp                |
+| ✅ Truy cập trực tiếp       | Dùng `items()` trong loop được luôn |
+| ✅ Dễ áp dụng nhiều lần     | Tái sử dụng nhiều nơi               |
+
+---
+
+## 📦 Ví dụ thực tế
+
+| Step                     | Expression Example                                          |
+|--------------------------|-------------------------------------------------------------|
+| Apply to each input      | `json(outputs('Run_a_Child_Flow')?['body/AllFilesJson'])`   |
+| Inside loop - Name       | `items('Apply_to_each')?['Name']`                           |
+| Inside loop - Path       | `items('Apply_to_each')?['Path']`                           |
+
+---
+
+Nếu bạn muốn mình demo hoặc tạo một Flow mẫu `.zip` để import, mình có thể gửi ngay nhé. Bạn chỉ cần nói từ khóa "Export giúp" là được.
+==================================================
 Đúng rồi! Trong Power Automate, khi bạn tạo **Child Flow** và muốn trả về **Array** từ Flow con (sử dụng action `Respond to a PowerApp or flow`), **giao diện hiện tại KHÔNG hỗ trợ trực tiếp kiểu "Array"** như bạn mong muốn.
 
 Nhưng vẫn có **cách làm chuẩn** để trả về một mảng (array) từ Child Flow. Mình sẽ hướng dẫn bạn **step-by-step cách trả về array trong Child Flow**, để Flow cha dùng được.
