@@ -1,0 +1,99 @@
+Hiểu rồi! Khi bạn dùng **Power Automate** với trigger **“When an HTTP request is received”**, mặc định Flow **chấp nhận cả GET và POST**, nhưng **nội dung body chỉ được xử lý với POST**. Nếu bạn bị lỗi khi POST, dưới đây là hướng xử lý **chi tiết và đầy đủ để khắc phục lỗi POST**, và đảm bảo UiPath có thể gọi đúng cách.
+
+---
+
+## ✅ Phân tích lỗi POST thường gặp
+
+1. **Không truyền body hoặc sai cấu trúc JSON**
+2. **Header thiếu `Content-Type: application/json`**
+3. **Power Automate không có schema hoặc xử lý sai**
+4. **UiPath gửi POST nhưng Flow đang dùng GET để debug → lỗi không rõ ràng**
+
+---
+
+## ✅ Giải pháp chuẩn: Gửi POST từ UiPath và nhận JSON về đúng cách
+
+---
+
+### 🔷 Bước 1: Power Automate – Trigger "When an HTTP request is received"
+
+#### 🟡 Cấu hình Schema Input:
+
+Ví dụ: Nếu bạn định gửi `FolderPath`
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "FolderPath": { "type": "string" }
+  }
+}
+```
+
+📌 **Lưu ý**: Nếu không có schema hoặc truyền sai định dạng, Flow có thể lỗi khi POST.
+
+---
+
+### 🔷 Bước 2: Power Automate xử lý đầu vào → Gọi Child Flow → Trả JSON
+
+#### ✨ Action cuối: "Response"
+
+- **Status Code**: `200`
+- **Headers**: `Content-Type: application/json`
+- **Body** (ví dụ):
+
+```json
+{
+  "files": @{variables('AllFiles')}
+}
+```
+
+---
+
+### 🔷 Bước 3: Gửi HTTP Request từ UiPath (POST)
+
+#### 🛠 Cấu hình trong UiPath HTTP Request:
+
+| Field               | Value                                                |
+|---------------------|------------------------------------------------------|
+| **Method**          | `POST`                                               |
+| **EndPoint**        | URL của Trigger (sao chép từ Flow)                   |
+| **Body**            | Dạng JSON, ví dụ:                                    |
+|                     | `{ "FolderPath": "/Shared Documents/MyFolder" }`     |
+| **Headers**         | `{ "Content-Type": "application/json" }`            |
+| **AcceptFormat**    | `application/json`                                   |
+| **Response Output** | Gán vào `responseString` (String hoặc JObject.Parse)|
+
+---
+
+## ✅ Check nếu vẫn lỗi POST:
+
+1. 🔍 **Kiểm tra Flow URL** (đã sao chép sau khi lưu Flow?)
+2. 📌 **Test với Postman trước** để xác định lỗi từ UiPath hay Flow
+3. 🧪 **Tạm đổi trigger sang “Manually trigger” để debug bên trong**
+
+---
+
+## 🔧 Ví dụ nội dung Body (POST):
+
+```json
+{
+  "FolderPath": "/Shared Documents/Reports"
+}
+```
+
+→ JSON phải **match hoàn toàn** với schema trong Flow.
+
+---
+
+## ✅ Kết luận
+
+| Gửi bằng         | GET  | POST |
+|------------------|------|------|
+| Gửi tham số URL   | ✅   | ❌ (body preferred) |
+| Gửi body JSON     | ❌   | ✅   |
+| Nhận response JSON| ✅   | ✅   |
+
+---
+
+Nếu bạn vẫn bị lỗi khi POST từ UiPath, gửi mình thông báo lỗi cụ thể hoặc bạn muốn mình tạo sẵn **Flow mẫu** + đoạn UiPath gửi HTTP POST hoàn chỉnh nhé.
