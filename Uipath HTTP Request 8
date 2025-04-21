@@ -1,0 +1,80 @@
+Đúng rồi! Trong **Power Automate** cloud flow, **action "Response"** _chỉ xuất hiện_ khi bạn dùng trigger **“When an HTTP request is received”**. Nếu bạn **không thấy "Response"**, thì thường là vì **Flow không bắt đầu bằng trigger HTTP**. Mình sẽ hướng dẫn bạn step-by-step khắc phục và thêm được `Response`.
+
+---
+
+## ✅ Điều kiện để có được action “Response”
+
+### 🔷 **1. Trigger bắt buộc phải là:**
+> **When an HTTP request is received**
+
+👉 Nếu bạn đang dùng các trigger như:
+- Manually trigger a flow
+- Recurrence
+- When a file is created...
+
+❌ **=> Không thể dùng action “Response”** (vì Flow không có context HTTP để phản hồi)
+
+---
+
+## 🛠 Hướng dẫn Step-by-Step:
+
+### ✅ **Bước 1: Tạo Cloud Flow mới**
+1. Vào Power Automate → Chọn **+ Create**
+2. Chọn **Automated cloud flow**
+3. Tại phần “Choose your flow’s trigger”:
+   - Chọn **“When an HTTP request is received”** → **Create**
+
+---
+
+### ✅ **Bước 2: Cấu hình Trigger**
+1. Bấm vào trigger → Chọn “Use sample payload to generate schema”
+2. Dán ví dụ JSON:
+```json
+{
+  "FolderPath": "/Shared Documents/FolderA"
+}
+```
+
+→ Flow sẽ tạo schema input tự động.
+
+---
+
+### ✅ **Bước 3: Thêm các bước xử lý**
+
+- Gọi Child Flow
+- Lưu dữ liệu vào biến `AllFiles`
+- Hoặc xử lý khác tuỳ ý
+
+---
+
+### ✅ **Bước 4: Thêm Action "Response"**
+
+1. Bấm **+ New step**
+2. Gõ **“Response”**
+   - Action tên đầy đủ: `Response - Request`
+3. Cấu hình:
+   - **Status Code**: `200`
+   - **Headers**: `Content-Type: application/json`
+   - **Body**:
+```json
+{
+  "files": @{variables('AllFiles')}
+}
+```
+
+---
+
+## 📝 Kết luận
+
+| Trigger Flow là HTTP | Có “Response”? |
+|----------------------|----------------|
+| ✅ `When an HTTP request is received` | ✅ Có |
+| ❌ Các trigger khác | ❌ Không có |
+
+---
+
+Nếu bạn muốn, mình có thể:
+- Gửi file `.zip` flow mẫu dùng HTTP trigger + response
+- Hoặc hướng dẫn cách **chuyển flow hiện tại thành flow HTTP**
+
+Bạn muốn tiếp tục theo hướng nào?
