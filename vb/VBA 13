@@ -1,0 +1,84 @@
+Lỗi **"Set sc = CreateObject("ScriptControl")"** xảy ra vì **ScriptControl** không được hỗ trợ trong tất cả các phiên bản Excel hoặc có thể bị tắt trong môi trường của bạn. Đây là một đối tượng có sẵn trong phiên bản **32-bit Excel** nhưng không hỗ trợ trong **Excel 64-bit**.
+
+Để giải quyết vấn đề này và tránh phụ thuộc vào **ScriptControl**, bạn có thể sử dụng cách tiếp cận khác như sử dụng **JSON.parse** trong VBA với một thư viện ngoài, ví dụ như thư viện **JsonConverter** mà chúng ta đã đề cập trước đây.
+
+### **Giải Pháp: Sử Dụng JsonConverter (thư viện VBA)**
+
+Thay vì dùng **ScriptControl**, bạn có thể sử dụng thư viện **JsonConverter** (được cung cấp bởi **VBA-JSON**).
+
+### **Các Bước Thực Hiện**:
+
+1. **Tải về thư viện JsonConverter**:
+   - Truy cập [VBA-JSON trên GitHub](https://github.com/VBA-tools/VBA-JSON) và tải về mã nguồn của thư viện.
+   - Tải về file `JsonConverter.bas` từ thư mục **src** của GitHub.
+
+2. **Import thư viện JsonConverter vào Excel**:
+   - Mở **VBA Editor** trong Excel (`Alt + F11`).
+   - Vào **File > Import File...** và chọn file `JsonConverter.bas` mà bạn đã tải về.
+   - Điều này sẽ thêm thư viện JsonConverter vào dự án VBA của bạn.
+
+3. **Cập nhật mã VBA để sử dụng JsonConverter**:
+   Thay vì sử dụng `ScriptControl`, bạn sẽ sử dụng **JsonConverter** để phân tích JSON.
+
+### **Cập Nhật Mã VBA**:
+
+Dưới đây là mã VBA hoàn chỉnh sử dụng **JsonConverter** thay vì **ScriptControl**.
+
+```vb
+Attribute VB_Name = "GetAllSharePointFiles"
+Option Explicit
+
+Public Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+
+    ws.Cells.ClearContents
+    ws.Range("A1:B1").Value = Array("Tên File", "Đường Dẫn")
+
+    Dim nextRow As Long
+    nextRow = 2
+
+    ' Đổi đường dẫn cho đúng site của bạn
+    Dim url As String
+    url = "https://contoso.sharepoint.com/sites/TestSite/Shared Documents"
+
+    ' Gọi xử lý
+    ProcessFolder url, ws, nextRow
+End Sub
+
+Private Sub ProcessFolder(folderUrl As String, ws As Worksheet, ByRef rowIdx As Long)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", folderUrl, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status = 200 Then
+        Dim json As Object
+        ' Sử dụng JsonConverter để phân tích JSON
+        Set json = JsonConverter.ParseJson(http.responseText)
+
+        Dim files
+        Set files = json("d")("Files")("results")
+
+        Dim f
+        For Each f In files
+            ws.Cells(rowIdx, 1).Value = f("Name")
+            ws.Cells(rowIdx, 2).Value = f("ServerRelativeUrl")
+            rowIdx = rowIdx + 1
+        Next
+    Else
+        MsgBox "Lỗi gọi API: " & http.Status
+    End If
+End Sub
+```
+
+### **Giải Thích**:
+- **JsonConverter.ParseJson(http.responseText)**: Sử dụng thư viện **JsonConverter** để phân tích chuỗi JSON từ response của SharePoint và chuyển thành object có thể dễ dàng truy xuất.
+- **json("d")("Files")("results")**: Đây là cách truy xuất các file trong kết quả trả về từ SharePoint. Bạn có thể thay đổi cấu trúc này nếu cấu trúc JSON khác.
+
+---
+
+### **Kết Luận**:
+- Bằng cách sử dụng thư viện **JsonConverter**, bạn không cần phải phụ thuộc vào **ScriptControl** nữa, điều này giúp mã VBA của bạn hoạt động ổn định trên mọi phiên bản Excel (bao gồm cả 64-bit).
+- Đảm bảo rằng bạn đã tải và nhập đúng thư viện **JsonConverter** vào trong Excel VBA để tránh lỗi phân tích JSON.
