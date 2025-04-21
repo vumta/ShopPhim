@@ -1,0 +1,77 @@
+Dưới đây là hướng dẫn **chi tiết step-by-step** để bạn **gọi đoạn mã VBA từ file `.bas` trong UiPath** và sử dụng kết quả (nếu có):
+
+---
+
+### 🎯 **Mục tiêu**
+Gọi macro VBA đã export (`.bas`) từ Excel trong UiPath → tự động quét file/folder SharePoint và ghi vào Excel từ dòng 5.
+
+---
+
+## 🔧 **1. Chuẩn bị file .bas và Excel**
+
+1. **Giải nén `VBA_Module.zip`**
+2. Mở Excel đích, bật Developer → Vào **Visual Basic Editor**
+3. Import `Module1.bas`:  
+   `File → Import File → Chọn file Module1.bas`
+4. Lưu file Excel dưới dạng `.xlsm` để có thể chạy macro
+
+---
+
+## ⚙️ **2. Trong UiPath: Dùng activity `Invoke VBA`**
+
+### 🧱 **A. Cấu trúc project**
+- Excel file: `"C:\Path\to\YourFile.xlsm"`
+- Module macro: `"Module1.bas"` đã có trong file
+- Sheet cần ghi: Ví dụ `"Sheet1"`
+
+---
+
+### 🧩 **B. Các bước trong UiPath**
+
+#### 🟢 1. **Use Excel Process Scope** (Modern Design)
+```plaintext
+Use Excel File → YourFile.xlsm
+```
+
+#### 🟢 2. **Add `Invoke VBA` Activity**
+| Property            | Value                          |
+|---------------------|-------------------------------|
+| **Code File Path**  | Để trống hoặc null nếu macro đã có sẵn |
+| **EntryMethodName** | `"Main"` (tên Sub bạn đã viết trong VBA) |
+| **Parameters**      | Danh sách parameter (nếu có) |
+
+✅ Ví dụ: Nếu Sub của bạn là:
+```vba
+Sub Main()
+    ProcessFolder "/Shared Documents", ThisWorkbook.Sheets("Sheet1")
+End Sub
+```
+
+Thì chỉ cần gọi `Main` không cần parameter.
+
+---
+
+## 📄 **Gợi ý thay thế nếu dùng `Legacy` Excel Activities**
+
+- **Excel Application Scope**  
+  → Cho `Invoke VBA` vào bên trong  
+- `Invoke VBA`:
+  - `CodeFilePath`: để null  
+  - `EntryMethodName`: `"Main"`
+
+---
+
+## 📌 **Lưu ý**
+
+- Đảm bảo Macro đã được bật trong Excel
+- File Excel phải được lưu dạng `.xlsm`
+- Nếu dùng Excel ở background, bạn có thể dùng **"Visible: False"** khi mở file
+
+---
+
+## ✅ Kết quả
+Sau khi chạy xong, Excel của bạn sẽ được ghi dữ liệu từ dòng 5 theo cấu trúc cột `"Name"` và `"Path"` đúng vị trí tiếng Nhật hiện có.
+
+---
+
+Nếu bạn muốn **truyền tham số từ UiPath vào Macro**, mình có thể viết thêm phần xử lý `parameters()` trong VBA và hướng dẫn cụ thể nhé. Bạn cần không?
