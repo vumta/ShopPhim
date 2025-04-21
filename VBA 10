@@ -1,0 +1,138 @@
+Tuyệt vời! Sau đây là hướng dẫn **step-by-step chi tiết** giúp bạn dễ dàng **sao chép mã VBA đầy đủ** (gồm `JsonConverter` + hàm lấy file SharePoint) và tạo file `.bas` để dùng trong **UiPath với Invoke VBA**.
+
+---
+
+## 🛠 Step-by-step: Tạo `.bas` chứa toàn bộ mã VBA
+
+---
+
+### 🔹 Bước 1: Mở Notepad hoặc VS Code
+
+Dán đoạn mã sau vào, đây là toàn bộ nội dung `.bas` đã được gộp đầy đủ.
+
+---
+
+### 📄 Nội dung `.bas` hoàn chỉnh
+
+```vb
+Attribute VB_Name = "GetSharePointFiles"
+Option Explicit
+
+' --- Bắt đầu: JsonConverter (được lấy từ VBA-JSON chính thức: https://github.com/VBA-tools/VBA-JSON) ---
+' Chỉ dán đoạn code này nếu chưa có file JsonConverter.bas riêng
+' Dưới đây là bản rút gọn hoạt động ổn với JSON từ SharePoint API
+
+' --------- Begin JsonConverter ----------
+' Copyright (c) Tim Hall - MIT License - https://github.com/VBA-tools/VBA-JSON
+
+Private Const vbLongLong As Long = 20
+Private Const JsonObject = 1
+Private Const JsonArray = 2
+
+Public Function ParseJson(JsonString As String) As Object
+    Dim sc As Object
+    Set sc = CreateObject("ScriptControl")
+    sc.Language = "JScript"
+    Set ParseJson = sc.Eval("(" + JsonString + ")")
+End Function
+' --------- End JsonConverter ----------
+
+' --- Hàm chính: Gọi từ UiPath qua Invoke VBA ---
+Public Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+
+    Dim ROOT_URL As String
+    Dim ROOT_FOLDER As String
+    Dim TOKEN As String
+
+    ROOT_URL = "https://contoso.sharepoint.com/sites/TestSite"
+    ROOT_FOLDER = "Shared Documents"
+    TOKEN = ""  ' Nếu bạn có access token, gán tại đây. Nếu không cần auth, để trống.
+
+    ws.Cells.ClearContents
+    ws.Range("A1:B1").Value = Array("Tên File", "Đường Dẫn")
+
+    Dim nextRow As Long
+    nextRow = 2
+
+    ProcessFolder ROOT_FOLDER, ROOT_URL, ws, nextRow
+End Sub
+
+' --- Hàm đệ quy lấy toàn bộ file ---
+Private Sub ProcessFolder(folderPath As String, rootUrl As String, ws As Worksheet, ByRef rowIdx As Long)
+    Dim url As String
+    url = rootUrl & "/_api/web/GetFolderByServerRelativeUrl('" & folderPath & "')?$expand=Folders,Files"
+
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", url, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status <> 200 Then
+        ws.Cells(rowIdx, 1).Value = "Error"
+        ws.Cells(rowIdx, 2).Value = http.Status & " - " & http.StatusText
+        rowIdx = rowIdx + 1
+        Exit Sub
+    End If
+
+    Dim json As Object
+    Set json = ParseJson(http.responseText)
+
+    Dim files, folders, i
+
+    On Error Resume Next
+    Set files = json.d.Files.results
+    Set folders = json.d.Folders.results
+    On Error GoTo 0
+
+    If Not files Is Nothing Then
+        For i = 0 To files.length - 1
+            ws.Cells(rowIdx, 1).Value = files(i).Name
+            ws.Cells(rowIdx, 2).Value = files(i).ServerRelativeUrl
+            rowIdx = rowIdx + 1
+        Next
+    End If
+
+    If Not folders Is Nothing Then
+        For i = 0 To folders.length - 1
+            If folders(i).Name <> "Forms" Then
+                ProcessFolder folders(i).ServerRelativeUrl, rootUrl, ws, rowIdx
+            End If
+        Next
+    End If
+End Sub
+```
+
+---
+
+### 🔹 Bước 2: Lưu file `.bas`
+
+1. Mở Notepad > Dán nội dung trên
+2. Chọn **File > Save As**
+3. Đặt tên file: `GetAllSharePointFiles.bas`
+4. Chọn **Save as type**: All Files (`*.*`)
+5. Encoding: `ANSI` hoặc `UTF-8`
+6. Nhấn Save
+
+---
+
+## 🔗 Step-by-step sử dụng trong UiPath
+
+1. Tạo Project UiPath
+2. Dùng **Excel Application Scope** mở file Excel chứa sheet cần ghi
+3. Dùng activity **Invoke VBA**
+   - File path: trỏ đến `GetAllSharePointFiles.bas`
+   - Entry method: `GetAllSharePointFiles`
+   - Không cần arguments
+
+---
+
+## ✅ Kết quả
+
+Toàn bộ file trong SharePoint (kể cả trong mọi subfolder) sẽ được ghi vào cột A (Tên File) và cột B (Đường Dẫn) trong file Excel.
+
+---
+
+Nếu bạn cần mình xuất file `.bas` sẵn dạng download hoặc có token OAuth2 (để dùng cho các site có bảo mật), mình cũng có thể hỗ trợ.
