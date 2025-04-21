@@ -1,0 +1,168 @@
+Để giải quyết vấn đề không lấy được tất cả các file trong SharePoint, có thể lý do là bạn đang gặp phải giới hạn trong API SharePoint hoặc không xử lý đúng cách khi có quá nhiều file trong folder hoặc subfolder.
+
+### Những vấn đề có thể xảy ra:
+1. **API SharePoint có thể chỉ trả về một số lượng giới hạn file**: Bạn cần xử lý phân trang (pagination) trong API SharePoint để lấy tất cả dữ liệu.
+2. **Các folder/subfolder có thể cần phải gọi đệ quy nhiều lần** để xử lý hết tất cả các file.
+
+### Cách khắc phục:
+- **Thêm xử lý phân trang**: API SharePoint có thể chỉ trả về một phần của kết quả nếu dữ liệu quá lớn. Bạn sẽ cần kiểm tra xem có phải có thêm các trang dữ liệu không và xử lý việc lấy chúng.
+- **Xử lý đệ quy** cho các subfolder.
+
+Dưới đây là mã VBA đã được sửa đổi để xử lý phân trang và lấy tất cả các file trong folder và subfolder từ SharePoint Online:
+
+---
+
+### ✅ Mã VBA đã sửa (xử lý phân trang và gọi đệ quy):
+
+```vba
+Attribute VB_Name = "GetAllSharePointFiles"
+
+Dim rowIndex As Long
+
+Sub StartGetAllFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    ws.Cells.ClearContents
+    ws.Cells(4, 1).Value = "Tên file"
+    ws.Cells(4, 2).Value = "Đường dẫn"
+    rowIndex = 5
+    
+    Dim rootFolder As String
+    rootFolder = "/sites/YOURSITE/Shared Documents" ' ← Thay đường dẫn đúng SharePoint
+
+    ProcessFolder rootFolder, ws
+    MsgBox "Hoàn tất!"
+End Sub
+
+Sub ProcessFolder(folderPath As String, ws As Worksheet)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    
+    Dim siteUrl As String
+    siteUrl = "https://contoso.sharepoint.com" ' ← Thay domain đúng
+    
+    Dim apiUrl As String
+    apiUrl = siteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & folderPath & "')?$expand=Folders,Files&$top=200"
+    
+    http.Open "GET", apiUrl, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+    
+    If http.Status = 200 Then
+        Dim json As String
+        json = http.responseText
+        ParseJson folderPath, json, ws
+    End If
+End Sub
+
+Sub ParseJson(folderPath As String, json As String, ws As Worksheet)
+    Dim filesData As String, foldersData As String
+    Dim i As Long, startPos As Long, endPos As Long
+    Dim nextPageLink As String
+    
+    ' Lấy phần Files
+    startPos = InStr(json, """Files"":{""results"":[")
+    If startPos > 0 Then
+        startPos = startPos + Len("""Files"":{""results"":[")
+        endPos = InStr(startPos, json, "]}") 
+        filesData = Mid(json, startPos, endPos - startPos)
+        
+        Dim fileItems() As String
+        fileItems = Split(filesData, "},{")
+        For i = LBound(fileItems) To UBound(fileItems)
+            Dim fileName As String, filePath As String
+            fileName = ExtractValue(fileItems(i), "Name")
+            filePath = ExtractValue(fileItems(i), "ServerRelativeUrl")
+            If fileName <> "" Then
+                ws.Cells(rowIndex, 1).Value = fileName
+                ws.Cells(rowIndex, 2).Value = filePath
+                rowIndex = rowIndex + 1
+            End If
+        Next i
+    End If
+    
+    ' Lấy phần Folders
+    startPos = InStr(json, """Folders"":{""results"":[")
+    If startPos > 0 Then
+        startPos = startPos + Len("""Folders"":{""results"":[")
+        endPos = InStr(startPos, json, "]}") 
+        foldersData = Mid(json, startPos, endPos - startPos)
+        
+        Dim folderItems() As String
+        folderItems = Split(foldersData, "},{")
+        For i = LBound(folderItems) To UBound(folderItems)
+            Dim subFolder As String
+            subFolder = ExtractValue(folderItems(i), "ServerRelativeUrl")
+            If subFolder <> "" Then
+                ProcessFolder subFolder, ws
+            End If
+        Next i
+    End If
+    
+    ' Kiểm tra nếu có trang tiếp theo
+    nextPageLink = ExtractValue(json, "odata.nextLink")
+    If nextPageLink <> "" Then
+        ' Lấy dữ liệu từ trang tiếp theo
+        http.Open "GET", nextPageLink, False
+        http.setRequestHeader "Accept", "application/json;odata=verbose"
+        http.Send
+        
+        If http.Status = 200 Then
+            json = http.responseText
+            ParseJson folderPath, json, ws
+        End If
+    End If
+End Sub
+
+Function ExtractValue(jsonChunk As String, key As String) As String
+    On Error Resume Next
+    Dim keyPattern As String
+    keyPattern = """" & key & """:"""
+    Dim pos1 As Long, pos2 As Long
+    pos1 = InStr(jsonChunk, keyPattern)
+    If pos1 > 0 Then
+        pos1 = pos1 + Len(keyPattern)
+        pos2 = InStr(pos1, jsonChunk, """")
+        ExtractValue = Mid(jsonChunk, pos1, pos2 - pos1)
+    Else
+        ExtractValue = ""
+    End If
+End Function
+```
+
+---
+
+### Giải thích về các thay đổi:
+
+1. **Thêm `&$top=200`** vào URL API: 
+   Điều này giúp bạn lấy tối đa 200 file mỗi lần (SharePoint mặc định giới hạn số lượng file trả về là 100, có thể thay đổi giá trị này).
+   
+2. **Phân trang với `odata.nextLink`:**
+   - SharePoint trả về `odata.nextLink` nếu có thêm trang dữ liệu (khi số lượng file quá lớn).
+   - Đoạn mã trên kiểm tra nếu có `nextLink` và gửi thêm request tới đường dẫn tiếp theo.
+
+3. **Xử lý các folder con (subfolders) trong đệ quy:**
+   - Các folder con được gọi đệ quy để lấy tất cả các file trong thư mục con.
+
+---
+
+### ✅ Cách sử dụng mã VBA trong UiPath (Step-by-step):
+
+1. **Lưu đoạn mã trên vào file `.bas`:**
+   - Tên file: `GetAllSharePointFiles.bas`
+   
+2. **Import file vào Excel:**
+   - Mở Excel → Alt + F11 (VBA Editor) → File → Import File... → Chọn `GetAllSharePointFiles.bas`
+
+3. **Tạo sheet trống và đặt tên cột tại A4, B4:**
+   - A4: ファイル名 (Tên file)
+   - B4: パス (Đường dẫn)
+
+4. **Sử dụng UiPath:**
+   - Dùng activity **Invoke VBA** trong UiPath.
+   - `FilePath`: Chọn đường dẫn đến `.bas` (không cần nhúng vào file Excel).
+   - `MacroName`: `"StartGetAllFiles"` để bắt đầu lấy file từ SharePoint.
+
+---
+
+Với các thay đổi trên, bạn sẽ có thể lấy đầy đủ tất cả các file trong SharePoint, bao gồm cả file trong các folder và subfolder, ngay cả khi số lượng file lớn.
