@@ -1,0 +1,81 @@
+Bạn hoàn toàn đúng — trong Power Automate, hàm `concat()` **chỉ dùng cho chuỗi (string)**, **không áp dụng cho mảng (array)**.
+
+---
+
+## ✅ Giải pháp thay thế đúng để nối hai mảng: `union()`
+
+Nhưng như bạn đã biết:  
+- `union(array1, array2)` **loại bỏ phần tử trùng nhau**  
+→ **Không phù hợp nếu muốn giữ tất cả folder để xử lý theo đúng thứ tự (depth-first)**.
+
+---
+
+## ✅ Giải pháp khắc phục: Dùng `join()` & `split()` để nối 2 array **không dùng `union()`**
+
+### 🎯 Ý tưởng:
+Chuyển 2 array thành chuỗi, nối lại, rồi tách lại thành array mới.
+
+---
+
+### 🔧 Ví dụ Flow
+
+Giả sử có 2 biến:
+
+- `Subfolders`: `["A1", "A2"]`
+- `PendingFolders`: `["B1", "B2"]`
+
+Bạn muốn kết quả:  
+`["A1", "A2", "B1", "B2"]`  
+(theo kiểu stack → xử lý A1 trước, B1 sau)
+
+---
+
+### 🧠 Expression:
+
+```plaintext
+split(
+    concat(
+        join(variables('Subfolders'), ';'),
+        ';',
+        join(skip(variables('PendingFolders'), 1), ';')
+    ),
+';')
+```
+
+### 👉 Ý nghĩa:
+
+1. `join(array, ';')`: chuyển array thành chuỗi `"A1;A2"`
+2. `concat(...)`: nối 2 chuỗi `"A1;A2;B1;B2"`
+3. `split(..., ';')`: chuyển lại thành array `["A1", "A2", "B1", "B2"]`
+
+> ⚠️ Phải đảm bảo không có tên folder nào chứa dấu `;` để tránh lỗi khi `split`.
+
+---
+
+## 🆗 Áp dụng trong Flow:
+
+### 👇 Trong action `Set variable` – `PendingFolders`
+
+```plaintext
+split(
+  concat(
+    join(variables('Subfolders'), ';'),
+    ';',
+    join(skip(variables('PendingFolders'), 1), ';')
+  ),
+';')
+```
+
+---
+
+## ✅ Kết luận
+
+| Cần nối array | Dùng gì? |
+|---------------|----------|
+| Không bỏ trùng | `join + concat + split` |
+| Muốn loại trùng | `union()` |
+| Append từng item | `Apply to each + append to array` |
+
+---
+
+Nếu bạn muốn mình **tạo mẫu flow hoàn chỉnh và gửi `.zip` để import**, chỉ cần nói nhé!
