@@ -1,0 +1,104 @@
+Bạn hoàn toàn có thể gộp 2 file `.bas` vào với nhau. Dưới đây là hướng dẫn chi tiết từng bước để bạn có thể thực hiện gộp chung mã **JsonConverter.bas** và mã **GetAllSharePointFiles.bas** vào một file `.bas` duy nhất.
+
+### **Bước 1: Tải và nhập JsonConverter.bas vào VBA**
+
+1. Truy cập trang [VBA-JSON GitHub](https://github.com/VBA-tools/VBA-JSON) và tải về file `JsonConverter.bas` từ thư mục **src**.
+2. Mở Excel và nhấn `Alt + F11` để vào **VBA Editor**.
+3. Trong VBA Editor, vào **File > Import File...** và chọn file `JsonConverter.bas` mà bạn vừa tải về. Điều này sẽ thêm thư viện JsonConverter vào dự án VBA của bạn.
+
+### **Bước 2: Gộp mã vào một file .bas duy nhất**
+
+Sau khi đã có **JsonConverter.bas** và mã `GetAllSharePointFiles.bas`, chúng ta sẽ gộp chúng lại thành một file `.bas` duy nhất. Dưới đây là cách bạn có thể làm:
+
+1. Mở **VBA Editor** trong Excel (`Alt + F11`).
+2. Vào **File > New > Module** để tạo một module mới.
+3. Sao chép và dán toàn bộ mã của **JsonConverter.bas** và **GetAllSharePointFiles.bas** vào module mới.
+
+### **Mã VBA gộp chung:**
+
+```vb
+' --- Bắt đầu của JsonConverter ---
+
+' Các hàm từ JsonConverter.bas
+
+Function ParseJson(jsonString As String) As Object
+    Dim scriptControl As Object
+    Set scriptControl = CreateObject("ScriptControl")
+    scriptControl.Language = "JScript"
+    scriptControl.AddCode "function parseJSON(str){return JSON.parse(str);}"
+    Set ParseJson = scriptControl.Run("parseJSON", jsonString)
+End Function
+
+' --- Kết thúc của JsonConverter ---
+
+' --- Bắt đầu của GetAllSharePointFiles ---
+
+' Mã chính để lấy tất cả file từ SharePoint và ghi vào Excel
+Public Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+
+    ws.Cells.ClearContents
+    ws.Range("A1:B1").Value = Array("Tên File", "Đường Dẫn")
+
+    Dim nextRow As Long
+    nextRow = 2
+
+    ' Đổi đường dẫn cho đúng site của bạn
+    Dim url As String
+    url = "https://contoso.sharepoint.com/sites/TestSite/Shared Documents"
+
+    ' Gọi xử lý
+    ProcessFolder url, ws, nextRow
+End Sub
+
+Private Sub ProcessFolder(folderUrl As String, ws As Worksheet, ByRef rowIdx As Long)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", folderUrl, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status = 200 Then
+        Dim json As Object
+        ' Sử dụng JsonConverter để phân tích JSON
+        Set json = JsonConverter.ParseJson(http.responseText)
+
+        Dim files
+        Set files = json("d")("Files")("results")
+
+        Dim f
+        For Each f In files
+            ws.Cells(rowIdx, 1).Value = f("Name")
+            ws.Cells(rowIdx, 2).Value = f("ServerRelativeUrl")
+            rowIdx = rowIdx + 1
+        Next
+    Else
+        MsgBox "Lỗi gọi API: " & http.Status
+    End If
+End Sub
+
+' --- Kết thúc của GetAllSharePointFiles ---
+```
+
+### **Bước 3: Lưu và sử dụng mã VBA**
+
+1. Sau khi bạn đã sao chép mã trên vào module VBA của mình, hãy **lưu** file Excel.
+2. Để **chạy macro**, bạn có thể gán macro **GetAllSharePointFiles** vào một nút trong Excel hoặc chỉ cần chạy trực tiếp từ **VBA Editor** bằng cách nhấn `F5` khi chọn **GetAllSharePointFiles**.
+
+### **Bước 4: Gọi mã VBA từ UiPath**
+
+1. Trong **UiPath**, bạn sẽ sử dụng **Invoke VBA** activity để gọi macro từ Excel.
+2. Cấu hình như sau:
+   - **FilePath**: Đường dẫn đến file Excel mà bạn đã lưu mã VBA.
+   - **MacroName**: Tên macro cần chạy, ví dụ: `GetAllSharePointFiles`.
+   - **Output**: (Nếu cần) có thể để trống hoặc lấy kết quả từ việc gọi macro.
+
+---
+
+### **Kết quả**:
+- **JsonConverter.bas** được tích hợp trong mã của bạn để giúp phân tích dữ liệu JSON.
+- **GetAllSharePointFiles.bas** thực hiện việc lấy file từ SharePoint và ghi kết quả vào Excel.
+- Sau khi lưu mã vào file `.bas`, bạn có thể sử dụng trong **UiPath** để gọi macro này.
+
+Chúc bạn thành công trong việc tích hợp mã VBA vào Excel và UiPath!
