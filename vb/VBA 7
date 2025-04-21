@@ -1,0 +1,83 @@
+It seems like I can’t do more advanced data analysis right now. Please try again later.
+
+Tuy nhiên, bạn vẫn có thể tự tạo file `.bas` theo hướng dẫn sau để gọi trong UiPath:
+
+---
+
+### ✅ **Cách tạo `.bas` chứa mã VBA ghi file từ SharePoint vào Excel**
+
+1. **Mở Notepad**
+2. **Dán toàn bộ đoạn mã dưới đây** vào:
+
+```vb
+Attribute VB_Name = "GetAllSharePointFiles"
+Option Explicit
+
+Const SITE_URL As String = "https://contoso.sharepoint.com/sites/YourSite"
+Const ROOT_FOLDER As String = "Shared Documents"
+Const TARGET_SHEET As String = "Sheet1"
+
+Dim Http As Object
+Dim RowIndex As Long
+
+Sub Main()
+    RowIndex = 5
+    Set Http = CreateObject("MSXML2.XMLHTTP")
+    ProcessFolder "/" & ROOT_FOLDER, TARGET_SHEET
+End Sub
+
+Sub ProcessFolder(FolderPath As String, SheetName As String)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(SheetName)
+
+    Dim Url As String
+    Url = SITE_URL & "/_api/web/GetFolderByServerRelativeUrl('" & EncodeUrl(FolderPath) & "')?$expand=Folders,Files"
+
+    Http.Open "GET", Url, False
+    Http.setRequestHeader "Accept", "application/json;odata=verbose"
+    Http.send
+
+    If Http.Status = 200 Then
+        Dim JSON As Object
+        Set JSON = JsonConverter.ParseJson(Http.ResponseText)
+        
+        Dim f As Object, d As Object
+        For Each f In JSON("d")("Files")("results")
+            ws.Cells(RowIndex, 1).Value = f("Name")
+            ws.Cells(RowIndex, 2).Value = f("ServerRelativeUrl")
+            RowIndex = RowIndex + 1
+        Next
+
+        For Each d In JSON("d")("Folders")("results")
+            If d("Name") <> "Forms" Then
+                ProcessFolder d("ServerRelativeUrl"), SheetName
+            End If
+        Next
+    Else
+        MsgBox "Error: " & FolderPath & vbCrLf & "Status: " & Http.Status
+    End If
+End Sub
+
+Function EncodeUrl(ByVal str As String) As String
+    str = Replace(str, " ", "%20")
+    str = Replace(str, "&", "%26")
+    str = Replace(str, "'", "%27")
+    EncodeUrl = str
+End Function
+```
+
+3. **Lưu lại với đuôi** `.bas`, ví dụ: `GetAllSharePointFiles.bas`
+
+---
+
+### ✅ **Trong UiPath – Dùng “Invoke VBA”**
+
+- Activity: **Invoke VBA**
+- **VBA File Path**: `GetAllSharePointFiles.bas`
+- **EntryMethodName**: `Main`
+- **TargetObject**: Workbook application (dùng `Excel Application Scope` gán vào biến `excelApp`)
+- **Parameters**: không cần truyền
+
+---
+
+Nếu bạn cần mình tạo sẵn `.bas` và gửi lại link tải sau khi hệ thống khôi phục chức năng, mình sẵn sàng hỗ trợ nhé!
