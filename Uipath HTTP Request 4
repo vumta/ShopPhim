@@ -1,3 +1,80 @@
+Đúng rồi! Trong Power Automate, khi bạn tạo **Child Flow** và muốn trả về **Array** từ Flow con (sử dụng action `Respond to a PowerApp or flow`), **giao diện hiện tại KHÔNG hỗ trợ trực tiếp kiểu "Array"** như bạn mong muốn.
+
+Nhưng vẫn có **cách làm chuẩn** để trả về một mảng (array) từ Child Flow. Mình sẽ hướng dẫn bạn **step-by-step cách trả về array trong Child Flow**, để Flow cha dùng được.
+
+---
+
+## ✅ Mục tiêu  
+> Trả về biến `AllFiles` là một **array JSON** từ Flow con về Flow cha.
+
+---
+
+## 🔷 Step-by-step: Trả array từ Child Flow
+
+---
+
+### 🔹 **Bước 1: Chuẩn bị biến mảng trong Child Flow**
+
+Trong Flow con:
+
+- Tạo biến mảng: `AllFiles` kiểu **Array**
+- Append các object `{Name, Path}` vào `AllFiles` trong loop (bạn đã làm được phần này rồi)
+
+---
+
+### 🔹 **Bước 2: Tạo Output thủ công bằng `Text`**
+
+1. Action: **"Respond to a PowerApp or flow"**
+2. Nhấn **“+ Add an output”**
+3. Chọn **Text** (Không chọn Number, Boolean, v.v.)
+4. Đặt tên: `AllFilesJson`
+5. Gán giá trị là:
+```plaintext
+json(string(variables('AllFiles')))
+```
+
+> 🧠 `json()` ép kiểu array → string  
+> `string()` chuyển array thành JSON string  
+> Sau đó Flow cha sẽ **Parse lại thành array**
+
+---
+
+### 🔹 **Bước 3: Flow Cha xử lý kết quả**
+
+Trong Flow cha:
+
+1. Gọi Child Flow
+2. Ngay sau khi gọi → dùng **Parse JSON** để xử lý `AllFilesJson`
+
+#### Schema Parse JSON ví dụ:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "Name": { "type": "string" },
+      "Path": { "type": "string" }
+    }
+  }
+}
+```
+
+- Content: chọn `Outputs('Run_a_Child_Flow')?['body/AllFilesJson']`
+
+---
+
+## 🎯 Kết quả
+
+Flow con trả được array dù Power Automate không hỗ trợ trực tiếp kiểu “Array” trong output.
+
+---
+
+Nếu bạn cần mình tạo một `.zip` mẫu cả Flow cha + Flow con và gửi cho bạn import, chỉ cần nói nhé!
+
+
+==================
 Để **trả về đúng kiểu `array of object` trong Flow con** (thay vì bị ép thành chuỗi), bạn cần **sửa lại cách bạn cấu hình `Return value`** ở bước cuối của Child Flow. Dưới đây là hướng dẫn chi tiết từng bước.
 
 ---
