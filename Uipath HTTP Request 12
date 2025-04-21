@@ -1,0 +1,72 @@
+Hiện tại cấu trúc bạn nhận được trong UiPath là **mảng các chuỗi JSON**, ví dụ:
+
+```json
+[
+  "{\"Name\":\"file1.txt\",\"Path\":\"/sites/.../file1.txt\"}"
+]
+```
+
+Đây là một mảng **string**, mỗi phần tử là một chuỗi chứa object JSON. Để **trích xuất `Name` và `Path`** đúng cách trong UiPath, bạn cần **deserialize 2 lần**: lần đầu để có mảng, lần hai để chuyển từng chuỗi thành object.
+
+---
+
+## ✅ Step-by-step xử lý trong UiPath
+
+### 🔹 Bước 1: Dùng `Deserialize JSON` để xử lý chuỗi JSON tổng
+
+- **Input**: `responseString` (kết quả từ HTTP Response)
+- **Output**: `jsonArray` (kiểu `JArray`)
+
+```plaintext
+Deserialize JSON
+Input: responseString
+Output: jsonArray (JArray)
+```
+
+---
+
+### 🔹 Bước 2: Lặp qua từng phần tử trong `jsonArray`
+
+Dùng `For Each`:
+
+- **TypeArgument**: `String`
+- **Values**: `jsonArray`
+
+Gán mỗi phần tử là `jsonString`.
+
+---
+
+### 🔹 Bước 3: Trong For Each → Deserialize từng chuỗi
+
+Thêm `Deserialize JSON` nữa để chuyển chuỗi JSON thành object:
+
+- **Input**: `jsonString`
+- **Output**: `fileObject` (kiểu `JObject`)
+
+---
+
+### 🔹 Bước 4: Lấy `Name` và `Path`
+
+Dùng:
+```vb
+fileObject("Name").ToString
+fileObject("Path").ToString
+```
+
+---
+
+## 📌 Bonus: Toàn bộ logic gợi ý
+
+1. `Deserialize JSON` toàn bộ response → `jsonArray`
+2. `For Each item in jsonArray`:
+    - `Deserialize JSON item → fileObject`
+    - `Name = fileObject("Name").ToString`
+    - `Path = fileObject("Path").ToString`
+
+---
+
+## ✅ Gợi ý cải thiện Power Automate (nếu được)
+
+Bạn vẫn nên sửa lại `Append to array variable` trong Power Automate như mình đã hướng dẫn trước, để trả về mảng object chuẩn, giúp tránh bước `Deserialize` lặp lại trong UiPath.
+
+Nếu bạn muốn mình viết sẵn đoạn UiPath mẫu thì mình có thể làm nhé.
