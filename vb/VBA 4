@@ -1,0 +1,49 @@
+Cảm ơn bạn đã làm rõ! Nếu bạn muốn **gọi hàm VBA `ProcessFolder` theo cách thông thường**, truyền **đường dẫn thư mục SharePoint và tên Sheet dưới dạng String** thay vì đối tượng Worksheet, thì bạn cần:
+
+---
+
+## ✅ 1. Cập nhật Sub `ProcessFolder` để nhận `SheetName As String` thay vì `ws As Worksheet`
+
+```vba
+Sub ProcessFolder(FolderPath As String, SheetName As String)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(SheetName)
+    
+    ' (phần còn lại giữ nguyên)
+    ' Ghi dữ liệu vào ws tại dòng RowIndex...
+End Sub
+```
+
+---
+
+## ✅ 2. Gọi hàm trong `Main()` như sau:
+
+```vba
+Sub Main()
+    Dim ROOT_FOLDER As String
+    ROOT_FOLDER = "Shared Documents"
+
+    Dim SheetName As String
+    SheetName = "出力" ' Hoặc tên tiếng Nhật của Sheet bạn dùng
+
+    ' Gọi hàm đệ quy
+    ProcessFolder "/" & ROOT_FOLDER, SheetName
+End Sub
+```
+
+---
+
+## 📝 Ghi chú:
+
+- SheetName truyền vào dạng `"出力"` hoặc `"Sheet1"` tùy bạn đặt tên trong Excel.
+- Bên trong `ProcessFolder` bạn vẫn có thể dùng `ws.Range(...)`, `ws.Cells(...)`, v.v.
+
+---
+
+## 🧪 Test gợi ý:
+
+Bạn có thể mở file `.xlsm` → Vào Visual Basic Editor → Chạy `Main()` để kiểm tra hoạt động trước khi gọi từ UiPath.
+
+---
+
+Nếu bạn cần mình **xuất lại file `.bas` mới đã chỉnh sửa**, mình có thể làm ngay. Bạn cần không?
