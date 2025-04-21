@@ -1,0 +1,60 @@
+Tuyệt vời! Nếu bạn muốn **ghi dữ liệu bắt đầu từ dòng số 5** trong file Excel có sẵn (và vẫn giữ nguyên tiêu đề tiếng Nhật ở dòng 1), thì chỉ cần điều chỉnh một chút trong bước ghi dữ liệu.
+
+---
+
+## ✅ Cập nhật hướng dẫn để ghi từ **row 5**
+
+### 🎯 Mục tiêu:
+- File Excel có tiêu đề tiếng Nhật ở **hàng 1** (ví dụ: `名前`, `パス`)
+- Dữ liệu sẽ được ghi **bắt đầu từ hàng 5**, không ghi đè dòng 1–4
+- **Không ghi tiêu đề** nữa, vì đã có sẵn ở trên
+
+---
+
+## ✅ Step-by-step cập nhật
+
+### 🔹 Bước 1: Tạo DataTable như trước
+
+- `Build DataTable`: Tên là `dtFiles`
+- Cột: `名前` (Name), `パス` (Path)
+
+### 🔹 Bước 2: Thêm từng dòng dữ liệu từ JSON
+
+- Vẫn dùng vòng `For Each`, dùng `Add Data Row` để thêm dữ liệu vào `dtFiles` như trước.
+
+### 🔹 Bước 3: Ghi dữ liệu vào Excel bắt đầu từ **hàng 5**
+
+#### 3.1 – Excel Application Scope
+
+- Path: `filePath`
+
+#### 3.2 – Dùng `Write Range (Workbook)` hoặc `Write Range (Excel)`:
+
+| Thuộc tính     | Giá trị                          |
+|----------------|----------------------------------|
+| **Sheet**      | `"Sheet1"` (hoặc tên sheet của bạn) |
+| **Starting Cell** | `"A5"` *(Ghi từ dòng số 5)*     |
+| **DataTable**  | `dtFiles`                        |
+| **Add Headers**| `False` *(vì tiêu đề đã có sẵn)* |
+
+---
+
+### ✅ Ví dụ hình dung dữ liệu trong Excel:
+
+|   | A     | B     |
+|---|--------|--------|
+| 1 | 名前   | パス   |
+| 2 | *(trống)* | *(trống)* |
+| 3 | *(trống)* | *(trống)* |
+| 4 | *(trống)* | *(trống)* |
+| 5 | file1.txt | /sites/.../file1.txt |
+| 6 | file2.txt | /sites/.../file2.txt |
+
+---
+
+## ✅ Bonus (nếu cần kiểm tra dòng trống tự động):
+Nếu bạn **muốn phát hiện dòng trống đầu tiên từ dòng 5 trở đi**, bạn có thể dùng `Read Range`, rồi lọc và tính số dòng thực tế, rồi tính `startRow = thực_dòng + 5`.
+
+---
+
+Cần mình gửi **mẫu workflow .xaml** ghi từ dòng 5 hoặc gợi ý thêm về dynamic row detection không?
