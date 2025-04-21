@@ -1,0 +1,141 @@
+Dưới đây là hướng dẫn **step-by-step** để bạn có thể chạy macro VBA trong **Excel**, đặc biệt là khi sử dụng code VBA để lấy file từ **SharePoint Online** và ghi dữ liệu vào Excel. 
+
+---
+
+### **Step 1: Tạo và Lưu File Excel với Macro**
+
+1. **Mở Excel** và tạo một file mới.
+2. **Lưu file dưới định dạng `.xlsm`**:
+   - Vào **File > Save As**.
+   - Chọn **Excel Macro-Enabled Workbook** (tên file phải có đuôi `.xlsm`).
+
+---
+
+### **Step 2: Kích Hoạt Tab Developer (nếu chưa có)**
+
+1. **Mở Excel**.
+2. Nhấn vào **File** và chọn **Options**.
+3. Trong cửa sổ **Excel Options**, chọn **Customize Ribbon**.
+4. Ở phía bên phải, tích vào **Developer** rồi nhấn **OK**.
+
+---
+
+### **Step 3: Thêm Code VBA vào Workbook**
+
+1. Vào tab **Developer** trên Ribbon.
+2. Nhấn vào **Visual Basic** để mở cửa sổ **VBA Editor**.
+3. Trong cửa sổ VBA, **Insert** một **Module mới**:
+   - Vào **Insert** > **Module**.
+4. Dán mã VBA sau vào **Module mới**:
+
+```vb
+Attribute VB_Name = "GetAllSharePointFiles"
+Option Explicit
+
+Public Sub GetAllSharePointFiles()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+
+    ws.Cells.ClearContents
+    ws.Range("A1:B1").Value = Array("Tên File", "Đường Dẫn")
+
+    Dim nextRow As Long
+    nextRow = 2
+
+    ' Đổi đường dẫn cho đúng site của bạn
+    Dim url As String
+    url = "https://contoso.sharepoint.com/sites/TestSite/Shared Documents"
+
+    ' Gọi xử lý
+    ProcessFolder url, ws, nextRow
+End Sub
+
+Private Sub ProcessFolder(folderUrl As String, ws As Worksheet, ByRef rowIdx As Long)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", folderUrl, False
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status = 200 Then
+        Dim json As Object
+        Set json = ParseJson(http.responseText)
+
+        Dim files
+        Set files = json("d")("Files")("results")
+
+        Dim f
+        For Each f In files
+            ws.Cells(rowIdx, 1).Value = f("Name")
+            ws.Cells(rowIdx, 2).Value = f("ServerRelativeUrl")
+            rowIdx = rowIdx + 1
+        Next
+    Else
+        MsgBox "Lỗi gọi API: " & http.Status
+    End If
+End Sub
+
+' JsonConverter tối giản dùng ScriptControl
+Private Function ParseJson(jsonText As String) As Object
+    Dim sc As Object
+    Set sc = CreateObject("ScriptControl")
+    sc.Language = "JScript"
+    Set ParseJson = sc.Eval("(" & jsonText & ")")
+End Function
+```
+
+---
+
+### **Step 4: Kết Nối Với SharePoint Online**
+
+1. **Cập nhật URL SharePoint**:
+   - Trong mã VBA trên, bạn sẽ thấy dòng:
+   ```vb
+   url = "https://contoso.sharepoint.com/sites/TestSite/Shared Documents"
+   ```
+   - Thay **`https://contoso.sharepoint.com/sites/TestSite/Shared Documents`** bằng **địa chỉ SharePoint của bạn**.
+
+---
+
+### **Step 5: Chạy Macro trong Excel**
+
+1. Trở lại **Excel**.
+2. Chọn **Developer > Macros**.
+3. Chọn **GetAllSharePointFiles** từ danh sách macro.
+4. Nhấn **Run**.
+
+**Lưu ý**: Đảm bảo rằng Excel của bạn không có cảnh báo "Macro Disabled". Nếu có, bạn cần bật macro theo cách sau:
+- Vào **File > Options**.
+- Trong **Trust Center**, nhấn **Trust Center Settings**.
+- Chọn **Macro Settings** và chọn **Enable all macros**.
+
+---
+
+### **Step 6: Kiểm Tra Kết Quả**
+
+1. Sau khi macro chạy, dữ liệu từ SharePoint sẽ được ghi vào **Sheet1** trong Excel, bắt đầu từ ô **A2** và **B2** (tên file và đường dẫn file SharePoint).
+2. Bạn sẽ thấy các file được liệt kê theo thứ tự trong các cột đã được định sẵn.
+
+---
+
+### **Step 7: Lưu File Excel với Macro**
+
+- Sau khi chạy macro và đảm bảo mọi dữ liệu đã được ghi vào Excel, nhớ **lưu file**.
+- Excel sẽ tự động lưu dưới định dạng **.xlsm**, giữ nguyên macro.
+
+---
+
+### **Bonus: Kết Nối từ UiPath**
+
+Sau khi bạn đã đảm bảo macro chạy tốt trong Excel, bạn có thể **gọi macro này từ UiPath** bằng cách sử dụng hoạt động **Invoke VBA**:
+
+1. **Open Excel Application Scope** trong UiPath.
+2. **Invoke VBA**:
+   - **Code File Path**: Đường dẫn đến file `.bas` chứa macro.
+   - **EntryMethodName**: `GetAllSharePointFiles`.
+
+---
+
+### **Tổng Kết**
+
+Sau khi thực hiện các bước trên, bạn có thể chạy macro trong Excel để lấy danh sách các file từ SharePoint Online và ghi vào Excel. Đảm bảo rằng các thiết lập về macro, URL SharePoint và tên sheet đều được cấu hình đúng trước khi chạy.
