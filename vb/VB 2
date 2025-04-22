@@ -1,0 +1,189 @@
+Dưới đây là **toàn bộ mã VBA hoàn chỉnh** (không dùng thư viện ngoài) để:
+
+- Lấy `access_token` từ Microsoft qua ROPC (Resource Owner Password Credential)
+- Gọi SharePoint API để lấy **toàn bộ danh sách file (bao gồm subfolder)** theo **chiều sâu (depth-first)**
+- **Phân tích JSON** trả về và ghi tên + đường dẫn file vào Excel
+
+---
+
+### **Toàn bộ mã VBA (dùng cho file `.bas`)**
+
+```vba
+Option Explicit
+
+Private Const tenantId As String = "YOUR_TENANT_ID"
+Private Const clientId As String = "YOUR_CLIENT_ID"
+Private Const username As String = "YOUR_USERNAME"
+Private Const password As String = "YOUR_PASSWORD"
+Private Const siteName As String = "TestSite"
+Private Const sharepointDomain As String = "contoso.sharepoint.com"
+
+Sub GetAllFiles()
+    Dim accessToken As String
+    accessToken = GetAccessToken()
+    If accessToken = "" Then
+        MsgBox "Lấy access token thất bại!", vbCritical
+        Exit Sub
+    End If
+
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    ws.Cells.ClearContents
+    ws.Range("A1:B1").Value = Array("File Name", "File Path")
+
+    Dim row As Long: row = 2
+    Dim baseFolder As String: baseFolder = "Documents/Reports"
+    ListFilesRecursive baseFolder, accessToken, ws, row
+    MsgBox "Hoàn tất!"
+End Sub
+
+Function GetAccessToken() As String
+    Dim http As Object, data As String, response As String
+    Set http = CreateObject("MSXML2.XMLHTTP")
+
+    Dim tokenUrl As String
+    tokenUrl = "https://login.microsoftonline.com/" & tenantId & "/oauth2/v2.0/token"
+
+    data = "grant_type=password" & _
+           "&client_id=" & clientId & _
+           "&username=" & username & _
+           "&password=" & password & _
+           "&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default"
+
+    http.Open "POST", tokenUrl, False
+    http.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+    http.Send data
+
+    If http.Status = 200 Then
+        response = http.responseText
+        GetAccessToken = ParseJSONValue(response, "access_token")
+    Else
+        Debug.Print http.responseText
+        GetAccessToken = ""
+    End If
+End Function
+
+Sub ListFilesRecursive(folderPath As String, token As String, ws As Worksheet, ByRef row As Long)
+    Dim apiUrl As String
+    apiUrl = "https://" & sharepointDomain & "/sites/" & siteName & "/_api/web/GetFolderByServerRelativeUrl('" & folderPath & "')?$expand=Files,Folders"
+
+    Dim http As Object: Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", apiUrl, False
+    http.setRequestHeader "Authorization", "Bearer " & token
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status <> 200 Then
+        Debug.Print "Error in folder: " & folderPath
+        Exit Sub
+    End If
+
+    Dim response As String: response = http.responseText
+    Dim files As Collection: Set files = ParseJSONArray(response, "d.Files.results")
+
+    Dim f As Variant
+    For Each f In files
+        ws.Cells(row, 1).Value = f("Name")
+        ws.Cells(row, 2).Value = f("ServerRelativeUrl")
+        row = row + 1
+    Next
+
+    Dim folders As Collection: Set folders = ParseJSONArray(response, "d.Folders.results")
+    Dim subfolder As Variant
+    For Each subfolder In folders
+        Dim subfolderUrl As String: subfolderUrl = subfolder("ServerRelativeUrl")
+        If InStr(subfolderUrl, "/Forms") = 0 Then
+            ListFilesRecursive subfolderUrl, token, ws, row
+        End If
+    Next
+End Sub
+
+Function ParseJSONValue(json As String, key As String) As String
+    Dim regex As Object, matches As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.IgnoreCase = True
+    regex.Global = False
+    regex.Pattern = """" & key & """" & "\s*:\s*""([^""]*)"""
+
+    If regex.test(json) Then
+        Set matches = regex.Execute(json)
+        ParseJSONValue = matches(0).SubMatches(0)
+    Else
+        ParseJSONValue = ""
+    End If
+End Function
+
+Function ParseJSONArray(json As String, keyPath As String) As Collection
+    Dim result As New Collection
+    Dim regex As Object, matches As Object
+    keyPath = Replace(keyPath, ".", Chr(1))
+    Dim keys() As String: keys = Split(keyPath, Chr(1))
+    Dim currentJson As String: currentJson = json
+
+    Dim k As Long
+    For k = 0 To UBound(keys)
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.IgnoreCase = True
+        regex.Global = False
+        If k = UBound(keys) Then
+            regex.Pattern = """" & keys(k) & """" & "\s*:\s*(\[[^\]]*\])"
+        Else
+            regex.Pattern = """" & keys(k) & """" & "\s*:\s*{([^}]*)}"
+        End If
+
+        If regex.test(currentJson) Then
+            Set matches = regex.Execute(currentJson)
+            currentJson = matches(0).SubMatches(0)
+        Else
+            Set ParseJSONArray = result
+            Exit Function
+        End If
+    Next k
+
+    Dim arrayContent As String: arrayContent = Mid(currentJson, 2, Len(currentJson) - 2)
+    Dim items() As String: items = Split(arrayContent, "},{")
+
+    Dim i As Long
+    For i = 0 To UBound(items)
+        Dim itemJson As String: itemJson = items(i)
+        If Left(itemJson, 1) <> "{" Then itemJson = "{" & itemJson
+        If Right(itemJson, 1) <> "}" Then itemJson = itemJson & "}"
+
+        Dim obj As Object: Set obj = CreateObject("Scripting.Dictionary")
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = True
+        regex.Pattern = """([^""]+)""\s*:\s*(""[^""]*""|\d+|true|false|null)"
+        Set matches = regex.Execute(itemJson)
+
+        Dim m As Variant
+        For Each m In matches
+            Dim key As String, value As String
+            key = m.SubMatches(0)
+            value = m.SubMatches(1)
+            If Left(value, 1) = """" Then value = Mid(value, 2, Len(value) - 2)
+            obj(key) = value
+        Next m
+
+        result.Add obj
+    Next i
+
+    Set ParseJSONArray = result
+End Function
+```
+
+---
+
+## **Hướng dẫn sử dụng**
+
+1. **Mở Excel**, nhấn `Alt + F11` để mở **VBA Editor**
+2. Tạo một module mới → `Insert` → `Module`
+3. Dán toàn bộ code trên vào
+4. **Thay thế các giá trị sau** bằng thông tin thật:
+   - `tenantId`: ID tenant (hoặc "common" nếu không rõ)
+   - `clientId`: ID của app đã đăng ký
+   - `username`, `password`: thông tin đăng nhập không dùng MFA
+5. Chạy macro `GetAllFiles`
+
+---
+
+Bạn có muốn mình xuất đoạn này thành `.bas` và gửi kèm luôn không?
