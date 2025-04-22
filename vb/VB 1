@@ -1,0 +1,53 @@
+Rất hợp lý! Dưới đây là **hướng dẫn step-by-step** để bạn dùng **UiPath** gọi **VBA ngoài file (dạng .bas)** bằng **Invoke VBA** mà không cần lưu macro vào file Excel:
+
+---
+
+## **1. Chuẩn bị file .bas**
+
+- Tạo file `.bas` chứa toàn bộ đoạn mã VBA ở trên.
+- Ví dụ: `GetSharePointFiles.bas`
+
+---
+
+## **2. Trong UiPath: Tạo Flow**
+
+### **Step-by-Step**
+
+#### **[A] Kéo các Activity sau:**
+
+1. **Excel Application Scope**  
+   - `WorkbookPath`: Đường dẫn tới file Excel bạn muốn ghi kết quả  
+   - Enable: `Visible`, `ReadOnly = False`
+
+2. **Invoke VBA** (nằm trong Excel Scope)  
+   - `CodeFilePath`: `"C:\Path\To\GetSharePointFiles.bas"`
+   - `EntryMethodName`: `"GetAllFiles"`
+   - `IsMacroEnabled`: `True`
+
+> Bạn **không cần macro trong file Excel**, vì đoạn mã được load từ file `.bas`.
+
+---
+
+## **3. Lưu ý về `.bas`**
+- Nội dung `.bas` **phải bắt đầu bằng** dòng:
+  ```vba
+  Attribute VB_Name = "Module1"
+  ```
+  hoặc dùng Notepad để thêm thủ công dòng này vào đầu nếu cần.
+
+---
+
+## **4. File Excel đích**
+- Đảm bảo file Excel:
+  - Đang đóng trước khi run UiPath
+  - Không bảo vệ
+  - Không bật Macro cũng không sao, vì UiPath dùng COM để chạy trực tiếp VBA ngoài
+
+---
+
+## **5. Output**
+- Khi chạy xong, file Excel sẽ được mở và tự động điền danh sách file SharePoint vào Sheet1.
+
+---
+
+Bạn muốn mình tạo sẵn file `.bas` mẫu và gửi qua không? Hay bạn muốn mình xuất file `.xaml` hoàn chỉnh để bạn dùng trực tiếp?
