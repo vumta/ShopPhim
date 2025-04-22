@@ -1,0 +1,134 @@
+Hoàn hảo! Dưới đây là **toàn bộ hướng dẫn và mã VBA hoàn chỉnh** để:
+
+- **Lấy Access Token bằng ROPC (username/password)**
+- **Gọi SharePoint REST API để duyệt tất cả file (bao gồm subfolder, theo Depth-First)**
+- **Ghi tên và đường dẫn file vào Excel**
+
+---
+
+## **1. Yêu cầu**
+
+Bạn cần:
+
+- `Client ID` (Application ID)
+- `Username` (không MFA)
+- `Password`
+- `SharePoint domain`: `contoso.sharepoint.com`
+- `Site name`: `TestSite`
+- `Folder path`: `Documents/Reports`
+
+---
+
+## **2. Cấu trúc mã VBA**
+
+Bạn sẽ có 1 module với 3 phần chính:
+
+### **a. Hàm lấy Access Token (ROPC flow)**
+
+```vba
+Function GetAccessToken_ROPC(clientId As String, username As String, password As String) As String
+    Dim http As Object, url As String, body As String, response As String
+    Set http = CreateObject("MSXML2.XMLHTTP")
+
+    url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    body = "grant_type=password" & _
+           "&client_id=" & clientId & _
+           "&username=" & username & _
+           "&password=" & password & _
+           "&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default"
+
+    http.Open "POST", url, False
+    http.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+    http.send body
+
+    response = http.responseText
+    GetAccessToken_ROPC = ParseJSONValue(response, "access_token")
+End Function
+```
+
+---
+
+### **b. Hàm duyệt file SharePoint theo depth-first**
+
+```vba
+Sub GetAllFiles_SharePoint()
+    Dim siteUrl As String, folderPath As String, token As String
+    Dim clientId As String, username As String, password As String
+    Dim row As Long
+
+    ' Input
+    clientId = "YOUR_CLIENT_ID"
+    username = "abc@contoso.com"
+    password = "your_password"
+    siteUrl = "https://contoso.sharepoint.com/sites/TestSite"
+    folderPath = "Shared Documents/Reports" 'Tên thật là "Shared Documents"
+
+    token = GetAccessToken_ROPC(clientId, username, password)
+    If token = "" Then
+        MsgBox "Không lấy được access token", vbCritical: Exit Sub
+    End If
+
+    row = 2
+    ThisWorkbook.Sheets(1).Cells(1, 1).Value = "Name"
+    ThisWorkbook.Sheets(1).Cells(1, 2).Value = "Path"
+
+    Call TraverseFolder(siteUrl, folderPath, token, row)
+End Sub
+```
+
+---
+
+### **c. Hàm đệ quy duyệt folder**
+
+```vba
+Sub TraverseFolder(siteUrl As String, folderPath As String, token As String, ByRef row As Long)
+    Dim url As String, http As Object, json As String
+    Dim files As Object, file As Variant
+    Dim folders As Object, folder As Variant
+
+    url = siteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & Replace(folderPath, " ", "%20") & "')?$expand=Files,Folders"
+
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", url, False
+    http.setRequestHeader "Authorization", "Bearer " & token
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.send
+
+    json = http.responseText
+    Set files = ParseJSONArray(json, "d.Files.results")
+    For Each file In files
+        ThisWorkbook.Sheets(1).Cells(row, 1).Value = file("Name")
+        ThisWorkbook.Sheets(1).Cells(row, 2).Value = folderPath & "/" & file("Name")
+        row = row + 1
+    Next
+
+    Set folders = ParseJSONArray(json, "d.Folders.results")
+    For Each folder In folders
+        Call TraverseFolder(siteUrl, folderPath & "/" & folder("Name"), token, row)
+    Next
+End Sub
+```
+
+---
+
+### **d. Hàm Parse JSON đơn giản**
+
+Bạn có thể dùng `JsonConverter` hoặc tự viết parser đơn giản. Nếu bạn muốn **không dùng thư viện ngoài**, mình có thể thêm đoạn mã parser tự viết.
+
+---
+
+## **3. Kết quả**
+
+- Toàn bộ tên và đường dẫn file SharePoint sẽ được ghi vào Sheet1 (cột A: Name, cột B: Path)
+- Duyệt **mọi cấp thư mục (depth-first)**
+
+---
+
+## **Bạn muốn gì tiếp theo?**
+
+- [ ] Xuất file `.bas` sẵn (có parser JSON)
+- [ ] Gửi file `.xlsm` mẫu
+- [ ] Tích hợp luôn UiPath gọi macro
+- [ ] Thêm phần **di chuyển file** sau khi đọc xong
+
+Bạn cần cái nào trước?
