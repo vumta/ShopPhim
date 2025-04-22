@@ -1,0 +1,142 @@
+Tuyệt vời! Dưới đây là **cách hoàn chỉnh để bạn dùng VBA** truy cập SharePoint Online, sử dụng:
+
+- `Client ID`  
+- `Username` (không có MFA)  
+- `Password`  
+- Lấy toàn bộ file trong folder **bao gồm cả subfolder**  
+
+---
+
+## **1. Mục tiêu**
+- Dùng VBA để **lấy access token (ROPC Flow)**
+- Gọi SharePoint REST API (`_api/web/getfolderbyserverrelativeurl(...)`)
+- Đệ quy duyệt thư mục và xuất danh sách file + đường dẫn vào Excel
+
+---
+
+## **2. Giới hạn cần biết**
+- **App phải được cấp quyền**: `Sites.Read.All` (delegated) cho SharePoint trong Azure App (Client ID)
+- **Không dùng MFA**
+- **VBA không hỗ trợ HTTPS natively**: cần dùng `XMLHTTP60` hoặc WinHttp
+
+---
+
+## **3. Mã VBA hoàn chỉnh (không dùng thư viện ngoài)**
+
+### **(a) Hàm lấy Access Token bằng ROPC**
+```vba
+Function GetAccessToken_ROPC(clientId As String, username As String, password As String, tenant As String) As String
+    Dim http As Object, url As String, body As String, resp As String
+    Dim json As Object
+
+    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    url = "https://login.microsoftonline.com/" & tenant & "/oauth2/v2.0/token"
+    
+    body = "client_id=" & clientId & _
+           "&scope=https%3A%2F%2Fcontoso.sharepoint.com%2F.default" & _
+           "&grant_type=password" & _
+           "&username=" & username & _
+           "&password=" & password
+    
+    http.Open "POST", url, False
+    http.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+    http.Send body
+
+    If http.Status = 200 Then
+        Set json = ParseJson(http.responseText)
+        GetAccessToken_ROPC = json("access_token")
+    Else
+        MsgBox "Token Error: " & http.responseText
+        GetAccessToken_ROPC = ""
+    End If
+End Function
+```
+
+---
+
+### **(b) Gọi SharePoint API để đệ quy duyệt file + folder**
+```vba
+Sub GetAllFiles_SharePoint()
+    Dim token As String
+    Dim folderPath As String, siteUrl As String
+    Dim row As Long
+
+    ' Thông tin cấu hình
+    Dim tenant As String: tenant = "contoso.onmicrosoft.com"
+    Dim clientId As String: clientId = "xxxxx-xxxx-xxxx"
+    Dim username As String: username = "abc@contoso.com"
+    Dim password As String: password = "your_password"
+    
+    siteUrl = "https://contoso.sharepoint.com/sites/TestSite"
+    folderPath = "/sites/TestSite/Shared Documents/Reports"
+
+    token = GetAccessToken_ROPC(clientId, username, password, tenant)
+    If token = "" Then Exit Sub
+    
+    row = 2
+    ThisWorkbook.Sheets(1).Range("A1:B1").Value = Array("File Name", "Path")
+    
+    Call ListFilesRecursive(siteUrl, folderPath, token, row)
+End Sub
+```
+
+---
+
+### **(c) Hàm đệ quy đọc tất cả file trong folder + subfolder**
+```vba
+Sub ListFilesRecursive(siteUrl As String, folderRelPath As String, token As String, ByRef row As Long)
+    Dim http As Object, url As String, json As Object
+    Dim item As Variant
+
+    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    url = siteUrl & "/_api/web/GetFolderByServerRelativeUrl('" & folderRelPath & "')?$expand=Folders,Files"
+    
+    http.Open "GET", url, False
+    http.setRequestHeader "Authorization", "Bearer " & token
+    http.setRequestHeader "Accept", "application/json;odata=verbose"
+    http.Send
+
+    If http.Status <> 200 Then
+        Debug.Print "Error: " & http.responseText
+        Exit Sub
+    End If
+
+    Set json = ParseJson(http.responseText)
+    
+    ' Ghi file
+    For Each item In json("d")("Files")("results")
+        ThisWorkbook.Sheets(1).Cells(row, 1).Value = item("Name")
+        ThisWorkbook.Sheets(1).Cells(row, 2).Value = item("ServerRelativeUrl")
+        row = row + 1
+    Next
+
+    ' Gọi lại folder con
+    For Each item In json("d")("Folders")("results")
+        If item("Name") <> "Forms" Then
+            Call ListFilesRecursive(siteUrl, item("ServerRelativeUrl"), token, row)
+        End If
+    Next
+End Sub
+```
+
+---
+
+### **(d) JSON Parser đơn giản**
+Nếu bạn không muốn dùng thư viện ngoài (JsonConverter), dùng code này để parse JSON:  
+https://github.com/VBA-tools/VBA-JSON  
+(Mình có thể xuất `.bas` gộp luôn nếu bạn cần)
+
+---
+
+## ✅ Kết quả
+- Danh sách **toàn bộ file + đường dẫn** ghi vào Sheet1
+- Bạn có thể thêm hàm `MoveFile` nếu muốn di chuyển file sau đó
+
+---
+
+## Bạn cần gì tiếp theo?
+- [ ] Xuất file `.bas` hoàn chỉnh (gồm parser)
+- [ ] Thêm chức năng di chuyển file (gọi `MoveTo`)
+- [ ] Chuyển đoạn này thành quy trình UiPath (nếu cần song song VBA + UiPath)
+
+Chỉ cần nói “**Gửi file .bas**” là mình nén lại và xuất ngay!
