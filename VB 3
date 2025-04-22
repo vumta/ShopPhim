@@ -1,0 +1,127 @@
+Dưới đây là **đoạn mã VBA parser JSON đơn giản** để bạn sử dụng **không cần thư viện ngoài** (như JsonConverter). Mục tiêu là trích xuất:
+
+- `access_token` từ response của Microsoft
+- Các trường `Files.results` và `Folders.results` từ JSON SharePoint
+
+---
+
+## **1. Hàm ParseJSONValue (lấy 1 giá trị theo key)**
+
+```vba
+Function ParseJSONValue(json As String, key As String) As String
+    Dim i As Long, pattern As String
+    Dim regex As Object, matches As Object
+
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.IgnoreCase = True
+    regex.Global = False
+    regex.Pattern = """" & key & """" & "\s*:\s*""([^""]*)"""
+
+    If regex.test(json) Then
+        Set matches = regex.Execute(json)
+        ParseJSONValue = matches(0).SubMatches(0)
+    Else
+        ParseJSONValue = ""
+    End If
+End Function
+```
+
+---
+
+## **2. Hàm ParseJSONArray (lấy danh sách object từ mảng JSON)**
+
+```vba
+Function ParseJSONArray(json As String, keyPath As String) As Collection
+    Dim result As New Collection
+    Dim regex As Object, matches As Object, match As Object
+    Dim pattern As String, arrayStart As Long, arrayEnd As Long, arrayContent As String
+    Dim subjson As String, obj As Object
+
+    keyPath = Replace(keyPath, ".", Chr(1)) ' Tạm thay dấu chấm để split
+    Dim keys() As String: keys = Split(keyPath, Chr(1))
+    Dim currentJson As String: currentJson = json
+
+    Dim k As Long
+    For k = 0 To UBound(keys)
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.IgnoreCase = True
+        regex.Global = False
+        If k = UBound(keys) Then
+            regex.Pattern = """" & keys(k) & """" & "\s*:\s*(\[[^\]]*\])"
+        Else
+            regex.Pattern = """" & keys(k) & """" & "\s*:\s*{([^}]*)}"
+        End If
+
+        If regex.test(currentJson) Then
+            Set matches = regex.Execute(currentJson)
+            currentJson = matches(0).SubMatches(0)
+        Else
+            Set ParseJSONArray = result
+            Exit Function
+        End If
+    Next k
+
+    arrayContent = currentJson
+    arrayContent = Mid(arrayContent, 2, Len(arrayContent) - 2) ' Bỏ dấu [ ]
+    
+    Dim items() As String
+    items = Split(arrayContent, "},{")
+
+    Dim i As Long
+    For i = 0 To UBound(items)
+        Dim itemJson As String
+        itemJson = items(i)
+        If Left(itemJson, 1) <> "{" Then itemJson = "{" & itemJson
+        If Right(itemJson, 1) <> "}" Then itemJson = itemJson & "}"
+
+        Set obj = CreateObject("Scripting.Dictionary")
+        
+        ' Parse các key-value đơn giản
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = True
+        regex.Pattern = """([^""]+)""\s*:\s*(""[^""]*""|\d+|true|false|null)"
+        Set matches = regex.Execute(itemJson)
+
+        For Each match In matches
+            Dim key As String, value As String
+            key = match.SubMatches(0)
+            value = match.SubMatches(1)
+            If Left(value, 1) = """" Then value = Mid(value, 2, Len(value) - 2)
+            obj(key) = value
+        Next match
+
+        result.Add obj
+    Next i
+
+    Set ParseJSONArray = result
+End Function
+```
+
+---
+
+## **3. Cách dùng**
+
+```vba
+Dim files As Collection
+Set files = ParseJSONArray(jsonResponse, "d.Files.results")
+
+Dim file As Variant
+For Each file In files
+    Debug.Print file("Name"), file("ServerRelativeUrl")
+Next
+```
+
+---
+
+## **Tổng kết**
+
+Bạn giờ đã có thể:
+
+- Gửi HTTP để lấy access token
+- Duyệt toàn bộ folder (bao gồm subfolder)
+- Phân tích JSON trả về mà không dùng thư viện ngoài
+- Ghi ra Excel đầy đủ
+
+---
+
+Bạn có muốn mình gộp lại toàn bộ đoạn code này vào một file `.bas` để import luôn không?
