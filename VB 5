@@ -1,0 +1,65 @@
+Dưới đây là hướng dẫn **chuyển đoạn VBA truy xuất toàn bộ file SharePoint (bao gồm subfolder)** thành một **quy trình kết hợp UiPath + VBA**:
+
+---
+
+## **Mục tiêu**
+- UiPath gọi macro VBA (chứa logic lấy Access Token + duyệt SharePoint folder)
+- VBA xuất danh sách file và đường dẫn vào Excel
+- UiPath xử lý tiếp (nếu cần: lọc, di chuyển, v.v.)
+
+---
+
+## **1. File Excel chứa VBA Macro**
+
+Tạo file Excel, ví dụ: `SharePointFileList.xlsm`  
+Trong đó, thêm Module với nội dung sau:
+
+### **(a) Module: SharePointAccess.bas**
+Gồm:
+- `GetAccessToken_ROPC`
+- `ListFilesRecursive`
+- `GetAllFiles_SharePoint`
+
+Bạn có thể nhúng parser JSON (nếu không dùng thư viện ngoài) hoặc dùng `JsonConverter.bas`
+
+> Nếu bạn cần file `.bas` gộp sẵn, mình có thể xuất cho bạn ngay.
+
+---
+
+## **2. Quy trình UiPath (Main.xaml)**
+
+### **Step-by-Step**
+
+#### **Step 1: Invoke VBA Macro**
+- **Activity**: `Invoke VBA`
+- **Input**:
+  - WorkbookPath: `"C:\Path\To\SharePointFileList.xlsm"`
+  - MacroName: `"GetAllFiles_SharePoint"`
+- **Properties**:
+  - `IsMacroEnabledWorkbook`: `True`
+
+> Macro này khi chạy sẽ ghi danh sách file vào Sheet1.
+
+#### **Step 2 (Optional): Đọc file Excel kết quả**
+- **Activity**: `Excel Process Scope` → `Read Range`
+- Đọc `Sheet1`, output vào `DataTable`
+
+#### **Step 3 (Optional): Duyệt `DataTable` để xử lý (move file, lọc,...)**
+
+---
+
+## **Tóm tắt**
+| Thành phần        | Vai trò                         |
+|------------------|----------------------------------|
+| Excel (.xlsm)    | Chứa toàn bộ logic gọi SharePoint |
+| VBA Macro        | Gọi API, duyệt thư mục đệ quy    |
+| UiPath           | Gọi macro, đọc kết quả, xử lý tiếp |
+
+---
+
+## ✅ Bạn muốn gì tiếp theo?
+- [ ] Gửi file `.bas` đã chuẩn
+- [ ] Gửi `.xaml` mẫu sẵn để gọi macro
+- [ ] Gộp cả phần **Move file** (sau khi đọc xong)
+
+Bạn muốn mình **xuất file mẫu** luôn không?
