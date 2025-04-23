@@ -1,0 +1,48 @@
+Dưới đây là cách **chuyển toàn bộ 3 bước** bạn viết bằng VB.NET thành các **`Assign` activities trong UiPath**, không dùng `Invoke Code`:
+
+---
+
+### ✅ Giả sử:
+- `subFolderJson`: kiểu `JObject`
+- Đã chứa key `"subfolder"` với mảng `[ "note1", "note2", "note3" ]`
+
+---
+
+## 🧩 Bước 1: Ép kiểu sang `JArray`
+
+**Assign 1:**
+- **To:** `subfolderArray` (kiểu `JArray`)
+- **Value:**
+```vb
+CType(subFolderJson("subfolder"), JArray)
+```
+
+---
+
+## 🧩 Bước 2: Xoá phần tử `"note2"`
+
+**Assign 2:**
+- **To:** `subfolderArray`
+- **Value:**
+```vb
+New JArray(subfolderArray.Where(Function(x) x.ToString <> "note2"))
+```
+
+> 💡 Vì `JArray` không hỗ trợ `.Remove(...)` trực tiếp trong `Assign`, nên tạo lại JArray bằng cách lọc bỏ phần tử.
+
+---
+
+## 🧩 Bước 3: Chuyển `JArray` thành `String()`
+
+**Assign 3:**
+- **To:** `myArray` (kiểu `String[]`)
+- **Value:**
+```vb
+subfolderArray.Select(Function(x) x.ToString).ToArray()
+```
+
+---
+
+✅ Vậy là toàn bộ thao tác đều được thực hiện bằng **Assign activities** trong UiPath!
+
+Nếu bạn cần ví dụ workflow `.xaml` hoặc hình ảnh mình cũng có thể gửi luôn nha.
