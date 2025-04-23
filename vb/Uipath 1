@@ -1,0 +1,64 @@
+Cảm ơn bạn đã gửi JSON mẫu! Dưới đây là **cách xử lý JSON đó trong UiPath** bằng `Deserialize JSON` và `For Each`, để **lấy ra từng file từ cả `"files"` và `"subfolder"`**.
+
+---
+
+### 🧩 **Cấu trúc JSON**
+```json
+{
+  "files": [ {...}, {...} ],
+  "subfolder": [ {...}, {...} ]
+}
+```
+
+Bạn có 2 mảng (`files` và `subfolder`), mỗi mảng chứa nhiều object có `name` và `path`.
+
+---
+
+### ✅ **Cách xử lý trong UiPath**
+
+#### 1. **Deserialize JSON**
+- Sử dụng activity `Deserialize JSON`
+- Input: biến chuỗi JSON (ví dụ `jsonString`)
+- Output: biến `jsonObj` (kiểu `JObject`)
+
+#### 2. **Duyệt qua `"files"`**
+
+```vb
+For Each fileItem In jsonObj("files")
+    name = fileItem("name").ToString
+    path = fileItem("path").ToString
+    Log Message: "File: " + name + " | Path: " + path
+Next
+```
+
+#### 3. **Duyệt qua `"subfolder"`**
+
+```vb
+For Each subItem In jsonObj("subfolder")
+    name = subItem("name").ToString
+    path = subItem("path").ToString
+    Log Message: "Subfolder File: " + name + " | Path: " + path
+Next
+```
+
+---
+
+### 💡 **Toàn bộ logic**
+
+```vb
+jsonObj = DeserializeJson(jsonString)
+
+' Duyệt files
+For Each fileItem In jsonObj("files")
+    Log Message: "File: " + fileItem("name").ToString + " - " + fileItem("path").ToString
+Next
+
+' Duyệt subfolder
+For Each subItem In jsonObj("subfolder")
+    Log Message: "Subfolder File: " + subItem("name").ToString + " - " + subItem("path").ToString
+Next
+```
+
+---
+
+Nếu bạn muốn **gom tất cả file từ cả hai mảng vào chung một `DataTable` hoặc danh sách**, mình có thể giúp tạo luôn đoạn code đầy đủ. Bạn cần kiểu dữ liệu nào để xuất ra sau cùng? `DataTable`, `List(of String)`, hay ghi vào Excel?
