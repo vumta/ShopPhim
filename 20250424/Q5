@@ -1,0 +1,66 @@
+Rất hay! Bạn đang làm automation với UiPath để:
+
+- Duyệt từng dòng Excel chứa đường dẫn file SharePoint (hoặc info liên quan)
+- **Move file trên SharePoint**
+- Nếu:
+  - ✅ Thành công → Ghi `"Done"` vào cột **V**
+  - ❌ Lỗi → Ghi `"Error"` vào cột **V**, rồi tiếp tục dòng tiếp theo (**KHÔNG dừng quy trình**)
+
+---
+
+## ✅ Tổng quan chiến lược:
+1. **Read Range** → lấy DataTable (`dtData`)
+2. **For Each Row** → duyệt từng dòng
+3. Trong mỗi vòng lặp:
+   - Dùng **Try Catch** bao quanh bước "Move File"
+   - Trong **Try**:
+     - Move file → Nếu OK, set `row("V") = "Done"`
+   - Trong **Catch**:
+     - Ghi `row("V") = "Error"`
+     - (Không cần "Throw", để tiếp tục lặp)
+
+4. Sau cùng: **Write Range** để ghi lại `dtData` vào Excel
+
+---
+
+## ✅ Ví dụ chi tiết các bước:
+
+### 🔹 1. Read Excel
+- Dùng **Excel Application Scope** (Classic) hoặc **Use Excel File** (Modern)
+- Dùng **Read Range** để đọc vào `dtData` (có Headers)
+
+---
+
+### 🔹 2. For Each Row
+- `For Each Row in dtData`
+
+Bên trong:
+
+```plaintext
+Try
+    Move File trên SharePoint
+    Assign: row("V") = "Done"
+Catch
+    Assign: row("V") = "Error"
+End Try
+```
+
+👉 Bạn dùng **UiPath SharePoint Activities** hay gọi qua **Graph API**/HTTP Request?  
+(Mình có thể đề xuất cụ thể phần “Move File” cho đúng loại bạn dùng.)
+
+---
+
+### 🔹 3. Sau khi xong For Each → Ghi lại kết quả
+- Dùng **Write Range** để ghi lại `dtData` vào lại Excel
+- Hoặc chỉ **Update cột V** nếu muốn giữ nguyên các cột còn lại
+
+---
+
+## ⚠️ Lưu ý:
+
+- Nếu lỗi khi Move File là do **file không tồn tại**, bạn có thể thêm kiểm tra trước bằng `HTTP Get` để xác định file có tồn tại không.
+- Trong `Catch`, có thể log lỗi vào cột khác (VD: `W`) nếu muốn theo dõi lỗi chi tiết.
+
+---
+
+Bạn đang dùng hoạt động "Move file" của **UiPath SharePoint** hay đang gọi API thủ công qua HTTP Request? Mình có thể chỉ luôn cách xử lý lỗi đúng kiểu cho bạn.
