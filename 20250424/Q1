@@ -1,0 +1,21 @@
+Để xóa dữ liệu trong cột A và B của một file Excel bằng VBA, bạn có thể dùng đoạn mã dưới đây:
+
+### ✅ VBA Code:
+```vba
+Sub XoaDataCotAvaB()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1) ' Hoặc thay bằng tên Sheet cụ thể: Sheets("TênSheet")
+    
+    ' Xóa dữ liệu từ dòng 2 trở xuống của cột A và B (giữ lại tiêu đề nếu có)
+    ws.Range("A2:B" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row).ClearContents
+End Sub
+```
+
+### 📌 Giải thích:
+- `ws.Range("A2:B" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row)` sẽ chọn vùng dữ liệu từ A2 đến dòng cuối có dữ liệu của cột A.
+- `ClearContents` chỉ xóa nội dung, giữ lại định dạng.
+- Nếu muốn xóa toàn bộ dữ liệu bao gồm cả tiêu đề, thay `"A2:B"` thành `"A:B"`.
+
+---
+
+Nếu bạn cần áp dụng cho tất cả các sheet hoặc file đang mở, mình có thể viết thêm. Bạn cần xóa trên nhiều sheet hay chỉ một sheet chính?
