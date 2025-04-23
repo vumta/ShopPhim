@@ -1,0 +1,40 @@
+Để **xóa dòng đầu tiên của một DataTable** trong UiPath, bạn có thể làm như sau:
+
+---
+
+## ✅ Cách 1: Dùng **Remove Data Row** (cách đơn giản nhất)
+
+### 📌 Các bước:
+1. Hoạt động **Remove Data Row**
+   - **DataTable**: `yourDataTable`
+   - **RowIndex**: `0`  *(dòng đầu tiên luôn có index = 0)*
+
+👉 Làm xong, `yourDataTable` sẽ không còn dòng đầu tiên nữa.
+
+---
+
+## ✅ Cách 2: Dùng **Assign** + `.AsEnumerable.Skip(1)`
+
+### Dùng khi bạn muốn tạo **DataTable mới** không có dòng đầu tiên:
+
+```vb
+yourDataTable = yourDataTable.AsEnumerable().Skip(1).CopyToDataTable()
+```
+
+📌 Lưu ý:
+- Cách này tạo **datatable mới**, giữ nguyên schema (các cột).
+- Nếu DataTable chỉ có 1 dòng → sẽ báo lỗi `The source contains no DataRows`.
+
+➡ Bạn nên kiểm tra số dòng trước:
+
+```vb
+If yourDataTable.Rows.Count > 1
+    yourDataTable = yourDataTable.AsEnumerable().Skip(1).CopyToDataTable()
+Else
+    yourDataTable = yourDataTable.Clone() ' Tạo bảng rỗng cùng schema
+End If
+```
+
+---
+
+Bạn muốn cách nào: **xoá dòng đầu ngay trong bảng hiện tại**, hay **tạo bảng mới không có dòng đầu**? Mình có thể giúp tùy mục đích bạn dùng nó để làm gì tiếp.
