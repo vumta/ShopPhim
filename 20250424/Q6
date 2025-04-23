@@ -1,0 +1,89 @@
+Tình trạng **header quá dài khi đọc Excel trong UiPath** thường gây lỗi kiểu:
+
+```
+Column name is too long / Column names must be unique / Header exceeds limit / The column name is not valid
+```
+
+---
+
+## 🧠 Nguyên nhân phổ biến:
+
+| Nguyên nhân | Mô tả |
+|-------------|-------|
+| ⚠ Header dài quá 255 ký tự | Excel cho phép, nhưng **DataTable** trong UiPath không thích điều này. |
+| ⚠ Header có ký tự lạ, xuống dòng, khoảng trắng | Khiến DataTable khó hiểu hoặc không đọc đúng tên cột. |
+| ⚠ Trùng header | Khi đọc với `AddHeaders = True`, nếu 2 cột cùng tên sẽ lỗi. |
+
+---
+
+## ✅ Giải pháp step-by-step
+
+---
+
+### 🔹 **Step 1: Đọc Excel mà KHÔNG dùng dòng đầu làm header**
+
+- Dùng **Read Range** (Classic hoặc Modern)
+- **Uncheck** `AddHeaders` (đừng tick)
+- Gọi DataTable là `dtRaw`
+
+👉 Kết quả: `dtRaw.Rows(0)` chính là hàng header **gốc**, dạng dữ liệu, không gây lỗi.
+
+---
+
+### 🔹 **Step 2: Tạo Header mới an toàn**
+
+Bạn tạo header mới từ dòng đầu tiên, nhưng rút gọn & đảm bảo hợp lệ:
+
+```vb
+newDT = New DataTable()
+
+For Each colIndex In Enumerable.Range(0, dtRaw.Columns.Count)
+    headerValue = dtRaw.Rows(0)(colIndex).ToString
+
+    ' Rút gọn tên cột nếu quá dài
+    If headerValue.Length > 50 Then
+        headerValue = headerValue.Substring(0, 50)
+    End If
+
+    ' Xử lý nếu tên trống hoặc trùng
+    If String.IsNullOrWhiteSpace(headerValue) Then
+        headerValue = "Column_" & colIndex.ToString
+    End If
+
+    If newDT.Columns.Contains(headerValue) Then
+        headerValue = headerValue & "_" & colIndex.ToString
+    End If
+
+    newDT.Columns.Add(headerValue)
+Next
+```
+
+---
+
+### 🔹 **Step 3: Copy dữ liệu từ dòng 2 trở đi vào DataTable mới**
+
+```vb
+For rowIndex = 1 To dtRaw.Rows.Count - 1
+    newDT.Rows.Add(dtRaw.Rows(rowIndex).ItemArray)
+Next
+```
+
+---
+
+### 🔹 **Step 4: Dùng `newDT` thay cho `dtRaw`**
+
+Từ đây, bạn làm việc với `newDT` — nó đã có header hợp lệ.
+
+---
+
+## ✅ Tổng kết
+
+| Việc làm | Lý do |
+|----------|-------|
+| Không dùng dòng đầu làm header | Tránh lỗi khi tên cột dài/quái |
+| Tạo header thủ công (rút gọn) | Đảm bảo không lỗi |
+| Copy dữ liệu từ dòng 2 | Tránh mất dữ liệu |
+
+---
+
+Nếu bạn muốn mình gửi **xaml mẫu** hoặc **code C# hoặc VB.Net** trong Assign/Invoke Code thì cứ nói nhé! Bạn đang dùng **Modern** hay **Classic** activities để mình gửi đúng kiểu.
