@@ -1,0 +1,41 @@
+OK! Bạn đang dùng UiPath và đã có **DataTable**, giờ muốn **ghi đè dữ liệu từ hàng số 5 trở đi vào cột A và B trong Excel** (giống như “Wire” dữ liệu vào cột A và B từ dòng 5).
+
+Dưới đây là hướng dẫn chi tiết để thực hiện:
+
+---
+
+## ✅ Cách thực hiện trong UiPath:
+
+### 🔧 Giả sử:
+- `dtData` là DataTable bạn đã có.
+- File Excel đích: `"C:\DuongDan\File.xlsx"`
+- Ghi dữ liệu bắt đầu từ A5 (tức là `Row 5`, `Column A`)
+
+---
+
+### 🔹 Dùng **Excel Application Scope** + **Write Range (Modern hoặc Classic)**
+
+#### 1. **Excel Application Scope**  
+- Đường dẫn: `"C:\DuongDan\File.xlsx"`
+
+#### 2. **Write Range** (Classic hoặc Modern đều được)  
+- **Input DataTable**: `dtData`  
+- **Sheet Name**: Tùy theo sheet bạn muốn ghi  
+- **Starting Cell**: `"A5"`  
+- **Add Headers**: **Bỏ chọn** (vì bạn chỉ muốn ghi data, không ghi tên cột)
+
+---
+
+## 📌 Lưu ý:
+- Dữ liệu trong `dtData` cần có **2 cột tương ứng với A và B**.
+- Nếu `dtData` có nhiều hơn 2 cột, bạn có thể tạo bảng phụ bằng:
+```vb
+dtData.DefaultView.ToTable(False, "TenCot1", "TenCot2")
+```
+→ Gán vào `dtSub = ...` rồi dùng `dtSub` để ghi.
+
+---
+
+Nếu bạn đang dùng **Write Cell (vòng lặp từng dòng)** hoặc muốn dùng **Invoke VBA** để tối ưu tốc độ ghi, mình cũng có thể hướng dẫn thêm nhé.
+
+Bạn muốn theo hướng nào: ghi bằng hoạt động chuẩn hay kết hợp VBA để tốc hơn?
