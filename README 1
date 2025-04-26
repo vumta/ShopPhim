@@ -1,3 +1,62 @@
+Câu lỗi bạn gặp: 'Excel' is not a member of 'WorkbookApplication' trong UiPath Invoke Code — nghĩa là bạn đang gọi wb.Excel, nhưng WorkbookApplication không có thuộc tính Excel trong môi trường VB.NET mặc định của Invoke Code.
+
+
+---
+
+Nguyên nhân:
+
+UiPath Invoke Code hoạt động theo chuẩn VB.NET, nhưng đối tượng WorkbookApplication là một class đặc biệt do UiPath cung cấp. Trong môi trường Invoke Code, bạn không thể gọi trực tiếp wb.Excel.Worksheets(...) như khi dùng Custom Activity hoặc trong PowerShell/VBA.
+
+
+---
+
+Cách giải quyết:
+
+Cách 1: Không dùng Invoke Code để thao tác Excel COM object
+
+Thay vào đó, bạn nên dùng "Read Range" > "For Each Row" > "Write Cell"/"Clear Range" để thao tác với Excel bằng activity UiPath.
+
+
+---
+
+Cách 2: Dùng Invoke VBA thay vì Invoke Code nếu bạn muốn thao tác Excel trực tiếp
+
+Ví dụ VBA code để xóa dữ liệu cột A và B:
+
+Sub ClearColumns()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    
+    ws.Range("A2:A" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row).ClearContents
+    ws.Range("B2:B" & ws.Cells(ws.Rows.Count, "B").End(xlUp).Row).ClearContents
+End Sub
+
+Trong UiPath:
+
+Dùng activity Invoke VBA
+
+Gửi file .vbs hoặc .bas
+
+Tham số truyền vào là tên sheet nếu cần
+
+
+
+---
+
+Cách 3: Dùng Interop trực tiếp (không khuyến nghị)
+
+Trong Invoke Code, bạn có thể dùng Microsoft.Office.Interop.Excel nếu đã tham chiếu thư viện (khó, không phải mặc định trong UiPath). Cách này phức tạp và không phù hợp với đa số workflow.
+
+
+---
+
+Gợi ý:
+
+Bạn muốn mình viết đoạn Invoke VBA mẫu đầy đủ và cách gọi từ UiPath không?
+Hay bạn muốn làm luôn bằng activity UiPath (không code)?
+
+
+
 Ok, bạn muốn dùng Invoke Code trong Excel Application Scope của UiPath để xoá dữ liệu trong cột A và cột B của Excel, đúng không?
 
 Mình sẽ hướng dẫn chi tiết:
