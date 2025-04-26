@@ -1,3 +1,59 @@
+Cảm ơn bạn! Khi bạn dùng Invoke VBA trong UiPath, thì đối tượng ThisWorkbook sẽ không hoạt động đúng như trong Excel VBA Editor vì script không nằm trong chính file Excel đang mở.
+
+
+---
+
+Cách khắc phục: Dùng ActiveWorkbook thay cho ThisWorkbook
+
+VBA sửa lại như sau:
+
+Sub ClearColumns()
+    Dim ws As Worksheet
+    Set ws = ActiveWorkbook.Sheets("Sheet1")
+    
+    With ws
+        .Range("A2:A" & .Cells(.Rows.Count, "A").End(xlUp).Row).ClearContents
+        .Range("B2:B" & .Cells(.Rows.Count, "B").End(xlUp).Row).ClearContents
+    End With
+End Sub
+
+
+---
+
+Hướng dẫn sử dụng trong UiPath:
+
+1. Tạo file .vbs hoặc .bas chứa đoạn code trên. Ví dụ đặt tên ClearColumns.vbs.
+
+
+2. Trong UiPath:
+
+Dùng activity Invoke VBA
+
+Chọn file Excel
+
+Trỏ đến file script ClearColumns.vbs
+
+Tên macro: "ClearColumns"
+
+
+
+
+
+---
+
+Lưu ý:
+
+Sheet "Sheet1" phải đúng tên. Nếu bạn muốn truyền tên sheet từ UiPath, mình có thể giúp sửa code để nhận tham số.
+
+Invoke VBA chỉ chạy khi file Excel đang mở bằng Excel Application Scope và Visible = True.
+
+
+
+---
+
+Bạn có muốn mình viết thêm phiên bản có truyền tên sheet từ UiPath không?
+
+
 Câu lỗi bạn gặp: 'Excel' is not a member of 'WorkbookApplication' trong UiPath Invoke Code — nghĩa là bạn đang gọi wb.Excel, nhưng WorkbookApplication không có thuộc tính Excel trong môi trường VB.NET mặc định của Invoke Code.
 
 
