@@ -1,0 +1,71 @@
+Ok, bạn muốn dùng Invoke Code trong Excel Application Scope của UiPath để xoá dữ liệu trong cột A và cột B của Excel, đúng không?
+
+Mình sẽ hướng dẫn chi tiết:
+
+
+---
+
+1. Biến cần truyền vào Invoke Code
+
+wb (WorkbookApplication) — bạn lấy từ Excel Application Scope (Output: Workbook).
+
+SheetName (String) — tên Sheet cần xoá dữ liệu.
+
+(Optionally) LastRow (Int32) — số dòng tối đa nếu bạn muốn giới hạn.
+
+
+2. Mã trong Invoke Code:
+
+Dim ws As Object = wb.Excel.Worksheets(SheetName)
+
+' Xác định dòng cuối nếu cần (ở đây mình giả định 1000 dòng, bạn có thể truyền vào biến LastRow nếu muốn tự động)
+Dim lastRow As Integer = ws.Cells(ws.Rows.Count, "A").End(-4162).Row ' -4162 = xlUp
+
+' Xóa toàn bộ dữ liệu từ A2 đến A & lastRow
+ws.Range("A2:A" & lastRow).ClearContents
+
+' Xóa toàn bộ dữ liệu từ B2 đến B & lastRow
+ws.Range("B2:B" & lastRow).ClearContents
+
+
+---
+
+3. Notes quan trọng:
+
+ClearContents sẽ xoá giá trị trong ô, không xoá ô hay format.
+
+Nếu bạn muốn xoá cả ô (Shift các ô khác lên), cần dùng .Delete.
+
+Nếu bạn chỉ muốn xoá từ A2, B2 xuống thôi (không xoá header dòng 1), đoạn code trên đã đúng.
+
+Nếu bạn muốn xoá toàn bộ cột (kể cả header), thay vì từ A2, bạn dùng "A:A" và "B:B".
+
+
+Ví dụ xoá toàn bộ cột:
+
+ws.Range("A:A").ClearContents
+ws.Range("B:B").ClearContents
+
+
+---
+
+4. Cách truyền biến trong Invoke Code:
+
+Trong Invoke Code activity:
+
+Arguments:
+
+wb → Direction: In
+
+SheetName → Direction: In
+
+(Nếu cần) LastRow → Direction: In
+
+
+
+
+---
+
+Bạn muốn mình viết thêm phiên bản tự động xác định lastRow hoặc thêm điều kiện nào khác không?
+Ví dụ: chỉ xoá nếu ô A2 có dữ liệu chẳng hạn? Muốn mình bổ sung luôn không?
+
