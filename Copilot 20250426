@@ -1,0 +1,65 @@
+Để truyền `filePath` và `sheetName` vào code VB.NET trong UiPath, bạn cần thiết lập **Invoke Code** để nhận các tham số này và sử dụng chúng trong mã. Dưới đây là cách thực hiện:
+
+---
+
+### **Code VB.NET trong Invoke Code**
+
+```vbnet
+' Import thư viện Excel Interop
+Imports Microsoft.Office.Interop.Excel
+
+' Hàm xóa dữ liệu
+Sub ClearExcelData(filePath As String, sheetName As String)
+    ' Tạo ứng dụng Excel
+    Dim excelApp As New Application
+    Dim workbook As Workbook = excelApp.Workbooks.Open(filePath)
+    Dim worksheet As Worksheet = Nothing
+
+    ' Lấy sheet theo tên
+    For Each sheet In workbook.Sheets
+        If sheet.Name = sheetName Then
+            worksheet = sheet
+            Exit For
+        End If
+    Next
+
+    ' Nếu sheet không tìm thấy
+    If worksheet Is Nothing Then
+        Throw New Exception("Sheet không tồn tại: " & sheetName)
+    End If
+
+    ' Xóa dữ liệu trong cột A và B
+    worksheet.Columns("A:B").ClearContents()
+
+    ' Lưu và đóng file
+    workbook.Save()
+    workbook.Close()
+    excelApp.Quit()
+End Sub
+```
+
+---
+
+### **Cấu hình Invoke Code trong UiPath**
+
+1. Kéo hoạt động **Invoke Code** vào quy trình của bạn.
+2. Trong tab **Properties** của hoạt động, thực hiện các bước sau:
+   - **Code**: Sao chép và dán đoạn mã VB.NET trên.
+   - **Arguments**: Thêm các tham số sau:
+     - **filePath** (Type: `String`): Truyền đường dẫn tới file Excel (ví dụ: `C:\path\to\file.xlsx`).
+     - **sheetName** (Type: `String`): Truyền tên của sheet cần thao tác (ví dụ: `Sheet1`).
+
+---
+
+### **Ví dụ tham số trong UiPath**
+- `filePath`: `"C:\Users\Anh\Documents\Sample.xlsx"`
+- `sheetName`: `"Sheet1"`
+
+---
+
+### **Lưu ý**
+1. **Microsoft Office**: Đoạn mã này yêu cầu bạn đã cài đặt Microsoft Excel trên máy.
+2. **Đường dẫn file**: Đảm bảo file Excel tồn tại tại đường dẫn được cung cấp.
+3. **Tên sheet**: Xác nhận tên sheet chính xác trong file Excel.
+
+Bạn đã sẵn sàng thử chưa? Tôi rất mong được biết kết quả từ bạn! 🚀✨
