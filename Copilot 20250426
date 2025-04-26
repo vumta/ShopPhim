@@ -1,3 +1,38 @@
+' Import thư viện
+Imports ClosedXML.Excel
+
+Sub ClearExcelData(filePath As String)
+    ' Mở file Excel
+    Dim workbook As New XLWorkbook(filePath)
+    Dim worksheet As IXLWorksheet = workbook.Worksheet(1) ' Chọn Sheet đầu tiên
+
+    ' Xóa dữ liệu trong cột A và B
+    worksheet.Range("A:A").Clear()
+    worksheet.Range("B:B").Clear()
+
+    ' Lưu file Excel
+    workbook.Save()
+End Sub
+
+Imports Microsoft.Office.Interop.Excel
+
+Sub ClearExcelData(filePath As String)
+    ' Tạo ứng dụng Excel
+    Dim excelApp
+    Dim workbook As Workbook = excelApp.Workbooks.Open(filePath)
+    Dim worksheet As Worksheet = workbook.Sheets(1) ' Chọn Sheet đầu tiên
+
+    ' Xóa dữ liệu trong cột A và B
+    worksheet.Columns("A:B").ClearContents()
+
+    ' Lưu và đóng file
+    workbook.Save()
+    workbook.Close()
+    excelApp.Quit()
+End Sub
+
+
+
 Để truyền `filePath` và `sheetName` vào code VB.NET trong UiPath, bạn cần thiết lập **Invoke Code** để nhận các tham số này và sử dụng chúng trong mã. Dưới đây là cách thực hiện:
 
 ---
