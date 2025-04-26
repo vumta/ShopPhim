@@ -1,0 +1,65 @@
+Tuyệt vời, vậy mình sẽ điều chỉnh code Invoke Code để truyền biến SheetName từ ngoài vào nhé!
+
+
+---
+
+Đây là code hoàn chỉnh:
+
+Dim excelApp = wb.GetType().InvokeMember("Excel", Reflection.BindingFlags.GetProperty, Nothing, wb, Nothing)
+Dim workbook = excelApp.ActiveWorkbook
+Dim worksheet = workbook.Sheets(SheetName)
+
+' Xác định dòng cuối cùng ở cột A
+Dim lastRowA As Integer = worksheet.Cells(worksheet.Rows.Count, "A").End(-4162).Row
+' Xác định dòng cuối cùng ở cột B
+Dim lastRowB As Integer = worksheet.Cells(worksheet.Rows.Count, "B").End(-4162).Row
+
+' Chọn dòng lớn nhất giữa cột A và B
+Dim lastRow As Integer = Math.Max(lastRowA, lastRowB)
+
+' Xóa dữ liệu từ dòng 2 đến dòng cuối ở cột A
+worksheet.Range("A2:A" & lastRow).ClearContents
+
+' Xóa dữ liệu từ dòng 2 đến dòng cuối ở cột B
+worksheet.Range("B2:B" & lastRow).ClearContents
+
+
+---
+
+Thiết lập biến khi dùng Invoke Code:
+
+wb: là WorkbookApplication lấy từ Excel Application Scope (Output > Workbook).
+
+SheetName: tên sheet bạn muốn xóa dữ liệu (ví dụ "Sheet1").
+
+
+
+---
+
+Ví dụ Flow tổng thể:
+
+Excel Application Scope (Path: "YourFile.xlsx", Output: wb)
+
+-> Assign SheetName = "Sheet1"
+
+-> Invoke Code
+   - In Arguments: wb, SheetName
+   - (Paste code bên trên vào)
+
+
+---
+
+Ghi chú thêm:
+
+Nếu SheetName không tồn tại => code sẽ lỗi (nên bạn cần đảm bảo Sheet tồn tại hoặc thêm xử lý try-catch).
+
+Code này chỉ xóa dữ liệu từ dòng 2 trở xuống, không đụng dòng 1 (giả định dòng 1 là tiêu đề).
+
+
+
+---
+
+Bạn có muốn mình viết thêm 1 phiên bản có Try Catch trong code để tự động bỏ qua nếu sheet không tồn tại không?
+(Nhẹ hơn rất nhiều nếu file Excel của bạn có thể thiếu Sheet thỉnh thoảng.)
+Muốn mình gửi luôn không?
+
