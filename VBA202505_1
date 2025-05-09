@@ -1,3 +1,29 @@
+Để xử lý lỗi khi một file Excel không thể mở, bạn cần kiểm tra xem file có tồn tại không trước khi thực hiện `Workbooks.Open()`. Ngoài ra, sử dụng `On Error Resume Next` có thể giúp tiếp tục xử lý mà không dừng chương trình.
+
+### **Cách cập nhật đoạn code để xử lý lỗi khi mở file**
+```vba
+On Error Resume Next
+Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+If Err.Number <> 0 Then
+    errorMessages = errorMessages & "Lỗi khi mở file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+    successFlag = False
+    Err.Clear
+    GoTo NextFile ' Bỏ qua file lỗi và tiếp tục xử lý các file khác
+End If
+On Error GoTo 0
+```
+
+### **Giải thích**
+- **Kiểm tra lỗi trước khi dừng chương trình**: Nếu file không tồn tại hoặc có lỗi khác (file bị khóa, bị hỏng...), thay vì dừng chương trình, mã sẽ ghi lỗi vào `errorMessages` và tiếp tục xử lý các file khác.
+- **Sử dụng `Err.Clear`**: Sau khi ghi nhận lỗi, xóa lỗi để tránh ảnh hưởng đến các lần kiểm tra tiếp theo.
+- **Chuyển đến `NextFile`**: Đảm bảo chương trình tiếp tục xử lý danh sách file thay vì dừng hoàn toàn.
+
+Sau khi thêm đoạn xử lý lỗi này, chương trình sẽ **không bị gián đoạn** khi gặp file bị lỗi. Khi chạy xong tất cả các file, **danh sách các file lỗi sẽ được trả về**, thay vì chỉ dừng lại ở file đầu tiên bị lỗi.
+
+Hãy thử cập nhật và kiểm tra lại nhé! 😊
+
+
+=========================
 Dưới đây là phiên bản cập nhật của mã VBA, đảm bảo chương trình sẽ chạy qua **tất cả các file**, thu thập lỗi từ **tất cả các file** trước khi đưa ra danh sách lỗi cuối cùng:
 
 ---
