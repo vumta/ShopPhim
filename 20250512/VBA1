@@ -1,0 +1,195 @@
+Có vẻ như mã VBA hiện tại không phát hiện đúng lỗi thiếu cột và vẫn báo `"Success"` khi có ít nhất một file được xử lý thành công. Tôi sẽ giúp bạn cập nhật code để đảm bảo rằng **nếu bất kỳ file nào bị thiếu cột**, chương trình sẽ **luôn hiển thị thông báo lỗi đầy đủ**, ngay cả khi có file khác chạy thành công.
+
+---
+
+### **Cách sửa lỗi**
+Lỗi này có thể do hai nguyên nhân:
+1. **Biến `hasError` không được cập nhật đúng cách** khi gặp lỗi thiếu cột.
+2. **Chương trình chưa kiểm tra chính xác lỗi trước khi hiển thị kết quả**.
+
+Tôi sẽ **cập nhật mã** để đảm bảo rằng:
+- **Nếu bất kỳ file nào bị thiếu cột, chương trình sẽ báo lỗi**.
+- **Chương trình hiển thị danh sách lỗi đầy đủ từ tất cả các file**.
+
+---
+
+### **Mã VBA đã sửa**
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+    Dim errorMessages As String
+    Dim missingColumns As String
+    Dim successFiles As String
+    Dim hasError As Boolean
+
+    On Error GoTo ErrorHandler
+
+    ' Phân tách danh sách file nguồn từ chuỗi
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Mở file đích
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2) ' Xác định sheet cần ghi dữ liệu
+
+    ' Chuyển các cột cần sao chép từ chuỗi thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xóa dữ liệu cũ nhưng giữ lại tiêu đề
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Xóa dữ liệu từ hàng 4 trở đi trong cột A, B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Đặt cờ kiểm tra lỗi
+    hasError = False
+
+    ' Duyệt qua từng file nguồn
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        On Error Resume Next
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        If Err.Number <> 0 Then
+            errorMessages = errorMessages & "Lỗi khi mở file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+            hasError = True
+            Err.Clear
+            GoTo NextFile
+        End If
+        On Error GoTo 0
+
+        Set sourceSheet = sourceWorkbook.Sheets(1) ' Lấy sheet đầu tiên của file nguồn
+
+        ' Xác định dòng cuối cùng của dữ liệu trong file nguồn
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Xác định dòng cuối cùng của dữ liệu trong file đích
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Đặt lại danh sách cột bị thiếu cho file hiện tại
+        missingColumns = ""
+
+        ' Duyệt qua từng cột cần sao chép
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            ' Tìm cột nguồn dựa vào tên cột
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            If sourceCol = 0 Then
+                ' Nếu cột không tìm thấy, thêm vào danh sách cột bị thiếu
+                If missingColumns = "" Then
+                    missingColumns = sourceColumns(j)
+                Else
+                    missingColumns = missingColumns & ", " & sourceColumns(j)
+                End If
+            Else
+                ' Xác định dòng cuối cùng của dữ liệu trong cột nguồn
+                lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+                ' Sao chép dữ liệu từ cột nguồn
+                sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                ' Tìm cột đích dựa trên tên cột
+                targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+                If targetCol > 0 Then
+                    ' Dán dữ liệu vào cột đích
+                    targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                      targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                Else
+                    errorMessages = errorMessages & "Lỗi: Không tìm thấy cột đích '" & sourceColumns(j) & "' trong file đích." & vbNewLine
+                    hasError = True
+                End If
+            End If
+        Next j
+
+        ' Nếu có cột bị thiếu, thêm một dòng lỗi duy nhất cho file nguồn
+        If missingColumns <> "" Then
+            errorMessages = errorMessages & "Thiếu cột trong file " & sourceFiles(i) & ": " & missingColumns & vbNewLine
+            hasError = True
+        Else
+            ' Nếu file chạy thành công, lưu danh sách file thành công
+            If successFiles = "" Then
+                successFiles = sourceFiles(i)
+            Else
+                successFiles = successFiles & ", " & sourceFiles(i)
+            End If
+        End If
+
+        ' Đóng file nguồn
+        sourceWorkbook.Close False
+NextFile:
+    Next i
+
+    ' Lưu và đóng file đích
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Trả về thông báo chi tiết
+    If hasError Then
+        ConsolidateMultipleFiles = "Hoàn thành với lỗi:" & vbNewLine & errorMessages & vbNewLine & _
+                                   "Các file chạy thành công: " & successFiles
+    Else
+        ConsolidateMultipleFiles = "Thành công: Dữ liệu đã được sao chép từ tất cả file nguồn vào file đích."
+    End If
+
+    Exit Function
+
+ErrorHandler:
+    ConsolidateMultipleFiles = "Lỗi: Xảy ra lỗi trong quá trình thực thi: " & Err.Description
+
+CleanUp:
+    ' Đóng file nếu cần thiết
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+---
+
+### **Cập nhật quan trọng**
+1. **Cập nhật lại `hasError = True` nếu có file thiếu cột**:
+   - Trước đây, nếu một file **bị thiếu cột**, nhưng có file khác chạy thành công, chương trình vẫn báo `"Success"`. Giờ đây, nếu **bất kỳ file nào bị lỗi**, **luôn** hiển thị lỗi đầy đủ.
+
+2. **Hiển thị từng dòng lỗi tương ứng với từng file**:
+   - Nếu **nhiều file bị thiếu cột**, sẽ hiển thị **một dòng lỗi duy nhất cho mỗi file**.
+
+3. **Hiển thị các file chạy thành công**:
+   - Các file **không gặp lỗi** sẽ được ghi lại vào danh sách `"Các file chạy thành công"`.
+
+---
+
+### **Ví dụ kết quả**
+**Trường hợp một file bị lỗi thiếu cột, một file chạy tốt**:
+```
+Hoàn thành với lỗi:
+Thiếu cột trong file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Các file chạy thành công: C:\Data\File1.xlsx
+```
+
+**Trường hợp nhiều file bị lỗi, một file chạy tốt**:
+```
+Hoàn thành với lỗi:
+Lỗi khi mở file: C:\Data\File3.xlsx - File bị khóa
+Thiếu cột trong file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Các file chạy thành công: C:\Data\File1.xlsx
+```
+
+---
+
+Giờ đây, **bất kỳ file nào có lỗi thiếu cột sẽ được hiển thị đầy đủ**. Hãy thử nghiệm và cho tôi biết nếu bạn cần thêm điều chỉnh! 😊
