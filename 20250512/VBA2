@@ -1,0 +1,208 @@
+I have updated the VBA code to ensure that if any column is **not found in the source file**, a clear error message is displayed. Additionally, I have translated all comments into English for better clarity.
+
+### **Updated VBA Code**
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+    Dim errorMessages As String
+    Dim missingColumns As String
+    Dim successFiles As String
+    Dim hasError As Boolean
+
+    On Error GoTo ErrorHandler
+
+    ' Split the list of source file paths by commas
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2) ' Specify the target sheet in the target file
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data from the target file but keep the headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Clear data from row 4 onwards in columns A and B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Set the error flag to False initially
+    hasError = False
+
+    ' Loop through each source file
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        On Error Resume Next
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        If Err.Number <> 0 Then
+            errorMessages = errorMessages & "Error opening file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+            hasError = True
+            Err.Clear
+            GoTo NextFile
+        End If
+        On Error GoTo 0
+
+        Set sourceSheet = sourceWorkbook.Sheets(1) ' Use the first sheet from the source file
+
+        ' Determine the last row of data in the source file
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Determine the last row of data in the target file
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Reset the list of missing columns for the current file
+        missingColumns = ""
+
+        ' Loop through specified columns
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            ' Find the source column based on the column name
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            If sourceCol = 0 Then
+                ' If column is missing, add it to the missingColumns list
+                If missingColumns = "" Then
+                    missingColumns = sourceColumns(j)
+                Else
+                    missingColumns = missingColumns & ", " & sourceColumns(j)
+                End If
+            Else
+                ' Determine the last row of data in the source column
+                lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+                ' Copy data from the source column
+                sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                ' Find the target column based on the column name
+                targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+                If targetCol > 0 Then
+                    ' Paste data into the target column in the target file
+                    targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                      targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                Else
+                    errorMessages = errorMessages & "Error: Target column '" & sourceColumns(j) & "' not found in the target file." & vbNewLine
+                    hasError = True
+                End If
+            End If
+        Next j
+
+        ' If there are missing columns in the source file, add a single error message per file
+        If missingColumns <> "" Then
+            errorMessages = errorMessages & "Missing columns in file " & sourceFiles(i) & ": " & missingColumns & vbNewLine
+            hasError = True
+        Else
+            ' If the file runs successfully, add it to the success list
+            If successFiles = "" Then
+                successFiles = sourceFiles(i)
+            Else
+                successFiles = successFiles & ", " & sourceFiles(i)
+            End If
+        End If
+
+        ' Close the source file
+        sourceWorkbook.Close False
+NextFile:
+    Next i
+
+    ' Save and close the target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Return detailed message
+    If hasError Then
+        ConsolidateMultipleFiles = "Completed with errors:" & vbNewLine & errorMessages & vbNewLine & _
+                                   "Successfully processed files: " & successFiles
+    Else
+        ConsolidateMultipleFiles = "Success: Data has been copied from all source files into the target file."
+    End If
+
+    Exit Function
+
+ErrorHandler:
+    ConsolidateMultipleFiles = "Error: An error occurred during execution: " & Err.Description
+
+CleanUp:
+    ' Close files if necessary
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+---
+
+### **Key Updates**
+1. **Detect missing columns correctly**:
+   - The program now checks if any columns are missing in the source file and adds them to the `missingColumns` list.
+   - Instead of showing multiple error messages per missing column, it consolidates them into **one error message per file**.
+
+2. **Always show errors for missing columns**:
+   - The `hasError` flag is correctly set to `True` if any missing columns are detected, ensuring that the final output includes the detailed error message.
+
+3. **Improved error reporting**:
+   - If any source file is missing columns, the program will show **a distinct error message for each file**, instead of merging all errors into one.
+
+4. **Fully translated comments to English**:
+   - Now, all comments are in English for better readability and documentation.
+
+---
+
+### **Example Output**
+#### **Case: One file with missing columns, one file successful**
+```
+Completed with errors:
+Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Successfully processed files: C:\Data\File1.xlsx
+```
+
+#### **Case: Multiple files with missing columns**
+```
+Completed with errors:
+Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Missing columns in file C:\Data\File5.xlsx: ProductName, CustomerID
+Successfully processed files: C:\Data\File1.xlsx, C:\Data\File3.xlsx
+```
+
+#### **Case: All files processed successfully**
+```
+Success: Data has been copied from all source files into the target file.
+```
+
+---
+
+### **How to Use in UiPath**
+1. **Create `.bas` file**:
+   - Save this VBA code in **VBA Editor** and **export** it as `ConsolidateFiles.bas`.
+
+2. **Integrate with UiPath**:
+   - Use **Invoke VBA** activity in UiPath.
+   - Configure:
+     - **VBAScriptFilePath**: `"C:\Scripts\ConsolidateFiles.bas"`
+     - **EntryMethodName**: `"ConsolidateMultipleFiles"`
+     - **EntryMethodParameters**: `sourceFilePaths, targetFilePath, columnsToCopy`.
+
+3. **Run and review results**:
+   - If any file **has missing columns**, errors will be displayed.
+   - If **all files process successfully**, only a success message will be shown.
+
+---
+
+This update ensures that **every missing column in a file is correctly reported** while maintaining clarity and ease of debugging. Try this version and let me know if you need further improvements! 😊
