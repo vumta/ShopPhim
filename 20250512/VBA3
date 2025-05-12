@@ -1,0 +1,201 @@
+I have updated your VBA code to include a `MsgBox` for checking if `sourceCol` has a value of `0`. This will allow you to debug whether the column exists or not in the source file.
+
+### **Updated Code with `MsgBox` for Debugging**
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+    Dim errorMessages As String
+    Dim missingColumns As String
+    Dim successFiles As String
+    Dim hasError As Boolean
+
+    On Error GoTo ErrorHandler
+
+    ' Split the list of source file paths by commas
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2) ' Specify the target sheet in the target file
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data from the target file but keep the headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Clear data from row 4 onwards in columns A and B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Set the error flag to False initially
+    hasError = False
+
+    ' Loop through each source file
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        On Error Resume Next
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        If Err.Number <> 0 Then
+            errorMessages = errorMessages & "Error opening file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+            hasError = True
+            Err.Clear
+            GoTo NextFile
+        End If
+        On Error GoTo 0
+
+        Set sourceSheet = sourceWorkbook.Sheets(1) ' Use the first sheet from the source file
+
+        ' Determine the last row of data in the source file
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Determine the last row of data in the target file
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Reset the list of missing columns for the current file
+        missingColumns = ""
+
+        ' Loop through specified columns
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            ' Find the source column based on the column name
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            ' Debugging check - Show a MsgBox if sourceCol is 0
+            If sourceCol = 0 Then
+                MsgBox "Column '" & sourceColumns(j) & "' not found in file: " & sourceFiles(i), vbCritical, "Missing Column"
+            End If
+
+            If sourceCol = 0 Then
+                ' If column is missing, add it to the missingColumns list
+                If missingColumns = "" Then
+                    missingColumns = sourceColumns(j)
+                Else
+                    missingColumns = missingColumns & ", " & sourceColumns(j)
+                End If
+            Else
+                ' Determine the last row of data in the source column
+                lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+                ' Copy data from the source column
+                sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                ' Find the target column based on the column name
+                targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+                If targetCol > 0 Then
+                    ' Paste data into the target column in the target file
+                    targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                      targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                Else
+                    errorMessages = errorMessages & "Error: Target column '" & sourceColumns(j) & "' not found in the target file." & vbNewLine
+                    hasError = True
+                End If
+            End If
+        Next j
+
+        ' If there are missing columns in the source file, add a single error message per file
+        If missingColumns <> "" Then
+            errorMessages = errorMessages & "Missing columns in file " & sourceFiles(i) & ": " & missingColumns & vbNewLine
+            hasError = True
+        Else
+            ' If the file runs successfully, add it to the success list
+            If successFiles = "" Then
+                successFiles = sourceFiles(i)
+            Else
+                successFiles = successFiles & ", " & sourceFiles(i)
+            End If
+        End If
+
+        ' Close the source file
+        sourceWorkbook.Close False
+NextFile:
+    Next i
+
+    ' Save and close the target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Return detailed message
+    If hasError Then
+        ConsolidateMultipleFiles = "Completed with errors:" & vbNewLine & errorMessages & vbNewLine & _
+                                   "Successfully processed files: " & successFiles
+    Else
+        ConsolidateMultipleFiles = "Success: Data has been copied from all source files into the target file."
+    End If
+
+    Exit Function
+
+ErrorHandler:
+    ConsolidateMultipleFiles = "Error: An error occurred during execution: " & Err.Description
+
+CleanUp:
+    ' Close files if necessary
+    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close False
+    If Not targetWorkbook Is Nothing Then targetWorkbook.Close True
+End Function
+```
+
+---
+
+### **Key Updates**
+1. **Added `MsgBox` for Debugging**:
+   - If `sourceCol = 0`, it will **display a pop-up message** showing the column name and the file where it is missing.
+   - The pop-up **will not interrupt** execution but will notify the user immediately.
+
+2. **Ensured Proper Error Handling for Missing Columns**:
+   - If a column is missing, it **still adds it to the error list**.
+   - The program **does not stop execution** but will display all errors after finishing.
+
+3. **Improved Debugging for Column Errors**:
+   - Now, if a column is missing in multiple files, you will **see a separate pop-up for each missing column** while the script runs.
+
+---
+
+### **Expected Behavior**
+#### **Case: One file missing columns, one file successful**
+1. **During execution**:
+   - A pop-up will appear:
+     ```
+     Column 'Sales' not found in file: C:\Data\File2.xlsx
+     ```
+   - Execution continues.
+
+2. **Final Output**:
+   ```
+   Completed with errors:
+   Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+   Successfully processed files: C:\Data\File1.xlsx
+   ```
+
+#### **Case: Multiple files missing columns**
+1. **During execution**:
+   - A pop-up for each missing column will appear.
+
+2. **Final Output**:
+   ```
+   Completed with errors:
+   Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+   Missing columns in file C:\Data\File5.xlsx: ProductName, CustomerID
+   Successfully processed files: C:\Data\File1.xlsx, C:\Data\File3.xlsx
+   ```
+
+---
+
+### **Try this update and let me know if you need any further improvements!** 😊
