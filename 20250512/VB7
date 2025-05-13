@@ -1,0 +1,157 @@
+It looks like the issue is that even when columns are missing, the function is still reporting `"Success"`. The function should properly detect missing columns and ensure that it reports `"Completed with errors"` when any column is not found.
+
+### **Fixes Applied**
+1. **Ensure `consolidatedErrorMsg` sets `hasError = True`**:
+   - If any column is missing, it should trigger an error state and prevent `"Success"` from appearing.
+
+2. **Make `hasError` influence the final output**:
+   - The function should **not** return `"Success"` if any error was detected.
+
+### **Updated VBA Code**
+```vba
+Public Function ProcessSingleFile(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim j As Integer
+    Dim errorMessages As String
+    Dim consolidatedErrorMsg As String
+    Dim hasError As Boolean
+    
+    hasError = False ' Default to no error
+
+    On Error Resume Next
+    ' Open the source file
+    Set sourceWorkbook = Workbooks.Open(Trim(sourceFilePath))
+    If Err.Number <> 0 Then
+        ProcessSingleFile = "Error opening file: " & sourceFilePath & " - " & Err.Description
+        Err.Clear
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data from target file while keeping headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Clear data from row 4 onwards in columns A and B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Assign the first sheet of source file
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+
+    ' Determine the last row of data in the source file
+    lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+    ' Determine the last row of data in the target file
+    lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+    ' Loop through specified columns
+    For j = LBound(sourceColumns) To UBound(sourceColumns)
+        Dim sourceCol As Integer
+        On Error Resume Next
+        sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+        On Error GoTo 0
+
+        ' Show MsgBox for debugging missing columns
+        If sourceCol = 0 Then
+            MsgBox "Column '" & sourceColumns(j) & "' not found in file: " & sourceFilePath, vbCritical, "Missing Column"
+            If consolidatedErrorMsg = "" Then
+                consolidatedErrorMsg = "Missing columns in file " & sourceFilePath & ": " & sourceColumns(j)
+            Else
+                consolidatedErrorMsg = consolidatedErrorMsg & ", " & sourceColumns(j)
+            End If
+            hasError = True ' Flag that an error occurred
+        Else
+            ' Determine the last row of data in the source column
+            lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+            ' Copy data from the source column
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+            ' Find target column
+            targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+            If targetCol > 0 Then
+                ' Paste data into target file
+                targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                  targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+            Else
+                errorMessages = errorMessages & "Error: Target column '" & sourceColumns(j) & "' not found in target file." & vbNewLine
+                hasError = True ' Flag that an error occurred
+            End If
+        End If
+    Next j
+
+    ' Close source file
+    sourceWorkbook.Close False
+
+    ' Save and close target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Return the appropriate message
+    If hasError Then
+        If consolidatedErrorMsg <> "" Then
+            ProcessSingleFile = consolidatedErrorMsg
+        Else
+            ProcessSingleFile = "Completed with errors:" & vbNewLine & errorMessages
+        End If
+    Else
+        ProcessSingleFile = "Success: Data from " & sourceFilePath & " has been copied to the target file."
+    End If
+End Function
+```
+
+---
+
+### **Key Fixes**
+1. **Uses `hasError` to ensure `"Success"` is only returned if no errors**:
+   - If **any missing column exists**, `hasError = True`, preventing a `"Success"` message.
+
+2. **Correctly consolidates missing columns**:
+   - If multiple columns are missing in the same file, they are grouped into a single error message.
+
+3. **Prevents `"Success"` when errors exist**:
+   - `"Success"` is **only displayed if no missing columns or errors exist**.
+
+---
+
+### **Expected Behavior**
+#### **Case: One file missing multiple columns**
+During execution:
+```
+MsgBox: Column 'Sales' not found in file: C:\Source1.xlsx
+MsgBox: Column 'Revenue' not found in file: C:\Source1.xlsx
+```
+Final output:
+```
+Missing columns in file C:\Source1.xlsx: Sales, Revenue, Quantity
+```
+
+#### **Case: File processed successfully**
+```
+Success: Data from C:\Source1.xlsx has been copied to the target file.
+```
+
+---
+
+This should now correctly report errors when columns are missing. Try running it and let me know if you need any further improvements! 😊
