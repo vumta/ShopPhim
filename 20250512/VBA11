@@ -1,0 +1,394 @@
+I've updated the VBA code to **skip files that have missing columns** and continue processing the next file while still keeping track of errors properly. If a file is missing columns, the script will **not attempt to process it further** but will still report the issue in the final error log.
+
+### **Updated VBA Code**
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+    Dim errorMessages As String
+    Dim successFiles As String
+    Dim hasError As Boolean
+    Dim missingColumnsDict As Object
+
+    ' Initialize dictionary to store missing columns per file
+    Set missingColumnsDict = CreateObject("Scripting.Dictionary")
+
+    ' Split the list of source file paths
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data but keep headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Clear data from row 4 onwards in columns A and B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Set error flag to False initially
+    hasError = False
+    successFiles = "" ' Ensure successFiles starts empty
+
+    ' Loop through each source file
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        On Error Resume Next
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        If Err.Number <> 0 Then
+            errorMessages = errorMessages & "Error opening file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+            hasError = True
+            Err.Clear
+            GoTo NextFile
+        End If
+        On Error GoTo 0
+
+        Set sourceSheet = sourceWorkbook.Sheets(1)
+
+        ' Determine last row of data in source file
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Determine last row of data in target file
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Reset missing columns for current file
+        Dim missingColumns As String
+        missingColumns = ""
+
+        ' Check for missing columns before processing
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            ' Validate column existence
+            If IsError(sourceCol) Or sourceCol = 0 Then
+                If missingColumns = "" Then
+                    missingColumns = sourceColumns(j)
+                Else
+                    missingColumns = missingColumns & ", " & sourceColumns(j)
+                End If
+                hasError = True
+            End If
+        Next j
+
+        ' If missing columns exist, store them in dictionary and skip processing this file
+        If missingColumns <> "" Then
+            missingColumnsDict.Add sourceFiles(i), missingColumns
+            hasError = True
+            GoTo NextFile ' Skip processing this file
+        End If
+
+        ' Proceed with processing if no missing columns
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            Dim sourceCol As Integer
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+
+            ' Copy data from source column
+            lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+            ' Find target column
+            targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+            If targetCol > 0 Then
+                ' Paste data into target file
+                targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                  targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+            Else
+                errorMessages = errorMessages & "Error: Target column '" & sourceColumns(j) & "' not found in target file." & vbNewLine
+                hasError = True
+            End If
+        Next j
+
+        ' Add to success list if processed successfully
+        If successFiles = "" Then
+            successFiles = sourceFiles(i)
+        Else
+            successFiles = successFiles & ", " & sourceFiles(i)
+        End If
+
+NextFile:
+        ' Close the source file
+        sourceWorkbook.Close False
+    Next i
+
+    ' Save and close target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Generate missing column errors from dictionary
+    If missingColumnsDict.Count > 0 Then
+        Dim key As Variant
+        For Each key In missingColumnsDict.Keys
+            errorMessages = errorMessages & "Missing columns in file " & key & ": " & missingColumnsDict(key) & vbNewLine
+        Next key
+    End If
+
+    ' Return detailed message
+    If hasError Then
+        ConsolidateMultipleFiles = "Completed with errors:" & vbNewLine & errorMessages
+        If successFiles <> "" Then
+            ConsolidateMultipleFiles = ConsolidateMultipleFiles & vbNewLine & "Successfully processed files: " & successFiles
+        End If
+    Else
+        ConsolidateMultipleFiles = "Success: Data has been copied from all source files into the target file."
+    End If
+
+End Function
+```
+
+### **Key Updates**
+1. **Files with missing columns are skipped**:
+   - Before processing a file, it checks if any required columns are missing.
+   - If a file is missing columns, it **skips processing** and moves to the next file.
+
+2. **All errors are still tracked and reported**:
+   - Even though the script skips files with missing columns, those files **still appear in the error report**.
+
+3. **Successfully processed files appear separately**:
+   - `"Successfully processed files"` only appears if at least one file was fully processed.
+   - Errors remain visible even if some files succeed.
+
+---
+
+### **Example Outputs**
+#### **Case: Some files failed, but others succeeded**
+```
+Completed with errors:
+Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Missing columns in file C:\Data\File3.xlsx: ProductName, CustomerID
+Successfully processed files: C:\Data\File4.xlsx, C:\Data\File5.xlsx
+```
+
+#### **Case: All files failed**
+```
+Completed with errors:
+Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Missing columns in file C:\Data\File3.xlsx: ProductName, CustomerID
+```
+
+#### **Case: All files succeeded**
+```
+Success: Data has been copied from all source files into the target file.
+```
+
+---
+
+### **Final Thoughts**
+Now, **files with missing columns will be skipped** while still ensuring all errors are tracked and reported. Try this updated version, and let me know if you need any further improvements! 😊
+===========================================================================
+Dưới đây là phiên bản cập nhật của mã VBA với phần mô tả bằng tiếng Việt:
+
+### **Mã VBA Đã Cập Nhật**
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+    Dim errorMessages As String
+    Dim successFiles As String
+    Dim hasError As Boolean
+    Dim missingColumnsDict As Object
+
+    ' Khởi tạo dictionary để lưu danh sách các cột bị thiếu theo từng file
+    Set missingColumnsDict = CreateObject("Scripting.Dictionary")
+
+    ' Tách danh sách đường dẫn file nguồn thành mảng
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Mở file đích
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Chuyển danh sách các cột cần sao chép thành mảng
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Xóa dữ liệu cũ nhưng giữ lại tiêu đề
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Xóa dữ liệu từ hàng 4 trở đi trong các cột A, B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Đặt cờ báo lỗi
+    hasError = False
+    successFiles = "" ' Đảm bảo biến successFiles bắt đầu với giá trị rỗng
+
+    ' Duyệt qua từng file nguồn
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        On Error Resume Next
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        If Err.Number <> 0 Then
+            errorMessages = errorMessages & "Lỗi khi mở file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+            hasError = True
+            Err.Clear
+            GoTo NextFile
+        End If
+        On Error GoTo 0
+
+        Set sourceSheet = sourceWorkbook.Sheets(1)
+
+        ' Xác định dòng cuối cùng có dữ liệu trong file nguồn
+        lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+        ' Xác định dòng cuối cùng có dữ liệu trong file đích
+        lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+        ' Kiểm tra nếu thiếu cột trước khi xử lý
+        Dim missingColumns As String
+        missingColumns = ""
+
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            Dim sourceCol As Integer
+            On Error Resume Next
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+            On Error GoTo 0
+
+            ' Kiểm tra sự tồn tại chính xác của cột
+            If IsError(sourceCol) Or sourceCol = 0 Then
+                If missingColumns = "" Then
+                    missingColumns = sourceColumns(j)
+                Else
+                    missingColumns = missingColumns & ", " & sourceColumns(j)
+                End If
+                hasError = True
+            End If
+        Next j
+
+        ' Nếu thiếu cột, lưu vào danh sách lỗi và bỏ qua file này
+        If missingColumns <> "" Then
+            missingColumnsDict.Add sourceFiles(i), missingColumns
+            hasError = True
+            GoTo NextFile ' Bỏ qua file hiện tại
+        End If
+
+        ' Xử lý dữ liệu nếu không thiếu cột
+        For j = LBound(sourceColumns) To UBound(sourceColumns)
+            Dim sourceCol As Integer
+            sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+
+            ' Sao chép dữ liệu từ cột nguồn
+            lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+            ' Tìm vị trí cột đích
+            targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+            If targetCol > 0 Then
+                ' Dán dữ liệu vào file đích
+                targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                  targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+            Else
+                errorMessages = errorMessages & "Lỗi: Không tìm thấy cột đích '" & sourceColumns(j) & "' trong file đích." & vbNewLine
+                hasError = True
+            End If
+        Next j
+
+        ' Nếu file được xử lý thành công, thêm vào danh sách
+        If successFiles = "" Then
+            successFiles = sourceFiles(i)
+        Else
+            successFiles = successFiles & ", " & sourceFiles(i)
+        End If
+
+NextFile:
+        ' Đóng file nguồn
+        sourceWorkbook.Close False
+    Next i
+
+    ' Lưu và đóng file đích
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Tạo thông báo lỗi từ danh sách các cột bị thiếu
+    If missingColumnsDict.Count > 0 Then
+        Dim key As Variant
+        For Each key In missingColumnsDict.Keys
+            errorMessages = errorMessages & "Cột bị thiếu trong file " & key & ": " & missingColumnsDict(key) & vbNewLine
+        Next key
+    End If
+
+    ' Trả về thông báo chi tiết
+    If hasError Then
+        ConsolidateMultipleFiles = "Hoàn thành với lỗi:" & vbNewLine & errorMessages
+        If successFiles <> "" Then
+            ConsolidateMultipleFiles = ConsolidateMultipleFiles & vbNewLine & "Các file xử lý thành công: " & successFiles
+        End If
+    Else
+        ConsolidateMultipleFiles = "Thành công: Dữ liệu đã được sao chép từ tất cả các file nguồn vào file đích."
+    End If
+
+End Function
+```
+
+### **Cập Nhật Quan Trọng**
+1. **Bỏ qua file nếu thiếu cột**:
+   - Trước khi xử lý, kiểm tra **tất cả các cột cần thiết**.
+   - Nếu file **không có đủ cột**, nó **sẽ bị bỏ qua** nhưng vẫn hiển thị trong danh sách lỗi.
+
+2. **Các lỗi vẫn được báo cáo đầy đủ**:
+   - Ngay cả khi **một số file được xử lý thành công**, những file lỗi vẫn được hiển thị.
+
+3. **Danh sách file xử lý thành công xuất hiện riêng biệt**:
+   - `"Các file xử lý thành công"` chỉ xuất hiện nếu có ít nhất **một file chạy thành công**.
+   - Nếu **tất cả file bị lỗi**, danh sách này sẽ không xuất hiện.
+
+---
+
+### **Ví Dụ Kết Quả**
+#### **Trường hợp một số file bị lỗi nhưng có file thành công**
+```
+Hoàn thành với lỗi:
+Cột bị thiếu trong file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Cột bị thiếu trong file C:\Data\File3.xlsx: ProductName, CustomerID
+Các file xử lý thành công: C:\Data\File4.xlsx, C:\Data\File5.xlsx
+```
+
+#### **Trường hợp tất cả file bị lỗi**
+```
+Hoàn thành với lỗi:
+Cột bị thiếu trong file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Cột bị thiếu trong file C:\Data\File3.xlsx: ProductName, CustomerID
+```
+
+#### **Trường hợp tất cả file chạy thành công**
+```
+Thành công: Dữ liệu đã được sao chép từ tất cả các file nguồn vào file đích.
+```
+
+---
+
+Giờ đây, **các file thiếu cột sẽ bị bỏ qua** nhưng vẫn hiển thị lỗi đầy đủ. Hãy thử nghiệm và cho tôi biết nếu bạn cần thêm điều chỉnh! 😊
+
