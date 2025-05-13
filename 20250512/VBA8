@@ -1,0 +1,59 @@
+It looks like `Application.Match()` is not returning the expected value when the column name does not exist in the sheet. This can happen because `Match()` returns the **closest match** rather than strictly checking for an exact match. If a column name is missing, it might return the index of the previous matching column.
+
+### **Solution**
+To ensure that `sourceCol` correctly checks for **exact matches only**, use **error handling** or an alternative approach like `Find()`:
+
+#### **Fix using exact match validation**
+```vba
+On Error Resume Next
+sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+If IsError(sourceCol) Then sourceCol = 0
+On Error GoTo 0
+```
+- This ensures that **if `Match()` fails**, `sourceCol = 0`, preventing it from returning the index of another column.
+
+#### **Alternative fix using `Find()` method**
+```vba
+Dim cell As Range
+Set cell = sourceSheet.Rows(1).Find(What:=sourceColumns(j), LookAt:=xlWhole, MatchCase:=False)
+
+If cell Is Nothing Then
+    sourceCol = 0
+Else
+    sourceCol = cell.Column
+End If
+```
+- **`Find()` will only return an exact match**.
+- If the column name is **not found**, `sourceCol = 0`, avoiding incorrect values.
+
+### **Try this fix and let me know if the issue persists! 😊**
+=======================================================================================
+Có vẻ như `Application.Match()` không trả về giá trị mong đợi khi tên cột không có trong trang tính. Điều này có thể xảy ra vì `Match()` thường tìm kiếm **giá trị gần nhất**, thay vì kiểm tra chính xác. Nếu một cột bị thiếu, nó có thể trả về chỉ mục của cột trước đó có trong bảng.
+
+### **Giải pháp**
+Để đảm bảo rằng `sourceCol` chỉ kiểm tra **khớp chính xác**, bạn có thể sử dụng **xử lý lỗi** hoặc một phương pháp khác như `Find()`.
+
+#### **Cách sửa bằng kiểm tra khớp chính xác**
+```vba
+On Error Resume Next
+sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+If IsError(sourceCol) Then sourceCol = 0
+On Error GoTo 0
+```
+- Điều này đảm bảo rằng **nếu `Match()` thất bại**, `sourceCol = 0`, ngăn nó trả về chỉ mục của một cột khác.
+
+#### **Cách sửa thay thế bằng phương pháp `Find()`**
+```vba
+Dim cell As Range
+Set cell = sourceSheet.Rows(1).Find(What:=sourceColumns(j), LookAt:=xlWhole, MatchCase:=False)
+
+If cell Is Nothing Then
+    sourceCol = 0
+Else
+    sourceCol = cell.Column
+End If
+```
+- **`Find()` sẽ chỉ trả về kết quả khớp chính xác**.
+- Nếu tên cột **không được tìm thấy**, `sourceCol = 0`, tránh giá trị sai lệch.
+
+### **Hãy thử cách sửa này và cho tôi biết nếu vấn đề vẫn tiếp diễn! 😊**
