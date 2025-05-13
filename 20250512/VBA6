@@ -1,0 +1,49 @@
+To add the VBA code into an Excel file, follow these steps:
+
+### **Step-by-Step Guide**
+1. **Open the Excel file** where you want to add the VBA code.
+2. **Open the VBA Editor**:
+   - Press `ALT + F11` to open the **VBA Editor**.
+3. **Insert a new module**:
+   - In the VBA Editor, go to `Insert > Module`.
+4. **Copy and paste the VBA code**:
+   - Copy the updated `ProcessSingleFile` function.
+   - Paste it into the newly created module.
+5. **Save the VBA changes**:
+   - Press `CTRL + S` and ensure you save the Excel file as **.xlsm** (Macro-Enabled Workbook).
+6. **Close the VBA Editor** (`ALT + Q`).
+7. **Run the VBA function**:
+   - Go back to the Excel file.
+   - Press `ALT + F8`, select `ProcessSingleFile`, and click **Run**.
+
+Would you like assistance with automating this process using UiPath? 😊
+===========================================================================================================
+If **ALT + F8** does not show `ProcessSingleFile`, it's likely because:
+1. **The function is not a macro**: 
+   - In VBA, `Public Function` is designed for execution from other VBA code, not directly from the macro list. 
+   - Only `Sub` procedures appear in the macro list (`ALT + F8`).
+
+### **Solution: Convert to a Macro**
+Try changing `ProcessSingleFile` to a `Sub` instead of a `Function`:
+```vba
+Public Sub ProcessSingleFile()
+    Dim sourceFilePath As String
+    Dim targetFilePath As String
+    Dim columnsToCopy As String
+
+    ' Assign sample values (update these accordingly)
+    sourceFilePath = "C:\Source.xlsx"
+    targetFilePath = "C:\Target.xlsx"
+    columnsToCopy = "ColumnA,ColumnB,ColumnC"
+
+    ' Call the function version
+    MsgBox ProcessSingleFileFunction(sourceFilePath, targetFilePath, columnsToCopy)
+End Sub
+```
+Then, rename the existing function to:
+```vba
+Private Function ProcessSingleFileFunction(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+```
+Now, **ALT + F8** should list `ProcessSingleFile`, allowing direct execution.
+
+Let me know if you need further adjustments! 😊
