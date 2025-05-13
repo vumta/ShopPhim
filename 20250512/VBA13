@@ -1,0 +1,197 @@
+I’ve updated the VBA code so that it **checks all missing columns** in each file before skipping it. Now, instead of exiting early on the first missing column, the script will **identify all missing columns** in a file and display a complete error message before skipping the file.
+
+### **Updated VBA Code**
+```vba
+Public Function ConsolidateMultipleFiles(ByVal sourceFilePaths As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceFiles() As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim i As Integer, j As Integer
+    Dim errorMessages As String
+    Dim successFiles As String
+    Dim hasError As Boolean
+    Dim missingColumnsDict As Object
+    Dim skipFile As Boolean
+
+    ' Initialize dictionary to store missing columns per file
+    Set missingColumnsDict = CreateObject("Scripting.Dictionary")
+
+    ' Split the list of source file paths
+    sourceFiles = Split(sourceFilePaths, ",")
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data but keep headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Clear data from row 4 onwards in columns A and B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Set error flag to False initially
+    hasError = False
+    successFiles = "" ' Ensure successFiles starts empty
+
+    ' Loop through each source file
+    For i = LBound(sourceFiles) To UBound(sourceFiles)
+        skipFile = False ' Reset skip flag for each file
+        
+        On Error Resume Next
+        Set sourceWorkbook = Workbooks.Open(Trim(sourceFiles(i)))
+        If Err.Number <> 0 Then
+            errorMessages = errorMessages & "Error opening file: " & sourceFiles(i) & " - " & Err.Description & vbNewLine
+            hasError = True
+            Err.Clear
+            skipFile = True
+        End If
+        On Error GoTo 0
+
+        If Not skipFile Then
+            Set sourceSheet = sourceWorkbook.Sheets(1)
+
+            ' Determine last row of data in source file
+            lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+            ' Determine last row of data in target file
+            lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+            ' Reset missing columns for current file
+            Dim missingColumns As String
+            missingColumns = ""
+
+            ' Loop through specified columns to check for missing columns
+            For j = LBound(sourceColumns) To UBound(sourceColumns)
+                Dim sourceCol As Integer
+                On Error Resume Next
+                sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+                On Error GoTo 0
+
+                ' Identify missing columns
+                If IsError(sourceCol) Or sourceCol = 0 Then
+                    If missingColumns = "" Then
+                        missingColumns = sourceColumns(j)
+                    Else
+                        missingColumns = missingColumns & ", " & sourceColumns(j)
+                    End If
+                    hasError = True
+                    skipFile = True ' Flag this file to be skipped
+                End If
+            Next j
+
+            ' If missing columns exist, store them in dictionary and skip processing this file
+            If skipFile Then
+                missingColumnsDict.Add sourceFiles(i), missingColumns
+            Else
+                ' Proceed with data copying only if no missing columns
+                For j = LBound(sourceColumns) To UBound(sourceColumns)
+                    sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+
+                    ' Copy data from source column
+                    lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+                    sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+                    ' Find target column
+                    targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+                    If targetCol > 0 Then
+                        ' Paste data into target file
+                        targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                          targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+                    Else
+                        errorMessages = errorMessages & "Error: Target column '" & sourceColumns(j) & "' not found in target file." & vbNewLine
+                        hasError = True
+                    End If
+                Next j
+
+                ' Add to success list if processed successfully
+                If successFiles = "" Then
+                    successFiles = sourceFiles(i)
+                Else
+                    successFiles = successFiles & ", " & sourceFiles(i)
+                End If
+            End If
+        End If
+
+        ' Close the source file
+        If Not skipFile Then sourceWorkbook.Close False
+    Next i
+
+    ' Save and close target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Generate missing column errors from dictionary
+    If missingColumnsDict.Count > 0 Then
+        Dim key As Variant
+        For Each key In missingColumnsDict.Keys
+            errorMessages = errorMessages & "Missing columns in file " & key & ": " & missingColumnsDict(key) & vbNewLine
+        Next key
+    End If
+
+    ' Return detailed message
+    If hasError Then
+        ConsolidateMultipleFiles = "Completed with errors:" & vbNewLine & errorMessages
+        If successFiles <> "" Then
+            ConsolidateMultipleFiles = ConsolidateMultipleFiles & vbNewLine & "Successfully processed files: " & successFiles
+        End If
+    Else
+        ConsolidateMultipleFiles = "Success: Data has been copied from all source files into the target file."
+    End If
+
+End Function
+```
+
+### **Key Updates**
+1. **Checks all missing columns before skipping a file**:
+   - Now, the script **scans every required column** in the source file before deciding to skip it.
+   - Previously, it stopped checking as soon as the first missing column was found.
+
+2. **Fully reports all missing columns**:
+   - Instead of exiting early, the script **collects every missing column** and logs them for each file.
+
+3. **Successfully processed files are still tracked**:
+   - `"Successfully processed files"` is displayed **only if at least one file is successfully processed**.
+
+---
+
+### **Example Outputs**
+#### **Case: Some files failed, but others succeeded**
+```
+Completed with errors:
+Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Missing columns in file C:\Data\File3.xlsx: ProductName, CustomerID, DiscountRate
+Successfully processed files: C:\Data\File4.xlsx, C:\Data\File5.xlsx
+```
+
+#### **Case: All files failed**
+```
+Completed with errors:
+Missing columns in file C:\Data\File2.xlsx: Sales, Revenue, Quantity
+Missing columns in file C:\Data\File3.xlsx: ProductName, CustomerID, DiscountRate
+```
+
+#### **Case: All files succeeded**
+```
+Success: Data has been copied from all source files into the target file.
+```
+
+---
+
+Now, **all missing columns in a file are reported accurately**, and files are skipped only **after every column has been checked**. Try this version, and let me know if you need any further improvements! 😊
