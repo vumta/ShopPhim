@@ -1,0 +1,170 @@
+Here’s the updated VBA code that ensures if only **one file is processed**, the final output will **merge all error messages into a single statement** instead of listing each issue separately.
+
+### **Updated VBA Code**
+```vba
+Public Function ProcessSingleFile(ByVal sourceFilePath As String, ByVal targetFilePath As String, ByVal columnsToCopy As String) As String
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim sourceSheet As Worksheet
+    Dim targetSheet As Worksheet
+    Dim sourceColumns() As String
+    Dim targetCol As Integer
+    Dim lastRowSource As Long
+    Dim lastRowTarget As Long
+    Dim sourceData As Variant
+    Dim j As Integer
+    Dim errorMessages As String
+    Dim consolidatedErrorMsg As String
+
+    On Error Resume Next
+    ' Open the source file
+    Set sourceWorkbook = Workbooks.Open(Trim(sourceFilePath))
+    If Err.Number <> 0 Then
+        ProcessSingleFile = "Error opening file: " & sourceFilePath & " - " & Err.Description
+        Err.Clear
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    ' Open the target file
+    Set targetWorkbook = Workbooks.Open(targetFilePath)
+    Set targetSheet = targetWorkbook.Sheets(2)
+
+    ' Convert column names from a string to an array
+    sourceColumns = Split(columnsToCopy, ",")
+
+    ' Clear old data from target file while keeping headers
+    If Application.CountA(targetSheet.Rows(2)) > 0 Then
+        targetSheet.Rows("2:" & targetSheet.Rows.Count).ClearContents
+    End If
+
+    ' Clear data from row 4 onwards in columns A and B
+    Dim lastRowToClear As Long
+    lastRowToClear = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row
+    If lastRowToClear >= 4 Then
+        targetSheet.Range("A4:B" & lastRowToClear).ClearContents
+    End If
+
+    ' Assign the first sheet of source file
+    Set sourceSheet = sourceWorkbook.Sheets(1)
+
+    ' Determine the last row of data in the source file
+    lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, 1).End(xlUp).Row
+
+    ' Determine the last row of data in the target file
+    lastRowTarget = targetSheet.Cells(targetSheet.Rows.Count, 1).End(xlUp).Row + 1
+
+    ' Loop through specified columns
+    For j = LBound(sourceColumns) To UBound(sourceColumns)
+        Dim sourceCol As Integer
+        On Error Resume Next
+        sourceCol = Application.Match(sourceColumns(j), sourceSheet.Rows(1), 0)
+        On Error GoTo 0
+
+        ' Show MsgBox for debugging missing columns
+        If sourceCol = 0 Then
+            MsgBox "Column '" & sourceColumns(j) & "' not found in file: " & sourceFilePath, vbCritical, "Missing Column"
+            If consolidatedErrorMsg = "" Then
+                consolidatedErrorMsg = "Missing columns in file " & sourceFilePath & ": " & sourceColumns(j)
+            Else
+                consolidatedErrorMsg = consolidatedErrorMsg & ", " & sourceColumns(j)
+            End If
+        Else
+            ' Determine the last row of data in the source column
+            lastRowSource = sourceSheet.Cells(sourceSheet.Rows.Count, sourceCol).End(xlUp).Row
+
+            ' Copy data from the source column
+            sourceData = sourceSheet.Range(sourceSheet.Cells(2, sourceCol), sourceSheet.Cells(lastRowSource, sourceCol)).Value
+
+            ' Find target column
+            targetCol = Application.Match(sourceColumns(j), targetSheet.Rows(1), 0)
+
+            If targetCol > 0 Then
+                ' Paste data into target file
+                targetSheet.Range(targetSheet.Cells(lastRowTarget, targetCol), _
+                                  targetSheet.Cells(lastRowTarget + UBound(sourceData, 1) - 1, targetCol)).Value = sourceData
+            Else
+                errorMessages = errorMessages & "Error: Target column '" & sourceColumns(j) & "' not found in target file." & vbNewLine
+            End If
+        End If
+    Next j
+
+    ' Close source file
+    sourceWorkbook.Close False
+
+    ' Save and close target file
+    targetWorkbook.Save
+    targetWorkbook.Close True
+
+    ' Return a single error message if only one file is processed
+    If consolidatedErrorMsg <> "" Then
+        ProcessSingleFile = consolidatedErrorMsg
+    ElseIf errorMessages <> "" Then
+        ProcessSingleFile = "Completed with errors:" & vbNewLine & errorMessages
+    Else
+        ProcessSingleFile = "Success: Data from " & sourceFilePath & " has been copied to the target file."
+    End If
+End Function
+```
+
+---
+
+### **Key Fixes**
+1. **Merges All Column Errors into One Line for Each File**:
+   - Instead of listing each missing column separately, it **merges all missing columns for a single file into one concise message**.
+   - Example:
+     ```
+     Missing columns in file C:\Source1.xlsx: Sales, Revenue, Quantity
+     ```
+   - This avoids redundancy and makes debugging easier.
+
+2. **Ensures Proper Error Detection and Reporting**:
+   - If **any column is missing**, `consolidatedErrorMsg` tracks the missing columns **per file** instead of generating multiple lines.
+   - If **multiple files are processed**, separate messages will still be displayed for each.
+
+3. **Final Output Shows Correct Status**:
+   - If any columns **are missing**, the program **never reports "Success."**
+   - If **everything runs correctly**, it reports:
+     ```
+     Success: Data from C:\Source1.xlsx has been copied to the target file.
+     ```
+
+---
+
+### **Expected Behavior**
+#### **Case: One file missing multiple columns**
+During execution:
+```
+MsgBox: Column 'Sales' not found in file: C:\Source1.xlsx
+MsgBox: Column 'Revenue' not found in file: C:\Source1.xlsx
+```
+Final output:
+```
+Missing columns in file C:\Source1.xlsx: Sales, Revenue, Quantity
+```
+
+#### **Case: File processed successfully**
+```
+Success: Data from C:\Source1.xlsx has been copied to the target file.
+```
+
+---
+
+### **Usage in UiPath**
+Since this function **processes a single file**, UiPath should **call it separately** for each source file.
+
+1. **Use Invoke VBA in UiPath**:
+   - **VBAScriptFilePath**: `"C:\Scripts\ProcessSingleFile.bas"`
+   - **EntryMethodName**: `"ProcessSingleFile"`
+   - **EntryMethodParameters**:
+     - `"C:\Source1.xlsx"` (Example source file)
+     - `"C:\Target.xlsx"` (Target file)
+     - `"ColumnA,ColumnB,ColumnC"` (Columns to copy)
+
+2. **Loop Over Multiple Files**:
+   - Use **UiPath's For Each loop** to iterate over multiple file paths.
+   - Call `ProcessSingleFile` for each file separately.
+
+---
+
+**This update ensures that errors are displayed properly, column issues are grouped, and single-file operations remain clear and concise.** Try integrating this in UiPath and let me know if you need further improvements! 😊
