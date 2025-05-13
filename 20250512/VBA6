@@ -47,3 +47,35 @@ Private Function ProcessSingleFileFunction(ByVal sourceFilePath As String, ByVal
 Now, **ALT + F8** should list `ProcessSingleFile`, allowing direct execution.
 
 Let me know if you need further adjustments! 😊
+============================================================================================================
+To add this VBA code into an Excel file so it can be executed as a macro, follow these steps:
+
+### **How to Add VBA Code to Excel**
+1. **Open the Excel file** where you want to add the macro.
+2. **Open the VBA Editor**:
+   - Press `ALT + F11` to open the **VBA Editor**.
+3. **Insert a new module**:
+   - In the VBA Editor, go to `Insert > Module`.
+4. **Copy and paste the VBA code**:
+   - Copy the `ProcessSingleFile` function.
+   - Paste it into the newly created module.
+5. **Save the Excel file as Macro-Enabled Workbook**:
+   - Go to `File > Save As` and select **Excel Macro-Enabled Workbook (*.xlsm)**.
+6. **Run the VBA function manually**:
+   - Since `ProcessSingleFile` is a **Function**, it won't appear in the macro list (`ALT + F8`).
+   - To run it, you can add the following **Sub procedure** to execute it manually:
+   ```vba
+   Public Sub RunProcessSingleFile()
+       Dim result As String
+       result = ProcessSingleFile("C:\Source.xlsx", "C:\Target.xlsx", "ColumnA,ColumnB,ColumnC")
+       MsgBox result, vbInformation, "Execution Result"
+   End Sub
+   ```
+   - Now, **ALT + F8** will display `RunProcessSingleFile`, allowing you to execute the function.
+
+### **How to Use in UiPath**
+If you plan to use this in UiPath:
+- **Use the Invoke VBA activity**.
+- Call the function `ProcessSingleFile` from UiPath and pass the parameters dynamically.
+
+Would you like assistance with automating this process in UiPath? 😊
