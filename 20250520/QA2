@@ -1,0 +1,39 @@
+Dựa trên mục đích phân loại:
+
+Status complete: Gửi vào group "All" – tức là nơi tổng hợp mọi kết quả đã hoàn tất.
+
+Status success và fail: Đây là hai trạng thái chi tiết hơn sau khi đã "complete", nên bạn có thể đặt tên group sao cho phản ánh việc phân loại kết quả.
+
+
+Một số tên gợi ý hợp lý cho group chứa success và fail:
+
+1. "Results" – đơn giản, rõ nghĩa là chứa kết quả phân loại.
+
+
+2. "DetailedStatus" – nhấn mạnh đây là nơi có chi tiết kết quả.
+
+
+3. "OutcomeLog" – tập trung vào ghi nhận kết quả cuối cùng.
+
+
+4. "StatusReview" – phù hợp nếu cần kiểm tra, đánh giá lại.
+
+
+5. "SuccessOrFail" – dễ hiểu, rõ ràng.
+
+
+6. "ExecutionResults" – nếu đang xử lý tác vụ/hệ thống tự động.
+
+
+
+Tùy ngữ cảnh (như công việc, hệ thống IT, hay báo cáo vận hành), bạn có thể chọn 1 tên cụ thể. Ví dụ:
+
+Trong hệ thống xử lý job: "JobResults"
+
+Trong quy trình kiểm thử: "TestOutcomes"
+
+Trong báo cáo phân tích: "AnalysisStatus"
+
+
+Bạn có muốn mình chọn ra một tên cụ thể phù hợp với ngữ cảnh bạn đang dùng không?
+
