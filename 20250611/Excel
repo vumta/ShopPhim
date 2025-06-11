@@ -1,0 +1,88 @@
+Câu trả lời là:
+
+✅ Có, cách trên áp dụng được và sẽ fix lỗi trong Excel của Microsoft (Excel 365, Excel 2016/2019/2021 v.v.), với điều kiện bạn thực hiện đúng như sau:
+
+
+---
+
+🔧 Hướng dẫn chi tiết fix lỗi trong Excel Microsoft:
+
+✅ 1. Dùng công thức với Structured Reference
+
+Trong Table, công thức bắt buộc nên dùng dạng:
+
+=[@Cột1] + [@Cột2]
+
+Không nên dùng:
+
+=A2 + B2
+
+
+📌 Vì Excel chỉ tự động "kéo công thức đúng dòng" nếu công thức dùng structured reference ([@TênCột]), không phải A1/B2.
+
+
+---
+
+✅ 2. Bật tự động điền công thức cho cột trong Table
+
+Cách kiểm tra và bật:
+
+1. Vào File > Options
+
+
+2. Chọn Proofing > nhấn nút AutoCorrect Options...
+
+
+3. Qua tab AutoFormat As You Type
+
+
+4. Tích chọn dòng:
+
+> ✅ "Fill formulas in tables to create calculated columns"
+
+
+
+
+5. Nhấn OK → OK để lưu thay đổi.
+
+
+
+✅ Từ giờ khi bạn nhập công thức cho 1 ô trong cột Table, Excel sẽ tự fill toàn cột đúng dòng tương ứng.
+
+
+---
+
+✅ 3. Nếu Table vẫn không tự áp dụng, hãy làm thủ công như sau:
+
+1. Xóa toàn bộ công thức trong cột đó.
+
+
+2. Nhập lại công thức ở 1 dòng bất kỳ, nhưng nhớ dùng dạng:
+
+=[@Cột1] + [@Cột2]
+
+
+3. Sau khi Enter, Excel sẽ hỏi:
+
+> "Do you want to overwrite all cells in this column with this formula?"
+
+
+
+→ Chọn Yes.
+
+
+
+👉 Sau đó khi bạn thêm hàng mới vào Table, công thức sẽ tự áp dụng chính xác, đúng dòng.
+
+
+---
+
+❗ Lưu ý
+
+Nếu bạn convert Table về dạng Range (bỏ Table), thì chức năng này sẽ không còn hoạt động, vì nó là đặc trưng riêng của Table.
+
+
+---
+
+Nếu bạn gửi ví dụ file hoặc công thức đang lỗi, mình có thể giúp sửa lại trực tiếp.
+
