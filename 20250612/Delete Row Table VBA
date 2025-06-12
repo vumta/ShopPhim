@@ -1,0 +1,107 @@
+Để xóa toàn bộ dòng trong bảng Excel (ListObject) nhưng giữ lại 2 dòng đầu tiên (kể cả header), bạn cần hiểu rõ:
+
+Header: Dòng tiêu đề (không tính là ListRow)
+
+Dòng dữ liệu: Chỉ tính từ tbl.ListRows(1) trở đi
+
+
+Do đó, nếu bạn muốn giữ lại 2 dòng dữ liệu đầu tiên và xóa các dòng còn lại trong bảng, thì bạn có thể dùng đoạn VBA sau:
+
+
+---
+
+✅ VBA: Xóa tất cả dòng trong bảng, chỉ giữ lại 2 dòng đầu tiên
+
+Sub KeepFirstTwoRowsInTable()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim i As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")  ' Đổi tên sheet nếu cần
+    Set tbl = ws.ListObjects("Table1")      ' Đổi tên bảng nếu cần
+
+    ' Chỉ xử lý nếu bảng có hơn 2 dòng dữ liệu
+    If tbl.ListRows.Count > 2 Then
+        ' Duyệt ngược từ dòng cuối về dòng 3 để xóa
+        For i = tbl.ListRows.Count To 3 Step -1
+            tbl.ListRows(i).Delete
+        Next i
+    End If
+End Sub
+
+
+---
+
+🔍 Giải thích:
+
+tbl.ListRows.Count: Trả về số dòng dữ liệu trong bảng (không tính header).
+
+Duyệt từ dưới lên (Step -1) để tránh lỗi khi xóa.
+
+Dòng đầu tiên là tbl.ListRows(1), dòng thứ hai là tbl.ListRows(2), dòng thứ ba trở đi là những dòng cần xóa.
+
+
+
+---
+
+Nếu bạn muốn giữ header + 2 dòng đầu tiên trong worksheet, bất kể chúng có nằm trong bảng hay không, hãy nói rõ để mình điều chỉnh lại logic cho phù hợp.
+
+Để xóa dòng trong bảng Excel (Excel Table - ListObject) bằng VBA, bạn có thể dùng cú pháp sau:
+
+✅ Ví dụ 1: Xóa dòng đầu tiên trong bảng
+
+Sub DeleteFirstRowInTable()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set tbl = ws.ListObjects("Table1")
+
+    ' Kiểm tra nếu bảng có ít nhất 1 dòng dữ liệu
+    If tbl.ListRows.Count > 0 Then
+        tbl.ListRows(1).Delete
+    End If
+End Sub
+
+
+---
+
+✅ Ví dụ 2: Xóa dòng theo điều kiện (ví dụ: cột "Status" có giá trị "Done")
+
+Sub DeleteRowsWithCondition()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim i As Long
+    Dim colIndex As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set tbl = ws.ListObjects("Table1")
+
+    ' Tìm chỉ số cột "Status"
+    colIndex = tbl.ListColumns("Status").Index
+
+    ' Duyệt ngược từ dưới lên để tránh lỗi khi xóa dòng
+    For i = tbl.ListRows.Count To 1 Step -1
+        If tbl.DataBodyRange(i, colIndex).Value = "Done" Then
+            tbl.ListRows(i).Delete
+        End If
+    Next i
+End Sub
+
+
+---
+
+✅ Ghi chú:
+
+ListObjects("Table1"): Tên bảng bạn muốn thao tác (hiển thị ở tab Table Design khi bạn chọn bảng).
+
+tbl.ListRows(i).Delete: Xóa dòng thứ i trong bảng.
+
+Nên duyệt từ dưới lên (Step -1) khi xóa nhiều dòng để tránh bỏ sót do thay đổi chỉ số khi xóa.
+
+
+
+---
+
+Nếu bạn muốn xóa dòng theo giá trị trong nhiều cột, hoặc từ vị trí hàng cụ thể, bạn có thể cung cấp thêm yêu cầu chi tiết để mình hỗ trợ viết đoạn VBA phù hợp.
+
