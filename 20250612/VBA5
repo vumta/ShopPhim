@@ -1,0 +1,94 @@
+Cảm ơn bạn! Nếu bạn muốn xoá dòng vật lý từ dòng thứ 4 trở đi trong một bảng Excel (Table) nhưng không sử dụng ListObject (tức là không dùng tbl.ListRows(...) v.v.), thì vẫn có thể làm được bằng cách thao tác trực tiếp trên DataBodyRange.
+
+
+---
+
+✅ Cách làm: Xác định vùng từ dòng 4 trở đi trong DataBodyRange và .Delete
+
+Sub DeleteDataBodyRangeFromRow4()
+    Dim ws As Worksheet
+    Dim tblRange As Range
+    Dim dbRange As Range
+    Dim deleteRange As Range
+    Dim startRow As Long
+    Dim deleteRows As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")               ' ← đổi tên sheet nếu cần
+    Set tblRange = ws.ListObjects("Table1").DataBodyRange
+
+    If Not tblRange Is Nothing Then
+        startRow = 4
+        deleteRows = tblRange.Rows.Count - (startRow - 1)
+
+        If deleteRows > 0 Then
+            Set deleteRange = tblRange.Rows(startRow).Resize(deleteRows)
+            deleteRange.EntireRow.Delete
+        End If
+    End If
+End Sub
+
+
+---
+
+✅ Giải thích:
+
+Thành phần	Vai trò
+
+DataBodyRange	Là vùng chứa dữ liệu (không gồm header) trong bảng
+.Rows(4)	Là dòng thứ 4 tính trong DataBodyRange, tức dòng thứ 5 nếu tính toàn sheet
+.Resize(...)	Mở rộng để lấy tất cả dòng từ thứ 4 trở đi
+.EntireRow.Delete	Xoá dòng vật lý trong worksheet (không chỉ trong bảng)
+
+
+
+---
+
+⚠️ Lưu ý quan trọng:
+
+Mặc dù bạn không muốn dùng ListObject, bạn vẫn phải dùng .ListObjects("Table1") để truy được .DataBodyRange.
+
+Nếu bạn muốn thao tác mà không nhắc gì đến bảng (tức là xử lý như vùng dữ liệu thường), bạn cần xác định vùng đó theo địa chỉ.
+
+
+
+---
+
+✅ Nếu bạn muốn xác định DataBodyRange thủ công (không cần ListObject)
+
+Ví dụ, nếu bạn biết bảng nằm từ A2 đến D100 (và header ở A2), bạn có thể:
+
+Sub DeleteRowsFromRow4_ManualRange()
+    Dim ws As Worksheet
+    Dim dataRange As Range
+    Dim deleteRange As Range
+    Dim startRowInData As Long
+    Dim totalRows As Long
+    Dim deleteRows As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set dataRange = ws.Range("A3:D100")   ' ← vùng chứa dữ liệu, không gồm header
+
+    startRowInData = 4
+
+    totalRows = dataRange.Rows.Count
+    deleteRows = totalRows - (startRowInData - 1)
+
+    If deleteRows > 0 Then
+        Set deleteRange = dataRange.Rows(startRowInData).Resize(deleteRows)
+        deleteRange.EntireRow.Delete
+    End If
+End Sub
+
+
+---
+
+✅ Kết luận:
+
+Bạn muốn	Cách nên dùng
+
+Xoá dòng từ row 4 trở đi trong bảng	Dùng ListObject.DataBodyRange.Rows(4).Resize(...).EntireRow.Delete
+Không dùng ListObject, thao tác theo vùng cụ thể	Tự xác định vùng Range("A3:D100") và xử lý tương tự
+
+
+Nếu bạn cần tự động xác định vùng dữ liệu không dùng Table, mình có thể giúp bạn tự động hoá luôn phần tìm vùng. Bạn có cần thêm không?
+
