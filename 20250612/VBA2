@@ -1,0 +1,91 @@
+Cảm ơn bạn đã phản hồi! Nếu dùng .ListRows(i).Delete làm Excel bị đứng (do bảng quá lớn hoặc quá nhiều vòng lặp), mình sẽ hướng dẫn bạn 2 cách tối ưu hơn để xóa từ dòng thứ 4 trở đi trong bảng bằng DataBodyRange, ít tốn tài nguyên hơn:
+
+
+---
+
+✅ Cách 1: Xóa toàn bộ vùng từ dòng 4 trở đi bằng .Resize và .Delete
+
+Sub DeleteFromFourthRow_Resize()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim totalRows As Long
+    Dim startRow As Long
+    Dim rowsToDelete As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set tbl = ws.ListObjects("Table1")
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        totalRows = tbl.DataBodyRange.Rows.Count
+
+        If totalRows >= 4 Then
+            ' Tính số dòng cần xóa
+            rowsToDelete = totalRows - 3
+
+            ' Xác định vùng cần xóa (từ dòng thứ 4 đến hết)
+            tbl.DataBodyRange.Rows(4).Resize(rowsToDelete).EntireRow.Delete
+        End If
+    End If
+End Sub
+
+🔹 Ưu điểm:
+
+Rất nhanh vì chỉ xóa 1 lần, không cần vòng lặp.
+
+Không gây đứng file kể cả bảng lớn.
+
+
+
+---
+
+✅ Cách 2: Xóa bằng .Range(...).Delete dựa trên vị trí tuyệt đối trong worksheet
+
+Sub DeleteFromFourthRow_Absolute()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim startRow As Long
+    Dim totalRows As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set tbl = ws.ListObjects("Table1")
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        totalRows = tbl.DataBodyRange.Rows.Count
+
+        If totalRows >= 4 Then
+            startRow = tbl.DataBodyRange.Rows(4).Row  ' Dòng thực tế trên sheet
+            totalRows = tbl.DataBodyRange.Rows(totalRows).Row
+
+            ' Xóa toàn bộ dòng trong worksheet (không chỉ trong bảng)
+            ws.Rows(startRow & ":" & totalRows).Delete
+        End If
+    End If
+End Sub
+
+🔹 Ưu điểm:
+
+Xóa trực tiếp trên worksheet nên nhanh, phù hợp file nặng.
+
+Có thể xóa mọi thứ nằm trên dòng đó (nếu không chỉ muốn xóa trong bảng).
+
+
+⚠️ Nhược điểm:
+
+Có thể ảnh hưởng đến các bảng hoặc dữ liệu khác nằm dưới nếu không kiểm soát vùng kỹ.
+
+
+
+---
+
+✅ Gợi ý thêm (an toàn hơn):
+
+Sau khi .Delete, bảng có thể bị co lại — nếu cần giữ bảng nguyên vẹn, bạn có thể xóa nội dung thay vì xóa dòng:
+
+
+tbl.DataBodyRange.Rows(4).Resize(rowsToDelete).ClearContents
+
+
+---
+
+Nếu bạn muốn giữ định dạng bảng và không để Excel mất định dạng khi xóa dòng, dùng ClearContents sẽ an toàn hơn Delete. Hãy cho mình biết bạn muốn xóa dòng vật lý hay chỉ xóa nội dung nhé!
+
