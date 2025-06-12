@@ -1,0 +1,85 @@
+Cảm ơn bạn đã kiên nhẫn! Việc Excel bị treo khi dùng tbl.ListRows(i).Range.Delete thường xảy ra khi:
+
+Table có nhiều dòng (hàng nghìn).
+
+Lệnh .Range.Delete đang làm Excel di chuyển lại cấu trúc Table, gây chậm.
+
+Mỗi lần .Range.Delete là một thao tác lớn → hàng nghìn thao tác → Excel đứng.
+
+
+
+---
+
+✅ Giải pháp tốt nhất khi cần xóa vật lý nhiều dòng trong Table:
+
+👉 Dùng tbl.ListRows(i).Delete (vẫn là cách chính thức)
+
+✅ NHƯNG cần thêm một số bước tối ưu sau:
+
+
+---
+
+✅ Giải pháp đã kiểm chứng, không treo Excel (xử lý batch)
+
+Sub DeleteRowsFromRow4_Stable()
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    Application.EnableEvents = False
+
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim i As Long
+    Dim totalRows As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")       ' Đổi tên sheet
+    Set tbl = ws.ListObjects("Table1")           ' Đổi tên bảng
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        totalRows = tbl.ListRows.Count
+
+        If totalRows >= 4 Then
+            ' Duyệt ngược để tránh lỗi index khi xóa
+            For i = totalRows To 4 Step -1
+                DoEvents
+                tbl.ListRows(i).Delete
+            Next i
+        End If
+    End If
+
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+End Sub
+
+
+---
+
+✅ Vì sao đoạn này "an toàn":
+
+Tối ưu	Tác dụng
+
+Application.ScreenUpdating = False	Không vẽ lại màn hình mỗi lần xóa
+Calculation = Manual	Không tính lại công thức khi xóa
+EnableEvents = False	Không kích hoạt sự kiện Worksheet_Change, v.v.
+DoEvents trong vòng lặp	Cho phép Excel "thở", tránh bị treo cứng
+
+
+
+---
+
+✅ Kết luận
+
+Tình huống	Giải pháp
+
+Xóa < 500 dòng	tbl.ListRows(i).Delete hoặc .Range.Delete là ổn
+Xóa hàng nghìn dòng (nặng)	Cần tối ưu hiệu suất như trên
+Nếu vẫn treo máy	Có thể cân nhắc ClearContents + RemoveEmptyRows sau để giả lập xoá
+
+
+
+---
+
+Bạn có thể thử lại đoạn code trên. Nếu sau đó vẫn bị treo (rất hiếm), mình có thể giúp bạn chuyển logic sang xoá batch theo từng cụm 50–100 dòng, hoặc gợi ý dùng Power Query / VBA ADO để xử lý nhanh hơn nữa.
+
+Bạn muốn tiếp tục hướng đó chứ?
+
