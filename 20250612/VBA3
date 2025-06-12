@@ -1,0 +1,94 @@
+Cảm ơn bạn đã phản hồi. Lỗi Runtime Error 1004 thường xảy ra khi bạn dùng .EntireRow.Delete trên vùng trong bảng Excel (ListObject), vì:
+
+Excel không cho phép xóa trực tiếp dòng worksheet nếu vùng đó là một phần của Table (ListObject).
+
+tbl.DataBodyRange.Rows(4).Resize(...) trả về vùng nằm trong Table → .EntireRow.Delete sẽ gây lỗi.
+
+
+
+---
+
+✅ Giải pháp sửa lỗi: Chỉ dùng .Delete trực tiếp trên ListRows(i) hoặc .Delete toàn dòng trong bảng thông qua .ListRows(i).Range.Delete
+
+Mình sẽ cung cấp 2 cách sửa chuẩn, an toàn, nhanh hơn và không bị lỗi:
+
+
+---
+
+✅ Cách 1 (sửa): Dùng .Range.Delete thay vì .EntireRow.Delete
+
+Sub DeleteFromFourthRow_UsingRangeDelete()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim totalRows As Long
+    Dim i As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set tbl = ws.ListObjects("Table1")
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        totalRows = tbl.DataBodyRange.Rows.Count
+
+        If totalRows >= 4 Then
+            For i = totalRows To 4 Step -1
+                tbl.ListRows(i).Range.Delete
+            Next i
+        End If
+    End If
+End Sub
+
+🔹 Khác biệt:
+
+Thay vì tbl.ListRows(i).Delete → dùng tbl.ListRows(i).Range.Delete
+
+Nhanh hơn, không gây lỗi treo như .ListRows(i).Delete
+
+
+
+---
+
+✅ Cách 2 (tốt nhất): Dùng .Resize để ClearContents thay vì .Delete
+
+Nếu bạn chỉ muốn xoá nội dung dòng (không cần xoá vật lý dòng) để giữ định dạng bảng:
+
+Sub ClearContentsFromFourthRowInTable()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim totalRows As Long
+    Dim rowsToClear As Long
+
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    Set tbl = ws.ListObjects("Table1")
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        totalRows = tbl.DataBodyRange.Rows.Count
+
+        If totalRows >= 4 Then
+            rowsToClear = totalRows - 3
+            tbl.DataBodyRange.Rows(4).Resize(rowsToClear).ClearContents
+        End If
+    End If
+End Sub
+
+🔹 Ưu điểm:
+
+Không lỗi 1004
+
+Giữ nguyên cấu trúc bảng (vẫn có đủ dòng, format, dropdown, v.v.)
+
+Rất nhanh, phù hợp bảng lớn
+
+
+
+---
+
+✅ Kết luận
+
+Mục tiêu	Giải pháp tốt nhất
+
+Xoá dòng vật lý khỏi bảng	Dùng tbl.ListRows(i).Range.Delete từ dưới lên
+Xoá nội dung, giữ dòng bảng	Dùng tbl.DataBodyRange.Rows(4).Resize(...).ClearContents
+
+
+Bạn cần xóa vật lý hay chỉ cần xoá nội dung? Cho mình biết thêm để tối ưu phù hợp nhất nhé.
+
