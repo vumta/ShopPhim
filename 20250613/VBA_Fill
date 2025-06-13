@@ -1,0 +1,91 @@
+Tuyệt vời! Với yêu cầu này, bạn sẽ thực hiện theo 2 bước:
+
+
+---
+
+✅ 1. UiPath: Write Data vào cột A và B
+
+Bạn có thể dùng Excel Application Scope + Write Range để ghi dữ liệu vào cột A và B (bắt đầu từ dòng 4, vì dòng 3 chứa công thức).
+
+
+---
+
+✅ 2. UiPath: Gọi Macro VBA kéo công thức
+
+Bạn cần:
+
+Một file .bas chứa macro (hoặc macro nằm trong file Excel).
+
+Gọi macro bằng Invoke VBA hoặc Execute Macro trong UiPath.
+
+
+
+---
+
+✅ Mã VBA hoàn chỉnh kéo công thức từ dòng 3:
+
+Sub FillFormulasDown()
+    Dim ws As Worksheet
+    Dim lastRowA As Long, lastRowB As Long, lastRow As Long
+    Dim formulaRow As Long
+    Dim lastCol As Long
+    
+    Set ws = ThisWorkbook.Sheets(1) ' Hoặc Sheets("TênSheet")
+    formulaRow = 3
+
+    ' Tìm dòng cuối ở cột A và B
+    lastRowA = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    lastRowB = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    lastRow = Application.WorksheetFunction.Max(lastRowA, lastRowB)
+    
+    ' Tìm cột cuối có công thức ở dòng 3
+    lastCol = ws.Cells(formulaRow, ws.Columns.Count).End(xlToLeft).Column
+
+    ' Kéo công thức từ dòng 3 xuống các dòng chứa dữ liệu
+    If lastRow > formulaRow Then
+        ws.Range(ws.Cells(formulaRow, 1), ws.Cells(formulaRow, lastCol)).Copy
+        ws.Range(ws.Cells(formulaRow + 1, 1), ws.Cells(lastRow, lastCol)).PasteSpecial xlPasteFormulas
+        Application.CutCopyMode = False
+    End If
+End Sub
+
+
+---
+
+✅ Trong UiPath bạn thực hiện:
+
+Trường hợp 1: Macro đã nằm trong Excel
+
+Dùng Execute Macro
+
+Macro Name: "FillFormulasDown"
+
+
+
+Trường hợp 2: Dùng file .bas (macro rời)
+
+Dùng Invoke VBA
+
+Parameter: Đường dẫn đến file .bas chứa macro
+
+Method Name: "FillFormulasDown"
+
+
+
+
+---
+
+✅ Tóm tắt quy trình UiPath:
+
+1. Write Range → ghi data vào A và B, từ dòng 4 trở đi.
+
+
+2. Invoke VBA hoặc Execute Macro → chạy macro FillFormulasDown.
+
+
+
+
+---
+
+Bạn có muốn mình tạo luôn file .bas chứa macro này để bạn import vào UiPath?
+
