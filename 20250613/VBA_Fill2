@@ -1,0 +1,81 @@
+Tuyệt vời, vậy tóm lại yêu cầu của bạn là:
+
+> Truyền 10 công thức tương ứng với cột C → K (tức cột 3 → 11) từ UiPath vào VBA.
+VBA sẽ:
+
+Tìm dòng cuối cùng có dữ liệu ở cột A hoặc B (là dữ liệu vừa được ghi từ UiPath),
+
+Dán công thức vào các cột C đến K, từ dòng 4 đến dòng cuối.
+
+
+
+
+
+---
+
+✅ Mã VBA phù hợp với yêu cầu:
+
+Sub ApplyFormulasFromUiPath(ParamArray formulas() As Variant)
+    Dim ws As Worksheet
+    Dim lastRowA As Long, lastRowB As Long, lastRow As Long
+    Dim i As Long
+    Dim startCol As Long
+
+    Set ws = ThisWorkbook.Sheets(1) ' Hoặc đổi tên Sheet nếu cần
+    startCol = 3 ' Cột C là cột 3
+
+    ' Xác định dòng cuối ở cột A và B
+    lastRowA = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    lastRowB = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    lastRow = Application.WorksheetFunction.Max(lastRowA, lastRowB)
+
+    ' Nếu không có dữ liệu thì không làm gì
+    If lastRow < 4 Then Exit Sub
+
+    ' Áp dụng từng công thức cho các cột C → K
+    For i = LBound(formulas) To UBound(formulas)
+        If Not IsEmpty(formulas(i)) Then
+            ws.Range(ws.Cells(4, startCol + i), ws.Cells(lastRow, startCol + i)).Formula = formulas(i)
+        End If
+    Next i
+End Sub
+
+
+---
+
+✅ Gọi từ UiPath:
+
+Trong Invoke VBA, truyền 10 công thức tương ứng như sau (cẩn thận escape " nếu cần):
+
+Array(
+  "=A4+B4", 
+  "=A4*B4", 
+  "=IF(A4>100,""High"",""Low"")", 
+  "=LEN(A4)", 
+  "=TEXT(B4,""dd-mm-yyyy"")",
+  "=A4&B4", 
+  "=ROUND(A4/2,1)", 
+  "=IFERROR(B4/A4,0)", 
+  "=A4^2", 
+  "=IF(A4+B4>200,""Yes"",""No"")"
+)
+
+📌 Lưu ý:
+
+Dòng công thức luôn bắt đầu từ dòng 4 (vì dòng 3 là công thức mẫu / dòng header),
+
+Công thức sẽ tự động kéo đến dòng cuối cùng chứa dữ liệu ở A hoặc B.
+
+
+
+---
+
+✅ Bạn cần gì thêm?
+
+Mình có thể xuất file .bas chứa macro này để bạn import nhanh vào UiPath.
+
+Hoặc nếu bạn muốn macro này nhận cả tham số tên sheet, mình có thể sửa thêm.
+
+
+Bạn có muốn mình tạo file .bas không?
+
