@@ -1,0 +1,52 @@
+Để gán một biến chuỗi trong VBA bằng công thức Excel như =A1&"_"&B1&"_"&C1&"_", bạn có thể làm theo 2 cách tùy mục đích:
+
+
+---
+
+✅ 1. Lấy kết quả chuỗi đã ghép từ Excel (giá trị đã tính)
+
+Dim myStr As String
+myStr = Range("A1").Value & "_" & Range("B1").Value & "_" & Range("C1").Value & "_"
+
+> 👉 Cách này tương đương kết quả của công thức:
+=A1 & "_" & B1 & "_" & C1 & "_" trong Excel.
+
+
+
+
+---
+
+✅ 2. Gán công thức Excel dạng chuỗi vào ô Excel (nếu cần viết công thức vào ô)
+
+Dim formulaStr As String
+formulaStr = "=A1&""_""&B1&""_""&C1&""_"""
+Range("D1").Formula = formulaStr
+
+> 👉 Dùng "" để escape dấu " bên trong chuỗi VBA.
+
+
+
+
+---
+
+✅ 3. Nếu muốn cả giá trị và viết ra ô Excel
+
+Dim myStr As String
+myStr = Range("A1").Value & "_" & Range("B1").Value & "_" & Range("C1").Value & "_"
+Range("D1").Value = myStr
+
+
+---
+
+✅ Gợi ý: Gọn hơn với Join (nếu muốn ghép nhiều ô liên tiếp)
+
+Dim arr As Variant
+arr = Array(Range("A1").Value, Range("B1").Value, Range("C1").Value, "")
+Dim myStr As String
+myStr = Join(arr, "_")
+
+
+---
+
+Nếu bạn cần ghép nhiều ô động hơn, hoặc từ hàng/cột bất kỳ, mình có thể hỗ trợ thêm theo yêu cầu.
+
