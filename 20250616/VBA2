@@ -1,0 +1,70 @@
+Dưới đây là một đoạn VBA hoàn chỉnh, giúp bạn convert bất kỳ công thức Excel nào thành chuỗi dùng được trong VBA code (tức là đã escape đầy đủ dấu " để dùng trong .Formula =).
+
+
+---
+
+✅ Chức năng:
+
+Đọc công thức từ ô đang chọn (hoặc toàn bộ vùng được chọn).
+
+Xuất ra Immediate Window (Ctrl + G) một chuỗi đã escape sẵn để bạn copy bỏ vào code VBA.
+
+
+
+---
+
+🔧 Code VBA:
+
+Sub ConvertFormulaToVBAString()
+    Dim cell As Range
+    Dim formulaText As String
+    Dim vbaFormula As String
+
+    If TypeName(Selection) <> "Range" Then
+        MsgBox "Vui lòng chọn một hoặc nhiều ô chứa công thức!", vbExclamation
+        Exit Sub
+    End If
+
+    For Each cell In Selection
+        If cell.HasFormula Then
+            formulaText = cell.Formula
+            ' Escape dấu " để dùng trong chuỗi VBA
+            formulaText = Replace(formulaText, """", """""")
+            vbaFormula = "Range(""" & cell.Address(False, False) & """).Formula = """ & formulaText & """"
+            Debug.Print vbaFormula
+        Else
+            Debug.Print "Ô " & cell.Address(False, False) & " không có công thức."
+        End If
+    Next cell
+
+    MsgBox "Đã xuất chuỗi công thức vào Immediate Window (Ctrl + G để xem).", vbInformation
+End Sub
+
+
+---
+
+✅ Ví dụ:
+
+Nếu ô A1 có công thức:
+
+=IF(A2="","",A2&B2)
+
+Chạy macro sẽ in ra trong Immediate:
+
+Range("A1").Formula = "=IF(A2="""","""",A2&B2)"
+
+
+---
+
+💡 Gợi ý mở rộng:
+
+Có thể chỉnh để xuất ra .FormulaLocal nếu bạn dùng Excel tiếng Việt.
+
+Có thể xuất ra file .txt nếu bạn muốn lưu hàng loạt công thức.
+
+
+
+---
+
+Nếu bạn cần phiên bản nâng cao hơn (xuất hàng loạt, ghi ra sheet khác, xuất ra clipboard, hoặc hỗ trợ công thức mảng), cứ nói mình viết thêm nhé!
+
