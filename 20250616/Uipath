@@ -1,0 +1,77 @@
+Trong UiPath, nếu bạn không xóa hàng vật lý trong Excel mà chỉ xóa nội dung (data) thì hàng vẫn tồn tại, và bạn cần viết lại data chính xác vào những dòng chưa bị xóa.
+
+Giả sử bạn có:
+
+10 hàng từ dòng 2 đến 11 (dòng 1 là tiêu đề).
+
+Bạn xóa data từ hàng 4 đến 7 (tức dòng 3 đến 6 nếu tính từ index 0).
+
+Bạn muốn viết data chỉ vào những dòng còn giữ nguyên nội dung (không bị xóa).
+
+
+
+---
+
+🔧 Hướng xử lý trong UiPath
+
+❶ Đọc toàn bộ Excel vào DataTable
+
+Dùng Read Range để lấy toàn bộ dữ liệu (bao gồm cả dòng trống) vào DataTable dtData.
+
+Read Range - Output: dtData
+
+> Nếu dùng Excel Application Scope + Read Range (Classic), nhớ check Preserve Format và AddHeaders nếu có tiêu đề.
+
+
+
+
+---
+
+❷ Duyệt qua từng dòng, kiểm tra dòng nào còn dữ liệu
+
+Dùng For Each Row để duyệt từng dòng trong dtData. Trong mỗi vòng lặp, kiểm tra dòng nào còn dữ liệu thì mới xử lý (ghi lại):
+
+For Each row in dtData
+  Assign index = dtData.Rows.IndexOf(row) + 2  ← vì Excel bắt đầu từ dòng 2 nếu dòng 1 là tiêu đề
+  If Not String.IsNullOrWhiteSpace(row("TênCột1").ToString) OrElse Not String.IsNullOrWhiteSpace(row("TênCột2").ToString)
+    → Ghi lại dữ liệu vào dòng `index`
+
+
+---
+
+❸ Ghi lại dữ liệu
+
+Dùng Write Cell hoặc Set Range (với DataTable có 1 dòng) để ghi lại đúng vị trí:
+
+Write Cell
+- Value: "Giá trị mới"
+- Range: "B" + index.ToString
+
+Hoặc dùng Write Range nếu muốn ghi lại 1 hàng đầy đủ:
+
+Assign: dtSingleRow = dtData.Clone
+Assign: dtSingleRow.ImportRow(row)
+Write Range (Start Cell: "A" + index.ToString, Input: dtSingleRow)
+
+
+---
+
+✅ Tóm tắt
+
+Bước	Hành động
+
+1	Dùng Read Range lấy toàn bộ dữ liệu
+2	Duyệt từng dòng, kiểm tra dòng nào còn data
+3	Lấy đúng index dòng (cộng thêm 2 nếu có tiêu đề)
+4	Dùng Write Cell hoặc Write Range để ghi lại đúng dòng
+
+
+
+---
+
+Nếu bạn muốn ghi vào dòng nào bị xóa nội dung (trống) thì làm ngược lại:
+
+If String.IsNullOrWhiteSpace(row("TênCột1").ToString) AndAlso String.IsNullOrWhiteSpace(row("TênCột2").ToString)
+
+Bạn cần mình giúp viết rõ từng activity hay cần logic để xử lý theo điều kiện cụ thể (ví dụ ghi lại dòng nào, giữ dòng nào)?
+
