@@ -1,0 +1,190 @@
+Chắc chắn rồi! Việc comment nút Save trong mã HTML của Google Apps Script nhưng vẫn thấy hiện khi chạy web app thường là do một trong các nguyên nhân sau:
+
+
+---
+
+⚠️ Nguyên nhân phổ biến:
+
+1. Bạn chưa deploy phiên bản mới sau khi chỉnh sửa
+
+Khi bạn chỉnh sửa mã HTML hoặc mã Script, Google Apps Script không tự động cập nhật web app đã deploy. Bạn cần re-deploy (triển khai lại).
+
+Cách kiểm tra:
+
+Vào Extensions > Apps Script từ Google Sheet / Docs / Forms.
+
+Vào mục Deploy > Manage deployments.
+
+Kiểm tra xem bạn đang chạy phiên bản nào.
+
+Nếu bạn chỉnh sửa nhưng chưa deploy bản mới → bản web app đang chạy vẫn là bản cũ, có nút Save.
+
+
+✅ Cách fix:
+
+1. Vào Deploy > Manage deployments
+
+
+2. Chọn deployment hiện tại → bấm vào nút Edit deployment (cây bút).
+
+
+3. Ở mục Version, chọn "New version" và nhập mô tả.
+
+
+4. Bấm Deploy.
+
+
+5. Mở lại link web app → kiểm tra xem nút Save đã biến mất chưa.
+
+
+
+
+---
+
+2. Bạn comment chưa đúng cú pháp HTML
+
+Trong file HTML, nếu bạn comment không đúng cách, trình duyệt vẫn có thể đọc được.
+
+Ví dụ sai (JS-style comment trong HTML):
+
+// <button id="saveBtn">Save</button> <!-- Sai -->
+
+Phải là comment HTML đúng:
+
+<!-- <button id="saveBtn">Save</button> --> <!-- Đúng -->
+
+✅ Cách fix:
+
+Đảm bảo bạn dùng <!-- --> để comment HTML.
+
+Nếu nút Save nằm trong script hoặc template, thì cần đảm bảo không bị inject bởi JS hoặc Template.
+
+
+
+---
+
+3. Bạn có nhiều file HTML và đang sửa nhầm file
+
+Một số dự án có nhiều file HTML (ví dụ index.html, form.html, main.html) và doGet() trong Code.gs đang render file khác.
+
+✅ Cách fix:
+
+Kiểm tra lại trong Code.gs xem dòng:
+
+
+return HtmlService.createHtmlOutputFromFile('index');
+
+Đảm bảo bạn đang sửa đúng file index.html hoặc file được load trong đoạn code trên.
+
+
+
+---
+
+4. Trình duyệt bị cache phiên bản cũ
+
+Khi bạn deploy web app, trình duyệt có thể cache giao diện cũ.
+
+✅ Cách fix:
+
+Dùng tổ hợp phím Ctrl + Shift + R (Windows) hoặc Cmd + Shift + R (Mac) để hard-refresh.
+
+Hoặc thử mở trong tab ẩn danh / trình duyệt khác.
+
+
+
+---
+
+✅ Tóm tắt cách xử lý:
+
+1. Kiểm tra lại bạn đã deploy version mới chưa.
+
+
+2. Đảm bảo comment đúng cú pháp HTML (<!-- ... -->).
+
+
+3. Đảm bảo đang sửa đúng file HTML được load trong doGet().
+
+
+4. Clear cache trình duyệt hoặc thử mở lại bằng tab ẩn danh.
+
+
+
+
+---
+
+Nếu bạn cần, bạn có thể gửi đoạn mã doGet() và tên file HTML bạn đang sửa để mình giúp check kỹ hơn.
+
+Rất hay! Để kiểm tra hoặc tìm doGet() trong mã Google Apps Script (GAS), bạn làm theo các bước sau:
+
+
+---
+
+✅ Cách tìm doGet() trong mã GAS:
+
+1. Mở trình chỉnh sửa Apps Script:
+
+Từ Google Sheet / Google Form / Google Doc liên kết → chọn:
+
+Extensions > Apps Script
+
+
+
+2. Kiểm tra file Code.gs hoặc file .gs khác
+
+Trong bảng điều hướng bên trái, bạn sẽ thấy các file như:
+
+Code.gs
+Index.html
+Sidebar.html
+...
+
+Mở các file .gs (file mã lệnh), thường là Code.gs.
+
+
+
+3. Tìm hàm doGet
+
+Tìm đoạn như sau (có thể khác tên file một chút):
+
+function doGet(e) {
+  return HtmlService.createHtmlOutputFromFile('index'); // Hoặc tên file HTML bạn render
+}
+
+Dòng createHtmlOutputFromFile('index') chỉ ra rằng khi chạy web app, GAS sẽ render file index.html.
+
+
+
+
+
+---
+
+🧠 Ý nghĩa:
+
+doGet() là hàm xử lý khi người dùng truy cập web app qua link.
+
+Hàm này render giao diện HTML, nên bạn phải chắc chắn:
+
+File bạn sửa là file được load trong doGet().
+
+Và bạn đã re-deploy sau khi sửa.
+
+
+
+
+---
+
+✅ Nếu không thấy doGet()?
+
+Có thể dự án chưa có, bạn có thể thêm mới:
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index'); // Thay 'index' bằng tên file HTML bạn muốn hiển thị
+}
+
+
+---
+
+Nếu bạn gửi đoạn doGet() của bạn, mình có thể check chính xác bạn đang render file nào.
+
+
+
