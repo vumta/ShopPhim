@@ -1,0 +1,83 @@
+Đoạn mã bạn đưa:
+
+Google.app.script.run.sussce(Funtion()).ABC
+
+có nhiều lỗi cú pháp và logic. Dưới đây là phân tích chi tiết và cách sửa:
+
+
+---
+
+❌ Các lỗi trong đoạn code:
+
+1. Google.app.script.run sai cú pháp
+→ Đúng phải là google.script.run (không có Google.app).
+
+
+2. sussce sai chính tả
+→ Có lẽ bạn muốn viết withSuccessHandler, không phải sussce.
+
+
+3. Funtion() sai chính tả
+→ Đúng phải là function().
+
+
+4. .ABC gọi hàm không đúng vị trí
+→ .ABC phải là tên của hàm bên phía server (Google Apps Script), nhưng bạn đang viết sau cả handler và function nên sai cú pháp.
+
+
+
+
+---
+
+✅ Cú pháp đúng:
+
+Giả sử bạn muốn gọi một hàm tên là abc trong Apps Script từ HTML client-side và xử lý kết quả thành công:
+
+google.script.run
+  .withSuccessHandler(function(result) {
+    console.log("Kết quả từ server:", result);
+  })
+  .abc(); // đây là tên hàm bạn đã khai báo trong Apps Script
+
+
+---
+
+✅ Cách định nghĩa hàm abc trong Apps Script:
+
+function abc() {
+  return "Hello từ server!";
+}
+
+
+---
+
+🔁 Tóm lại:
+
+Đoạn bạn viết:
+
+Google.app.script.run.sussce(Funtion()).ABC
+
+Nên sửa thành:
+
+google.script.run
+  .withSuccessHandler(function(result) {
+    console.log(result);
+  })
+  .abc();
+
+Nếu bạn cần chạy thêm withFailureHandler, có thể thêm:
+
+google.script.run
+  .withSuccessHandler(function(result) {
+    console.log("Thành công:", result);
+  })
+  .withFailureHandler(function(error) {
+    console.error("Lỗi:", error.message);
+  })
+  .abc();
+
+
+---
+
+Nếu bạn chia sẻ thêm đoạn mã HTML hoặc mã Apps Script gốc, mình có thể giúp sửa cụ thể hơn.
+
