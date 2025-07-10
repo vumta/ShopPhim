@@ -1,0 +1,132 @@
+Để kiểm tra ai đã xóa một thư mục trong SharePoint Online, bạn có thể truy vết chi tiết hành vi xóa thông qua Audit Log trong Microsoft Purview (trước đây gọi là Security & Compliance Center).
+
+
+---
+
+✅ Cách kiểm tra ai đã xóa thư mục trên SharePoint Online
+
+⚠️ Điều kiện:
+
+Bạn phải là Microsoft 365 Admin có quyền Audit hoặc Global Admin / Compliance Admin.
+
+Audit log phải được bật trước khi sự kiện xảy ra (mặc định Microsoft 365 E3 trở lên có bật).
+
+
+
+---
+
+✅ Bước 1: Truy cập Audit Log
+
+1. Truy cập https://compliance.microsoft.com/auditlogsearch
+
+
+2. Nếu lần đầu dùng, chọn "Start recording user and admin activity"
+
+
+3. Chờ vài giờ (nếu mới bật)
+
+
+
+
+---
+
+✅ Bước 2: Thiết lập tìm kiếm
+
+Activities: Chọn
+
+Deleted file
+
+Deleted folder
+
+(hoặc gõ "delete" trong ô tìm kiếm hoạt động)
+
+
+Date range: Chọn khoảng thời gian thư mục bị xoá
+
+File, folder or site: Dán đường dẫn URL đầy đủ hoặc một phần thư mục
+
+Users (nếu cần): Lọc theo tài khoản nghi ngờ
+
+Bấm Search
+
+
+
+---
+
+✅ Bước 3: Xem kết quả
+
+Bạn sẽ thấy ai đã xóa, lúc nào, từ đâu (IP, thiết bị).
+
+Nếu thư mục bị xóa qua OneDrive sync hoặc Windows File Explorer (qua thư mục map), bạn cũng sẽ thấy.
+
+
+> Click vào từng record để xem chi tiết, ví dụ:
+
+
+
+Operation: Deleted file
+User: john.doe@contoso.com
+FileName: /sites/ProjectX/Shared Documents/Reports/2025-Q2/
+SourceFileType: Folder
+
+
+---
+
+✅ Khôi phục thư mục (nếu cần)
+
+Nếu thư mục bị xóa dưới 93 ngày, bạn có thể:
+
+🔹 Cách 1: Khôi phục từ Recycle Bin
+
+1. Vào site SharePoint gốc
+
+
+2. Chọn Recycle Bin (Thùng rác) ở menu trái
+
+
+3. Tìm thư mục → Bấm Restore
+
+
+
+🔹 Cách 2: Nếu bị xoá khỏi Recycle Bin → dùng Second-Stage Recycle Bin (chỉ admin thấy)
+
+
+---
+
+❗ Nếu bạn không có quyền Audit log:
+
+Bạn cần:
+
+Nhờ IT / Admin kiểm tra log như hướng dẫn trên
+
+Hoặc kiểm tra Recycle Bin nếu vẫn còn thư mục bị xóa
+
+
+
+---
+
+✅ Gợi ý thêm (nếu bạn không phải admin):
+
+Gửi yêu cầu cho admin với thông tin như:
+
+Tên thư mục bị xoá
+
+Link SharePoint (nếu có)
+
+Thời gian nghi bị xoá
+
+Tên người nghi ngờ xoá (nếu biết)
+
+
+
+---
+
+Nếu bạn cung cấp thêm thông tin về:
+
+Loại license bạn đang dùng
+
+Bạn có phải admin không
+
+
+→ Mình có thể hướng dẫn cách dùng PowerShell hoặc Power Automate để tự động ghi lại hành vi xóa file về sau.
+
