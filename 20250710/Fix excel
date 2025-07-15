@@ -1,0 +1,54 @@
+Có mấy “thủ phạm” kinh điển khiến Excel báo “There’s a problem with this formula” dù bạn chắc chắn cú pháp đúng và máy khác vẫn chạy ngon. Thử rà lần lượt:
+
+Nhóm nguyên nhân	Dấu hiệu thường gặp	Cách khắc phục nhanh
+
+Ký tự phân tách tham số (comma , vs semicolon ;)	- Bạn gõ dấu phẩy nhưng Excel bôi đỏ ngay sau đó.<br>- Máy kia dùng dấu phẩy, máy bạn dùng dấu chấm phẩy (hoặc ngược lại).	1. Control Panel → Region → Additional settings → “List separator”.<br> • Đặt , nếu muốn dùng dấu phẩy.<br> • Hoặc để ; rồi sửa công thức thành dấu chấm phẩy.<br>2. Hoặc bật File → Options → Advanced → Use system separators và chỉnh trực tiếp trong Excel.
+Dấu thập phân (dot . vs comma ,)	- Số thập phân 3.14 bị lỗi.<br>- Máy kia hiển thị 3,14.	Cùng hộp thoại Region ở trên: “Decimal symbol” nên khớp với cách bạn viết công thức.
+Tên hàm bản địa hoá	- Máy OK dùng VLOOKUP, máy lỗi dùng Excel tiếng Việt (HLOOKUP → HLOOKUP, nhưng VLOOKUP → VLOOKUP vẫn ok, chỉ một số hàm mới bị).	Dùng đúng tên hàm theo ngôn ngữ cài đặt, hoặc chuyển Excel sang giao diện English (File → Options → Language).
+Trình tự & số ngoặc khi copy/paste	- Copy công thức dài từ web, Excel thêm khoảng trắng lạ hoặc ký tự ẩn.<br>- Hoặc bị xuống dòng giữa chừng.	Nhập tay lại đoạn “đáng ngờ” hoặc dán qua Notepad để loại kí tự ẩn rồi copy lại.
+Tính năng động (dynamic arrays) chỉ có ở 365/2021	- Công thức kiểu =FILTER(... chạy trên máy 365, nhưng Office 2016 báo lỗi.	Cài bản Microsoft 365 hoặc dùng công thức tương thích cũ (ví dụ FILTER → kết hợp INDEX + IF).
+Chế độ tính toán & add-ins	- Workbook bật Macro Security cao, hay có add-in chặn hàm.<br>- Calculation mode ở “Manual”, sau khi nhập không update.	File → Options → Formulas → tính toán Automatic.<br>Tắt thử add-ins (File → Options → Add-ins → Manage COM Add-ins → Go).
+
+
+
+---
+
+Quy trình “sơ cứu” 3 bước
+
+1. Xác định dấu phân tách
+
+Gõ thử =SUM(1,2) và =SUM(1;2). Cái nào không báo lỗi thì máy bạn dùng dấu đó.
+
+
+
+2. Kiểm tra dấu thập phân
+
+Gõ =1,5+1 xem có lỗi không. Nếu lỗi, Excel đang dùng dấu chấm.
+
+
+
+3. Kiểm tra phiên bản & tính năng
+
+File → Account → About Excel. Nếu là 2016 trở về trước, các hàm mới (FILTER, SORT, UNIQUE, LET, LAMBDA…) sẽ không chạy.
+
+
+
+
+> 💡Mẹo nhanh: Khi Excel gạch đỏ công thức, nhấn F2 để vào chế độ chỉnh, di chuyển con trỏ qua từng đối số. Excel sẽ bôi màu giúp bạn tìm vị trí nó “khựng” – thường ngay trước ký tự phân tách hoặc hàm chưa nhận diện.
+
+
+
+
+---
+
+Nếu sau khi thử cả các bước trên vẫn lỗi, hãy gửi mình:
+
+Công thức đầy đủ bạn đang nhập.
+
+Ảnh hộp thoại Region (list separator & decimal).
+
+Phiên bản Office (365, 2021, 2019…).
+
+
+Mình sẽ soi cụ thể cho bạn!
+
