@@ -1,0 +1,41 @@
+Dưới đây là 2 cách viết công thức, tuỳ phiên bản Excel bạn đang dùng:
+
+
+---
+
+1. Excel 365 / Excel 2021 (có hàm TEXTAFTER & TEXTBEFORE)
+
+=TEXTBEFORE( TEXTAFTER( A1, "/v3/" ), "/" )
+
+TEXTAFTER(A1,"/v3/") cắt bỏ phần cố định …/v3/, chỉ giữ lại chuỗi bắt đầu từ ABCDEFGHIKLM/search?….
+
+TEXTBEFORE( … , "/" ) lấy mọi ký tự đứng trước dấu “/” đầu tiên, tức phần ABCDEFGHIKLM.
+
+
+
+---
+
+2. Excel 2016 trở về trước (không có TEXTAFTER/TEXTBEFORE)
+
+=MID(
+      A1,
+      FIND("/v3/",A1)+4,
+      FIND("/",A1, FIND("/v3/",A1)+4) - FIND("/v3/",A1) - 4
+    )
+
+FIND("/v3/",A1)+4 xác định vị trí ký tự ngay sau chuỗi cố định /v3/.
+
+FIND("/",A1, … ) tìm dấu “/” kế tiếp (bắt đầu từ vị trí trên).
+
+MID cắt phần giữa hai vị trí đó ⇒ ABCDEFGHIKLM
+(chiều dài = vị trí “/” kế tiếp − vị trí ngay sau /v3/).
+
+
+> Lưu ý
+
+Thay A1 bằng ô chứa URL.
+
+Công thức thứ hai dùng dấu phẩy (,) trong ngăn cách tham số theo thiết lập ngôn ngữ tiếng Anh; nếu Excel của bạn đang dùng dấu chấm phẩy (;) hãy thay tất cả “,” thành “;”.
+
+
+
