@@ -1,0 +1,70 @@
+Rất tốt! Nếu bạn muốn giữ nguyên 4 dòng đầu tiên từ template.csv, sau đó ghi dữ liệu từ data.csv bắt đầu từ dòng 5, thì đoạn code cần một chút tinh chỉnh.
+
+
+---
+
+✅ Cập nhật đoạn code .NET dùng trong Invoke Code như sau:
+
+If Not System.IO.File.Exists(templatePath) Then
+    Throw New Exception("Template file not found: " & templatePath)
+End If
+
+If Not System.IO.File.Exists(dataPath) Then
+    Throw New Exception("Data file not found: " & dataPath)
+End If
+
+Dim tempPath As String = dataPath & ".tmp"
+
+' Tạo writer để ghi file mới
+Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+
+    ' Ghi 4 dòng đầu từ file template
+    Using readerTemplate As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+        Dim count As Integer = 0
+        While Not readerTemplate.EndOfStream AndAlso count < 4
+            writer.WriteLine(readerTemplate.ReadLine())
+            count += 1
+        End While
+    End Using
+
+    ' Ghi toàn bộ nội dung file data vào sau dòng thứ 4
+    Using readerData As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        While Not readerData.EndOfStream
+            writer.WriteLine(readerData.ReadLine())
+        End While
+    End Using
+
+End Using
+
+' Thay thế file data gốc bằng file mới
+System.IO.File.Delete(dataPath)
+System.IO.File.Move(tempPath, dataPath)
+
+
+---
+
+🔧 Lưu ý về biến:
+
+Bạn cần truyền biến templatePath và dataPath vào Invoke Code như sau:
+
+Name	Direction	Type
+
+templatePath	In	String
+dataPath	In	String
+
+
+
+---
+
+📝 Kết quả:
+
+Dòng 1–4: từ file template.csv
+
+Dòng 5 → hết: toàn bộ dữ liệu từ data.csv gốc
+
+
+
+---
+
+Nếu bạn cần mình tạo sẵn .xaml mẫu cho workflow này hoặc .nupkg để dùng lại thì mình có thể gửi luôn. Chỉ cần nói nhé!
+
