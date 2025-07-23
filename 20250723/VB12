@@ -1,0 +1,93 @@
+Dưới đây là đoạn code VB.NET hoàn chỉnh, dùng trong Invoke Code activity của UiPath để:
+
+✅ Copy file template.csv → file data.csv
+✅ Ghi toàn bộ nội dung của data.csv (gốc) bắt đầu từ dòng số 5
+✅ Giữ nguyên 4 dòng đầu từ template.csv (nếu thiếu thì thêm dòng trống)
+✅ Không dùng Excel Application Scope – hoạt động với file rất lớn >450MB
+
+
+---
+
+🧩 Biến đầu vào trong UiPath (Argument direction: In)
+
+Tên biến	Kiểu dữ liệu	Ghi chú
+
+templatePath	String	Đường dẫn file template.csv gốc
+dataPath	String	Đường dẫn file data.csv đã tải về (gốc)
+
+
+
+---
+
+🔁 Logic xử lý
+
+1. Tạo file tạm temp.csv
+
+
+2. Ghi 4 dòng đầu từ template (nếu thiếu thì thêm dòng trống)
+
+
+3. Ghi toàn bộ nội dung data.csv từ dòng thứ 5
+
+
+4. Ghi đè data.csv bằng temp.csv
+
+
+
+
+---
+
+✅ Code VB.NET dùng trong Invoke Code:
+
+Dim tempPath As String = System.IO.Path.GetTempFileName()
+
+' Đọc 4 dòng đầu từ template (hoặc thêm dòng trống nếu thiếu)
+Dim templateLines As New List(Of String)
+Using readerTemplate As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+    While Not readerTemplate.EndOfStream AndAlso templateLines.Count < 4
+        templateLines.Add(readerTemplate.ReadLine())
+    End While
+End Using
+
+While templateLines.Count < 4
+    templateLines.Add("")
+End While
+
+' Mở file tạm để ghi dữ liệu
+Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+
+    ' Ghi 4 dòng đầu
+    For Each line In templateLines
+        writer.WriteLine(line)
+    Next
+
+    ' Ghi toàn bộ data.csv bắt đầu từ dòng 5
+    Using readerData As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        While Not readerData.EndOfStream
+            writer.WriteLine(readerData.ReadLine())
+        End While
+    End Using
+
+End Using
+
+' Ghi đè lại file dataPath bằng file temp
+System.IO.File.Copy(tempPath, dataPath, True)
+System.IO.File.Delete(tempPath)
+
+
+---
+
+📌 Lưu ý:
+
+File template.csv cần tồn tại.
+
+File data.csv có thể rất lớn, xử lý bằng stream nên không lo tốn RAM.
+
+Không sử dụng Excel, hoàn toàn dựa trên xử lý văn bản.
+
+
+
+---
+
+Bạn cần mình xuất .xaml mẫu cho UiPath hoặc gợi ý chi tiết cho hoạt động Invoke Code không?
+
