@@ -1,0 +1,118 @@
+Để thêm 4 dòng đầu tiên vào file .csv lớn 450MB bằng UiPath (mà không cần load toàn bộ file vào bộ nhớ – tránh lỗi và chậm), bạn có thể dùng File Read/Write hoạt động theo dòng như sau:
+
+
+---
+
+🧩 Chiến lược
+
+Vì file lớn (450MB), ta sẽ:
+
+Tạo file tạm mới
+
+Ghi 4 dòng mới vào đầu file tạm
+
+Đọc file gốc theo từng dòng, ghi nối tiếp vào file tạm
+
+Xoá file gốc (nếu muốn)
+
+Đổi tên file tạm thành file gốc
+
+
+
+---
+
+🛠️ Chi tiết workflow
+
+1. Khai báo biến
+
+Tên biến	Kiểu dữ liệu	Ghi chú
+
+sourceFilePath	String	Đường dẫn file gốc .csv
+tempFilePath	String	Đường dẫn file tạm, ví dụ: sourceFilePath + ".tmp"
+headerLines	List(Of String)	4 dòng bạn muốn thêm vào
+
+
+
+---
+
+2. Workflow từng bước
+
+🔹 Assign
+
+sourceFilePath = "C:\Data\file.csv"
+tempFilePath = sourceFilePath + ".tmp"
+headerLines = New List(Of String) From {
+    "Dòng 1 thêm vào",
+    "Dòng 2 thêm vào",
+    "Dòng 3 thêm vào",
+    "Dòng 4 thêm vào"
+}
+
+🔹 Use StreamWriter - Create Temp File
+
+Activity: Use StreamWriter
+
+Path: tempFilePath
+
+Mode: Create
+
+Encoding: UTF8
+
+Output: writer
+
+
+➡ Trong body:
+
+For Each item In headerLines
+
+Invoke Method: writer.WriteLine(item)
+
+
+Use StreamReader - Đọc file gốc theo dòng
+
+Path: sourceFilePath
+
+Output: reader
+
+
+➡ Trong body:
+
+Do While Not reader.EndOfStream
+
+line = reader.ReadLine()
+
+writer.WriteLine(line)
+
+
+
+
+🔹 Close các stream
+
+🔹 Xoá file gốc + đổi tên
+
+Delete File: sourceFilePath
+
+Move File:
+
+From: tempFilePath
+
+To: sourceFilePath
+
+
+
+
+---
+
+✅ Lưu ý
+
+Không dùng Read CSV vì file quá lớn
+
+Có thể thêm check để đảm bảo backup trước khi ghi đè
+
+Nếu file bị lock bởi ứng dụng khác, hãy thêm Delay hoặc Retry Scope
+
+
+
+---
+
+Bạn có muốn mình gửi file .xaml mẫu không? Hoặc viết dạng Library để tái sử dụng?
