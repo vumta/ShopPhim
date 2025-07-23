@@ -1,0 +1,92 @@
+Tuyệt vời! Dưới đây là giải pháp sử dụng Invoke Code (VB.NET) trong UiPath để xử lý yêu cầu:
+
+> ✅ Thêm 4 dòng đầu từ template.csv vào trước nội dung của data.csv lớn (450MB+), rồi ghi đè lại chính data.csv
+✅ Không cần Excel, không cần file dummy, không cần VBA
+✅ Xử lý từng dòng – an toàn cho file lớn
+
+
+
+
+---
+
+✅ 1. Tạo Invoke Code activity
+
+✳️ Language: VB.NET
+
+✳️ Arguments → Direction: In
+
+Name	Type	Direction	Example
+
+templatePath	String	In	"C:\Data\template.csv"
+dataPath	String	In	"C:\Data\file_downloaded.csv"
+
+
+
+---
+
+✅ 2. Nội dung Invoke Code (VB.NET)
+
+Dim tempPath As String = dataPath & ".tmp"
+
+Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+    ' Ghi nội dung template trước
+    Using readerTemplate As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+        While Not readerTemplate.EndOfStream
+            writer.WriteLine(readerTemplate.ReadLine())
+        End While
+    End Using
+
+    ' Ghi nội dung data.csv sau
+    Using readerData As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        While Not readerData.EndOfStream
+            writer.WriteLine(readerData.ReadLine())
+        End While
+    End Using
+End Using
+
+' Xóa file gốc
+System.IO.File.Delete(dataPath)
+
+' Đổi tên file tạm thành tên gốc
+System.IO.File.Move(tempPath, dataPath)
+
+
+---
+
+✅ Cách sử dụng
+
+1. Tạo Invoke Code
+
+
+2. Set Language = VB.NET
+
+
+3. Add 2 input arguments như hướng dẫn trên
+
+
+4. Dán đoạn mã vào
+
+
+5. Run
+
+
+
+
+---
+
+✅ Ưu điểm
+
+Tính năng	Có
+
+Không cần Excel	✅
+Không cần file dummy	✅
+Xử lý file lớn	✅
+Đảm bảo UTF-8	✅
+Dễ tích hợp UiPath	✅
+
+
+
+---
+
+Bạn có muốn mình gửi bản .xaml mẫu với Invoke Code hoạt động đầy đủ, có log kèm theo? Hoặc bạn muốn bản viết bằng C# thay vì VB.NET?
+
