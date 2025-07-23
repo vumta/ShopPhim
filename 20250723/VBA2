@@ -1,0 +1,119 @@
+Có — nếu bạn đang xử lý file .csv rất lớn (~450MB) thì ngoài giải pháp "đọc theo dòng + ghi sang file tạm" (cách chuẩn nhất khi dùng UiPath), dưới đây là các phương án khác kèm phân tích ưu – nhược điểm, giúp bạn chọn cách tối ưu cho từng tình huống cụ thể.
+
+
+---
+
+✅ 1. Cách hiện tại – Ghi sang file tạm (recommended)
+
+> ✔️ An toàn – không load toàn bộ file vào RAM
+✔️ Hoạt động tốt cho file rất lớn
+❌ Hơi phức tạp hơn, cần xử lý stream
+
+
+
+> 👉 Dành cho file lớn từ 100MB trở lên hoặc máy RAM yếu
+
+
+
+
+---
+
+✅ 2. Sử dụng PowerShell trong UiPath
+
+Bạn có thể chạy PowerShell script ngay trong UiPath để nối file:
+
+🔸 Ý tưởng:
+
+$headers = @("Dòng 1","Dòng 2","Dòng 3","Dòng 4")
+$headers | Out-File temp.csv -Encoding UTF8
+Get-Content bigfile.csv | Out-File temp.csv -Append -Encoding UTF8
+Remove-Item bigfile.csv
+Rename-Item temp.csv bigfile.csv
+
+🔸 Trong UiPath:
+
+Dùng Invoke PowerShell hoặc Start Process với nội dung script này.
+
+> ✔️ Nhanh, đơn giản
+✔️ Không cần đọc file trong UiPath
+❌ Phụ thuộc vào môi trường Windows, không cross-platform
+❌ Có thể cần quyền ghi/xoá file
+
+
+
+
+---
+
+✅ 3. Dùng dòng lệnh cmd / type (Windows)
+
+(echo Dòng 1 & echo Dòng 2 & echo Dòng 3 & echo Dòng 4 & type file.csv) > newfile.csv
+
+Sau đó:
+
+del file.csv
+rename newfile.csv file.csv
+
+> ✔️ Rất nhanh, đơn giản
+❌ Khó kiểm soát encoding (UTF-8)
+❌ Chỉ chạy tốt với ASCII / ANSI CSV
+
+
+
+
+---
+
+✅ 4. Dùng Python script nhúng trong UiPath (nếu có Python)
+
+> Viết một đoạn Python xử lý file, sau đó dùng Invoke Python Script trong UiPath.
+
+
+
+with open('file.csv', 'r', encoding='utf-8') as original, open('temp.csv', 'w', encoding='utf-8') as new:
+    new.write("Dòng 1\nDòng 2\nDòng 3\nDòng 4\n")
+    for line in original:
+        new.write(line)
+
+> ✔️ Kiểm soát tốt encoding
+❌ Cần môi trường Python
+
+
+
+
+---
+
+📌 Tóm tắt so sánh
+
+Phương pháp	RAM thấp	Tốc độ	Ghi đè an toàn	Dễ triển khai	Ghi UTF-8 chuẩn
+
+UiPath StreamReader/Writer	✅	✅	✅	Trung bình	✅
+PowerShell	✅	✅	✅	✅	✅
+CMD / type	✅	✅	✅	✅	❌ (có thể lỗi UTF-8)
+Python	✅	✅	✅	❌ (cần setup)	✅
+Read All + Write CSV	❌	❌	✅	✅	✅
+
+
+
+---
+
+✅ Gợi ý
+
+File >100MB → Dùng StreamWriter + StreamReader hoặc PowerShell
+
+Muốn gọn nhẹ + nhanh → Dùng PowerShell hoặc cmd
+
+Cần hỗ trợ Linux/macOS → Dùng Python
+
+
+
+---
+
+Bạn muốn mình giúp bạn:
+
+Viết PowerShell script chính xác?
+
+Viết Workflow hoàn chỉnh dùng cách StreamReader?
+
+Viết custom activity (c#) để dùng như một "AddHeaderToCSV"?
+
+
+Bạn chọn hướng nào mình hỗ trợ tiếp nhé.
