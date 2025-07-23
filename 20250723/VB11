@@ -1,0 +1,95 @@
+Cảm ơn bạn đã làm rõ. Dưới đây là giải pháp đầy đủ theo yêu cầu mới:
+
+
+---
+
+✅ Yêu cầu tổng quát:
+
+1. Có sẵn file template.csv chứa 4 dòng đầu.
+
+
+2. Có file data.csv rất lớn (>450MB).
+
+
+3. Mục tiêu:
+
+Copy template.csv → temp file (ví dụ: temp_output.csv).
+
+Ghi toàn bộ dữ liệu từ data.csv vào temp_output.csv, bắt đầu từ dòng 5 (sau 4 dòng đầu).
+
+Sau khi ghi xong, overwrite data.csv bằng temp_output.csv (tức là: data.csv sau khi xử lý sẽ có 4 dòng đầu + toàn bộ data gốc của nó).
+
+
+
+
+
+---
+
+✅ VB.NET Code để dùng trong UiPath (Invoke Code activity)
+
+🔧 Code:
+
+' Kiểm tra file tồn tại
+If Not System.IO.File.Exists(templatePath) Then
+    Throw New Exception("Template file not found: " & templatePath)
+End If
+
+If Not System.IO.File.Exists(dataPath) Then
+    Throw New Exception("Data file not found: " & dataPath)
+End If
+
+' Tạo file tạm
+Dim tempPath As String = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(dataPath), "temp_output.csv")
+
+' Copy 4 dòng đầu từ template vào file tạm
+Using reader As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+    Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+        Dim lineCount As Integer = 0
+        While Not reader.EndOfStream AndAlso lineCount < 4
+            writer.WriteLine(reader.ReadLine())
+            lineCount += 1
+        End While
+    End Using
+End Using
+
+' Append toàn bộ dữ liệu từ data.csv vào temp
+Using writer As New System.IO.StreamWriter(tempPath, True, System.Text.Encoding.UTF8)
+    Using reader As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        While Not reader.EndOfStream
+            writer.WriteLine(reader.ReadLine())
+        End While
+    End Using
+End Using
+
+' Ghi đè file data.csv bằng file temp
+System.IO.File.Delete(dataPath)
+System.IO.File.Move(tempPath, dataPath)
+
+
+---
+
+🧩 Biến đầu vào cần truyền vào Invoke Code:
+
+Biến	Direction	Type	Mô tả
+
+templatePath	In	String	Đường dẫn đến template.csv
+dataPath	In	String	Đường dẫn đến data.csv gốc
+
+
+
+---
+
+✅ Ưu điểm:
+
+Không cần dùng Excel Application Scope.
+
+Xử lý file lớn hiệu quả, đọc và ghi dòng từng dòng.
+
+An toàn: không làm mất dữ liệu nếu chưa xử lý xong (dùng file tạm).
+
+
+
+---
+
+Nếu bạn cần bản .xaml hoàn chỉnh hoặc đóng gói lại thành custom library, mình có thể giúp luôn. Bạn chỉ cần báo nhé.
+
