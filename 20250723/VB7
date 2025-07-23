@@ -1,0 +1,108 @@
+Cảm ơn bạn! Nếu Invoke Code báo lỗi liên quan đến dataPath, thì có thể do một trong các nguyên nhân sau:
+
+
+---
+
+🧠 1. Kiểm tra lỗi cụ thể là gì
+
+Thường gặp:
+
+dataPath is not declared
+👉 Bạn chưa khai báo đúng biến dataPath trong Arguments của Invoke Code.
+
+Object reference not set...
+👉 Bạn khai báo biến dataPath nhưng chưa gán giá trị từ trước.
+
+
+
+---
+
+✅ Cách sửa triệt để
+
+🔧 Bước 1: Khai báo biến Arguments trong Invoke Code
+
+Vào phần Arguments của activity Invoke Code, tạo 2 dòng sau:
+
+Name	Direction	Type
+
+templatePath	In	String
+dataPath	In	String
+
+
+> 🧪 Nếu đang dùng biến ở ngoài như strTemplatePath và strDataPath thì truyền vào như hình:
+
+
+
+templatePath = strTemplatePath
+dataPath = strDataPath
+
+
+---
+
+🔧 Bước 2: Đảm bảo dataPath đã được gán giá trị trước khi gọi
+
+Ví dụ:
+
+Assign strDataPath = "C:\Data\downloaded.csv"
+Assign strTemplatePath = "C:\Data\template.csv"
+
+→ Sau đó gọi Invoke Code và truyền vào 2 biến đó.
+
+
+---
+
+✅ Ví dụ đầy đủ cấu hình trong UiPath:
+
+1. Variables (outside Invoke Code):
+
+strTemplatePath = "C:\Data\template.csv"
+
+strDataPath = "C:\Data\downloaded.csv"
+
+
+
+2. Arguments (inside Invoke Code):
+
+templatePath = In → Type: String → Value: strTemplatePath
+
+dataPath = In → Type: String → Value: strDataPath
+
+
+
+
+
+---
+
+🧪 Test đoạn code sau trong Invoke Code:
+
+If Not System.IO.File.Exists(templatePath) Then
+    Throw New Exception("Template file not found: " & templatePath)
+End If
+
+If Not System.IO.File.Exists(dataPath) Then
+    Throw New Exception("Data file not found: " & dataPath)
+End If
+
+Dim tempPath As String = dataPath & ".tmp"
+
+Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+    Using readerTemplate As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+        Do While Not readerTemplate.EndOfStream
+            writer.WriteLine(readerTemplate.ReadLine())
+        Loop
+    End Using
+
+    Using readerData As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        Do While Not readerData.EndOfStream
+            writer.WriteLine(readerData.ReadLine())
+        Loop
+    End Using
+End Using
+
+System.IO.File.Delete(dataPath)
+System.IO.File.Move(tempPath, dataPath)
+
+
+---
+
+Nếu bạn cần mình gửi .xaml mẫu hoặc .zip để bạn chạy thử ngay, chỉ cần nói nhé! Mình có thể xuất file và gửi bạn ngay.
