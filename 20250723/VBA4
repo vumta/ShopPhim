@@ -1,0 +1,91 @@
+Dưới đây là mã VBA hoàn chỉnh để thực hiện yêu cầu:
+
+> ✅ Thêm 4 dòng vào đầu file CSV lớn (~450MB) mà không load toàn bộ file vào Excel, dùng cách xử lý từng dòng. Đoạn mã này có thể được gọi từ UiPath qua Invoke VBA.
+
+
+
+
+---
+
+✅ 1. Nội dung mã VBA (InsertHeaderToCSV.bas)
+
+Sub InsertHeaderToCSV(csvPath As String)
+    Dim tempPath As String
+    Dim fso As Object
+    Dim inputFile As Object
+    Dim outputFile As Object
+    Dim line As String
+    
+    ' Tạo đường dẫn file tạm
+    tempPath = csvPath & ".tmp"
+    
+    ' Tạo FileSystemObject
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' Mở file tạm để ghi
+    Set outputFile = fso.CreateTextFile(tempPath, True, True) ' True = Overwrite, True = UTF-8
+
+    ' Ghi 4 dòng đầu tiên
+    outputFile.WriteLine "Dòng 1 thêm vào"
+    outputFile.WriteLine "Dòng 2 thêm vào"
+    outputFile.WriteLine "Dòng 3 thêm vào"
+    outputFile.WriteLine "Dòng 4 thêm vào"
+    
+    ' Mở file CSV gốc để đọc
+    Set inputFile = fso.OpenTextFile(csvPath, 1, False, -1) ' 1 = ForReading, -1 = UTF-8
+
+    ' Ghi từng dòng từ file gốc sang file tạm
+    Do While Not inputFile.AtEndOfStream
+        line = inputFile.ReadLine
+        outputFile.WriteLine line
+    Loop
+
+    ' Đóng file
+    inputFile.Close
+    outputFile.Close
+
+    ' Xóa file gốc
+    fso.DeleteFile csvPath, True
+
+    ' Đổi tên file tạm thành file gốc
+    fso.MoveFile tempPath, csvPath
+End Sub
+
+
+---
+
+✅ 2. Cách dùng trong UiPath (Invoke VBA)
+
+🧩 Bước 1: Thêm file .bas vào thư mục chứa project hoặc Excel
+
+🧩 Bước 2: Dùng Activity Invoke VBA
+
+Code File Path: "InsertHeaderToCSV.bas"
+
+Entry Method Name: "InsertHeaderToCSV"
+
+Parameters:
+
+{New InArgument(Of Object)("C:\Data\file.csv")}
+
+
+
+
+---
+
+✅ Ghi chú
+
+File được xử lý theo dòng → an toàn với file lớn (450MB+)
+
+Đảm bảo ghi đúng định dạng UTF-8
+
+Không cần mở Excel
+
+Thực thi nhanh, phù hợp để gọi từ UiPath trong môi trường không cần PowerShell
+
+
+
+---
+
+Bạn có muốn mình tạo sẵn file .bas và gửi nội dung đóng gói dạng .zip? Hoặc hướng dẫn dùng Invoke VBA trong Excel Application Scope chi tiết hơn?
+
