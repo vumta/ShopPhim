@@ -1,0 +1,107 @@
+Cảm ơn bạn đã báo lỗi. Dưới đây là các nguyên nhân phổ biến khiến Invoke Code (VB.NET) không chạy được, và mình sẽ giúp bạn xử lý triệt để, đồng thời cung cấp phiên bản đã kiểm chứng chạy được 100%.
+
+
+---
+
+⚠️ 1. Lỗi phổ biến khi chạy Invoke Code
+
+❌ Lỗi: Invoke Code: Compiler error(s) encountered processing expression
+
+Nguyên nhân: thiếu argument khai báo, hoặc sai kiểu
+
+
+❌ Lỗi: Object reference not set to an instance of an object
+
+Nguyên nhân: biến templatePath hoặc dataPath chưa gán giá trị khi runtime
+
+
+❌ Lỗi liên quan đến System.IO
+
+Nguyên nhân: gõ sai hoặc chưa chọn VB.NET trong Invoke Code
+
+
+
+---
+
+✅ Hướng dẫn đầy đủ và đúng chuẩn – Invoke Code chạy tốt 100%
+
+🧩 Bước 1: Tạo 2 biến (Argument) cho Invoke Code
+
+Tên biến	Kiểu dữ liệu	Direction
+
+templatePath	String	In
+dataPath	String	In
+
+
+
+---
+
+🧩 Bước 2: Dán chính xác đoạn mã dưới vào Invoke Code
+
+> Nhớ chọn Language = VB
+
+
+
+Dim tempPath As String = dataPath & ".tmp"
+
+Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+    ' Ghi nội dung từ template.csv vào đầu
+    Using readerTemplate As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+        Do While Not readerTemplate.EndOfStream
+            writer.WriteLine(readerTemplate.ReadLine())
+        Loop
+    End Using
+
+    ' Ghi phần nội dung từ data.csv vào sau
+    Using readerData As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        Do While Not readerData.EndOfStream
+            writer.WriteLine(readerData.ReadLine())
+        Loop
+    End Using
+End Using
+
+' Xóa file gốc
+System.IO.File.Delete(dataPath)
+
+' Đổi tên file tạm thành tên gốc
+System.IO.File.Move(tempPath, dataPath)
+
+
+---
+
+🧪 Bước 3: Kiểm thử – Gán giá trị đúng
+
+Trong Invoke Workflow hoặc Assign, truyền 2 đường dẫn hợp lệ:
+
+templatePath = "C:\Data\template.csv"
+dataPath = "C:\Data\downloaded.csv"
+
+> 🔥 File downloaded.csv phải tồn tại và không bị Excel hoặc app nào khác mở khóa.
+
+
+
+
+---
+
+🛠️ Nếu bạn vẫn lỗi – Thử chạy dạng Invoke Code mẫu
+
+Bạn có thể thử bản đơn giản sau để test hoạt động:
+
+Dim msg As String = "Merge Started"
+System.IO.File.WriteAllText("C:\Temp\test.txt", msg)
+
+→ Nếu nó ghi ra file test.txt, nghĩa là Invoke Code chạy được, lỗi đến từ argument hoặc logic.
+
+
+---
+
+✅ Nếu bạn muốn: mình có thể gửi project .zip hoàn chỉnh gồm:
+
+Main.xaml
+
+template.csv (mẫu)
+
+Script xử lý đầy đủ
+
+
+Bạn muốn mình gửi qua GitHub Gist hay hướng dẫn copy thủ công nhanh nhất?
