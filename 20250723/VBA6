@@ -1,0 +1,119 @@
+Rất rõ ràng. Bạn muốn một VBA script thực hiện các bước sau (để gọi từ UiPath bằng Invoke VBA):
+
+
+---
+
+✅ Yêu cầu cụ thể
+
+Giả sử bạn có:
+
+template.csv: chứa sẵn 4 dòng đầu (header chuẩn)
+
+data.csv: file mới tải về, dung lượng >450MB, không có header
+
+Mục tiêu: Tạo bản sao của template.csv, sau đó nối nội dung data.csv vào cuối, rồi đổi tên file kết quả thành data.csv (ghi đè).
+
+
+
+---
+
+✅ Kết quả mong muốn
+
+template.csv (giữ nguyên)
+
+data.csv ban đầu → bị xóa
+
+data.csv mới = 4 dòng đầu từ template.csv + nội dung gốc của data.csv
+
+
+
+---
+
+✅ VBA Code: MergeTemplateWithData.bas
+
+Sub MergeTemplateWithData(templatePath As String, dataPath As String)
+    Dim fso As Object
+    Dim tempPath As String
+    Dim templateFile As Object
+    Dim dataFile As Object
+    Dim outputFile As Object
+    Dim line As String
+
+    ' Tạo FileSystemObject
+    Set fso = CreateObject("Scripting.FileSystemObject")
+
+    ' Tạo file tạm
+    tempPath = dataPath & ".tmp"
+
+    ' Mở file tạm để ghi
+    Set outputFile = fso.CreateTextFile(tempPath, True, True) ' Overwrite, UTF-8
+
+    ' Mở và ghi toàn bộ template vào đầu
+    Set templateFile = fso.OpenTextFile(templatePath, 1, False, -1)
+    Do While Not templateFile.AtEndOfStream
+        line = templateFile.ReadLine
+        outputFile.WriteLine line
+    Loop
+    templateFile.Close
+
+    ' Mở file data gốc, nối vào sau
+    Set dataFile = fso.OpenTextFile(dataPath, 1, False, -1)
+    Do While Not dataFile.AtEndOfStream
+        line = dataFile.ReadLine
+        outputFile.WriteLine line
+    Loop
+    dataFile.Close
+    outputFile.Close
+
+    ' Xóa file gốc
+    fso.DeleteFile dataPath, True
+
+    ' Đổi tên file tạm thành tên file gốc
+    fso.MoveFile tempPath, dataPath
+End Sub
+
+
+---
+
+🛠️ Cách dùng trong UiPath (Invoke VBA)
+
+Bước 1: Lưu đoạn trên thành file MergeTemplateWithData.bas
+
+Bước 2: Trong UiPath, sử dụng activity:
+
+Excel Application Scope (bất kỳ Excel file nào, hoặc tạo file tạm nếu không có)
+
+Bước 3: Invoke VBA cấu hình:
+
+Thuộc tính	Giá trị
+
+CodeFilePath	"MergeTemplateWithData.bas"
+EntryMethodName	"MergeTemplateWithData"
+Parameters	{New InArgument(Of Object)("C:\Path\template.csv"), New InArgument(Of Object)("C:\Path\data.csv")}
+
+
+
+---
+
+✅ Ưu điểm
+
+Xử lý được file lớn vì hoạt động theo dòng
+
+Không cần mở Excel file
+
+Giữ nguyên template, không ảnh hưởng
+
+Chạy nhanh và an toàn khi gọi từ UiPath
+
+
+
+---
+
+Bạn có muốn mình:
+
+Tạo sẵn .bas file nén .zip để bạn dùng luôn?
+
+Hướng dẫn cách tạo Excel Application Scope giả (nếu bạn không có file Excel)?
+
+
+Cứ nói mình hỗ trợ tiếp nhé.
