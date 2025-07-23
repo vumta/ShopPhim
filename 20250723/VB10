@@ -1,0 +1,85 @@
+Cảm ơn bạn đã làm rõ. Nếu bạn muốn:
+
+> Ghi toàn bộ dữ liệu từ data.csv bắt đầu từ dòng số 5 của file kết quả,
+tức là bỏ qua 4 dòng đầu của data.csv (giả sử đó là header hoặc metadata không cần dùng),
+nhưng vẫn giữ 4 dòng đầu của template.csv, thì đây là cách làm:
+
+
+
+
+---
+
+✅ Cập nhật đoạn code .NET dùng trong Invoke Code (VB.NET):
+
+If Not System.IO.File.Exists(templatePath) Then
+    Throw New Exception("Template file not found: " & templatePath)
+End If
+
+If Not System.IO.File.Exists(dataPath) Then
+    Throw New Exception("Data file not found: " & dataPath)
+End If
+
+Dim tempPath As String = dataPath & ".tmp"
+
+Using writer As New System.IO.StreamWriter(tempPath, False, System.Text.Encoding.UTF8)
+
+    ' Ghi 4 dòng đầu từ template
+    Using readerTemplate As New System.IO.StreamReader(templatePath, System.Text.Encoding.UTF8)
+        Dim count As Integer = 0
+        While Not readerTemplate.EndOfStream AndAlso count < 4
+            writer.WriteLine(readerTemplate.ReadLine())
+            count += 1
+        End While
+    End Using
+
+    ' Ghi từ dòng thứ 5 trở đi trong file data
+    Using readerData As New System.IO.StreamReader(dataPath, System.Text.Encoding.UTF8)
+        Dim lineCount As Integer = 0
+        While Not readerData.EndOfStream
+            Dim line As String = readerData.ReadLine()
+            lineCount += 1
+            If lineCount > 4 Then
+                writer.WriteLine(line)
+            End If
+        End While
+    End Using
+
+End Using
+
+' Ghi đè lại file gốc
+System.IO.File.Delete(dataPath)
+System.IO.File.Move(tempPath, dataPath)
+
+
+---
+
+🎯 Giải thích logic:
+
+template.csv: giữ nguyên 4 dòng đầu → ghi vào kết quả
+
+data.csv: bỏ qua 4 dòng đầu tiên → bắt đầu ghi từ dòng thứ 5 trở đi
+
+
+
+---
+
+🧩 Biến truyền vào:
+
+Name	Direction	Type
+
+templatePath	In	String
+dataPath	In	String
+
+
+
+---
+
+Nếu bạn muốn mình:
+
+Gửi file .xaml mẫu đầy đủ,
+
+Hoặc đóng gói .nupkg để bạn chỉ cần dùng như custom activity,
+
+
+hãy nói nhé, mình gửi ngay.
+
