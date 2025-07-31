@@ -1,0 +1,182 @@
+Cảm ơn bạn đã làm rõ! Trường hợp này bạn đang cần viết một "Hướng dẫn chuyển giao kỹ thuật (KT) RPA bot" để bạn Developer khác có thể:
+
+Hiểu bot chạy làm gì
+
+Biết cách kiểm tra – debug – sửa lỗi
+
+Có khả năng bảo trì và mở rộng
+
+
+
+---
+
+Dưới đây là cấu trúc chuẩn của một tài liệu chuyển giao bot RPA cho Dev khác:
+
+
+---
+
+📝 HƯỚNG DẪN CHUYỂN GIAO KỸ THUẬT BOT RPA
+
+I. 🧭 Tổng quan Bot
+
+Tên bot: [Tên đầy đủ hoặc mã hiệu bot]
+
+Khách hàng sử dụng: [Tên phòng ban, công ty...]
+
+Mục đích bot:
+
+> Bot tự động xử lý..., thay cho thao tác thủ công...
+
+
+
+Tần suất chạy bot: [VD: mỗi ngày lúc 8h sáng, theo lịch trình, hoặc chạy tay khi cần]
+
+Môi trường triển khai:
+
+> [VD: UiPath Orchestrator, Power Automate Cloud, Desktop App...]
+
+
+
+Ngôn ngữ phát triển: [VD: UiPath, Power Automate Desktop, Python + UiPath, v.v.]
+
+
+
+---
+
+II. 🔗 Luồng xử lý tổng thể
+
+1. Sơ đồ luồng tổng quát (flowchart hoặc bullet list)
+
+> Ví dụ:
+
+1. Mở file cấu hình config.xlsx
+
+
+2. Đọc email từ mailbox A
+
+
+3. Tải file đính kèm từ email
+
+
+4. Xử lý dữ liệu và tạo báo cáo
+
+
+5. Upload lên SharePoint và gửi email kết quả
+
+
+
+
+
+2. Input – Output
+
+Input:
+
+> [Loại dữ liệu, nguồn: Email, Excel, Web form...]
+
+
+
+Output:
+
+> [File tạo ra, cập nhật hệ thống, log gửi email,...]
+
+
+
+
+
+---
+
+III. ⚙️ Cấu trúc thư mục và file
+
+Giải thích các thư mục và file đi kèm:
+
+📁 Bot_Folder
+├── Main.xaml                 <-- File chính của bot
+├── config.xlsx               <-- File cấu hình đường dẫn, tham số
+├── input_template.xlsx       <-- Mẫu file input
+├── output/                   <-- Thư mục chứa kết quả
+├── logs/                     <-- Log file sau mỗi lần chạy
+└── assets.json               <-- (Nếu có) thông tin asset trên Orchestrator
+
+> Ghi chú nếu có hardcode, hoặc link nào cần cập nhật khi deploy
+
+
+
+
+---
+
+IV. 🧪 Hướng dẫn kiểm tra & debug
+
+1. Cách chạy thử bot:
+
+Với UiPath: Mở Main.xaml, bấm Run hoặc publish lên Orchestrator
+
+Với PAD: Mở file .pad và nhấn Play
+
+Với Power Automate Cloud: Chạy test trực tiếp trên Flow portal
+
+
+2. Cách kiểm tra log / thông báo lỗi
+
+Nêu vị trí lưu log hoặc hướng dẫn debug (VD: bật chế độ Log Message, Log to file)
+
+Cách dò lỗi step-by-step (debug mode hoặc log level)
+
+
+
+---
+
+V. 🧱 Cấu hình – Biến môi trường
+
+Tên biến	Giá trị mẫu	Giải thích
+
+SharePointFolderPath	/Reports/Monthly	Thư mục lưu kết quả
+MailReceiver	team@domain.com	Người nhận báo cáo
+RunMode	Test/Production	Phân biệt môi trường
+
+
+> Nếu dùng Orchestrator Assets, liệt kê asset name + ý nghĩa
+
+
+
+
+---
+
+VI. 🛠️ Các chức năng chính & mở rộng
+
+Danh sách các hàm chính hoặc flow phụ
+
+Các tham số có thể thay đổi khi mở rộng
+
+Những hạn chế hiện tại (ví dụ: chỉ hỗ trợ file Excel, chưa handle lỗi mạng...)
+
+
+
+---
+
+VII. 📌 Kịch bản lỗi phổ biến & cách xử lý
+
+Lỗi thường gặp	Nguyên nhân	Cách xử lý
+
+Không đọc được file Excel	File bị khóa, sai đường dẫn	Kiểm tra đường dẫn + log
+Không gửi được email	Lỗi SMTP / Quên cấu hình credential	Kiểm tra Outlook / Orchestrator credential
+
+
+
+---
+
+VIII. 🧳 Thông tin bổ sung
+
+Người phát triển: [Tên bạn]
+
+Ngày hoàn thành: [Ngày]
+
+Người tiếp nhận: [Tên Dev mới]
+
+Tài liệu liên quan: [Link SOP / BRD / Input mẫu / Hướng dẫn người dùng cuối...]
+
+
+
+---
+
+Bạn có thể đóng gói file hướng dẫn này dưới dạng Word, PDF hoặc Markdown để lưu trữ trên hệ thống chung (SharePoint, Notion, Confluence, GDrive…). Nếu bạn muốn mình giúp tạo sẵn 1 template Word với cấu trúc trên, chỉ cần nói nhé.
+
