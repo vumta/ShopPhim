@@ -1,0 +1,112 @@
+Dưới đây là cấu trúc một tài liệu Guide kiểm thử (KT) bot RPA dành cho một bạn Developer khác có thể dễ dàng hiểu và thực hiện:
+
+
+---
+
+🧪 HƯỚNG DẪN KIỂM THỬ BOT RPA
+
+I. 🧭 Thông tin tổng quan
+
+Tên bot: [Tên bot/flow]
+
+Mục đích bot: [Tóm tắt ngắn gọn bot này dùng để làm gì]
+
+Công cụ phát triển: [UiPath / Power Automate Desktop / Power Automate Cloud / Automation Anywhere / ...]
+
+Nguồn input: [VD: File Excel, Email, SharePoint, API, folder nội bộ...]
+
+Đầu ra output: [VD: Excel kết quả, cập nhật hệ thống, gửi email...]
+
+Tài khoản test: [Tên, mật khẩu hoặc hướng dẫn cấp quyền]
+
+Đường dẫn bot: [VD: Đường dẫn file .xaml, .pad, tên Flow, hoặc vị trí trên Orchestrator]
+
+
+
+---
+
+II. 🧪 Chuẩn bị môi trường kiểm thử
+
+✅ Cài đặt tool cần thiết (nếu có)
+
+✅ Import bot/script vào môi trường
+
+✅ Kiểm tra các asset/config/credential có tồn tại chưa
+
+✅ Copy test data vào đúng folder / SharePoint / DB / Email box
+
+
+
+---
+
+III. 📄 Kịch bản kiểm thử (Test Scenarios)
+
+STT	Mô tả Test Case	Input	Kỳ vọng	Ghi chú
+
+1	Happy case - dữ liệu chuẩn	input_01.xlsx	Bot chạy đến hết, tạo file output đúng định dạng	Test case chính
+2	Dữ liệu trống	File Excel không có dòng nào	Bot ghi log “No data”, không lỗi	
+3	Dữ liệu sai định dạng ngày	input_wrong_date.xlsx	Bot skip dòng lỗi, log lỗi cụ thể	
+4	SharePoint không kết nối được	Gỡ kết nối mạng / đổi URL sai	Bot dừng đúng bước, báo lỗi rõ ràng	
+5	...	...	...	...
+
+
+> 🔁 Nếu nhiều batch → test ít nhất 2 batch
+
+
+
+
+---
+
+IV. 🔍 Checklist khi chạy bot
+
+[ ] Bot chạy được từng step (check log)
+
+[ ] Output đúng định dạng, đúng thư mục
+
+[ ] Không có lỗi exception không xử lý
+
+[ ] Các file tạm xóa sau khi xử lý (nếu có)
+
+[ ] Gửi mail/log báo cáo sau khi hoàn thành
+
+
+
+---
+
+V. 📦 Tài liệu đính kèm
+
+✅ Input mẫu: /TestData/Input/input_01.xlsx
+
+✅ Output mẫu: /TestData/Output/output_expected.xlsx
+
+✅ File log mẫu: /TestData/Logs/log_example.txt
+
+✅ Config sử dụng: config.xlsx
+
+
+
+---
+
+VI. 🔁 Rollback & Reset môi trường
+
+🔁 Cách xoá kết quả cũ (xoá file, reset dữ liệu test)
+
+🔁 Khôi phục dữ liệu input ban đầu
+
+
+
+---
+
+VII. 🧾 Ghi chú thêm
+
+⚠️ Cẩn thận với trường hợp [mô tả]
+
+✅ Khi sửa lỗi test, nhớ chạy lại toàn bộ test case
+
+Nếu cần bật chế độ debug, hướng dẫn cụ thể: [chụp hình menu / hướng dẫn debug]
+
+
+
+---
+
+Nếu bạn cần mình xuất sẵn 1 template Word/PDF với format chuẩn, mình có thể tạo. Bạn muốn theo format công ty bạn đang dùng hay chuẩn mình đề xuất ở trên?
