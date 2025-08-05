@@ -1,0 +1,84 @@
+Khi Microsoft Forms trả về file đính kèm trong Power Automate, nó sẽ có dạng là một mảng JSON có ký tự escape \, ví dụ như sau:
+
+"[{\"name\":\"file1.txt\",\"link\":\"https://...\"}]"
+
+Lưu ý:
+
+Đây là string chứa JSON, chứ không phải JSON object thực sự.
+
+Vì vậy bạn cần chuyển chuỗi này thành mảng thực trước khi lấy được URL của file.
+
+
+
+---
+
+✅ Cách xử lý trong Power Automate để lấy URL file đính kèm:
+
+🔧 Bước 1: Dùng hàm json() để chuyển chuỗi thành mảng
+
+Giả sử:
+
+Biến đầu vào là body('Get_response_details')?['fileUpload']
+
+Hoặc là: triggerOutputs()?['body/fileUpload']
+
+
+Ta dùng:
+
+json(triggerOutputs()?['body/fileUpload'])
+
+(hoặc thay triggerOutputs()?['body/fileUpload'] bằng đúng chuỗi bạn đang dùng)
+
+
+---
+
+🔧 Bước 2: Lấy URL từ phần tử đầu tiên (nếu chỉ có 1 file)
+
+Giả sử sau bước 1 bạn đã có mảng, bạn có thể lấy link như sau:
+
+json(triggerOutputs()?['body/fileUpload'])[0]['link']
+
+
+---
+
+🧠 Mẹo: Dùng luôn Compose để debug
+
+1. Tạo 1 action Compose
+
+
+2. Nhập nội dung:
+
+
+
+json(triggerOutputs()?['body/fileUpload'])[0]['link']
+
+3. Chạy thử flow, bạn sẽ thấy URL file hiện ra rõ ràng.
+
+
+
+
+---
+
+✅ Kết luận
+
+Tóm lại, với mảng có dấu \ như sau:
+
+"[{\"name\":\"file1.txt\",\"link\":\"https://fileurl\"}]"
+
+Bạn cần:
+
+json(triggerOutputs()?['body/fileUpload'])[0]['link']
+
+
+---
+
+Nếu bạn cần xử lý nhiều file đính kèm, hãy dùng Apply to each để lặp qua:
+
+Apply to each => json(triggerOutputs()?['body/fileUpload'])
+    -> Inside: Compose: item()?['link']
+
+
+---
+
+Bạn gửi thêm ví dụ cụ thể nếu muốn mình viết đầy đủ từng bước nhé.
+
