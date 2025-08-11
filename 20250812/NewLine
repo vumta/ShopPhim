@@ -1,0 +1,47 @@
+Trong UiPath, log message mặc định chỉ in ra một dòng, nhưng bạn hoàn toàn có thể xuống hàng trong nội dung bằng cách chèn ký tự xuống dòng vào chuỗi.
+Có vài cách thông dụng:
+
+
+---
+
+1. Sử dụng vbCrLf hoặc vbNewLine
+
+LogMessage("Dòng 1" & vbCrLf & "Dòng 2")
+
+hoặc
+
+LogMessage("Dòng 1" & vbNewLine & "Dòng 2")
+
+
+---
+
+2. Sử dụng Environment.NewLine
+
+LogMessage("Dòng 1" & Environment.NewLine & "Dòng 2")
+
+
+---
+
+3. Nếu viết trong Assign để gán chuỗi trước
+
+msg = "Dòng 1" & vbCrLf & "Dòng 2"
+LogMessage(msg)
+
+
+---
+
+💡 Lưu ý:
+
+vbCrLf tương đương với ký tự Carriage Return + Line Feed (xuống dòng chuẩn Windows).
+
+Nếu log hiển thị trên Output Panel của UiPath thì cả vbCrLf và Environment.NewLine đều xuống hàng bình thường.
+
+Nếu bạn gửi log ra file hoặc hệ thống khác (như Orchestrator Logs), hệ thống đó phải hỗ trợ hiển thị xuống hàng thì mới thấy rõ.
+
+
+
+---
+
+Nếu bạn muốn, mình có thể viết cho bạn một hàm log nhiều dòng để dễ dùng trong mọi chỗ của workflow.
+Bạn muốn mình làm luôn không?
+
