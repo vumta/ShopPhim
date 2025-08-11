@@ -1,0 +1,33 @@
+Ok, nếu muốn gọn 1 dòng trong Assign để lấy luôn giá trị bị thiếu thì bạn có thể dùng LINQ như sau:
+
+missingValues = String.Join(", ", str1.Split(","c).Select(Function(s) s.Trim()).Where(Function(x) Not str2.Contains(x)))
+
+
+---
+
+Giải thích:
+
+str1.Split(","c) → tách chuỗi gốc thành mảng.
+
+.Select(Function(s) s.Trim()) → bỏ khoảng trắng thừa.
+
+.Where(Function(x) Not str2.Contains(x)) → lọc ra những phần tử không xuất hiện trong str2.
+
+String.Join(", ", ...) → ghép các phần tử bị thiếu thành 1 chuỗi cách nhau bằng dấu phẩy.
+
+
+
+---
+
+Ví dụ:
+
+str1 = "ABC, XYZ, 123"
+str2 = "ABC123"
+=> missingValues = "XYZ"
+
+
+---
+
+Nếu bạn muốn, mình có thể viết thêm điều kiện phân biệt hoa thường hoặc không phân biệt hoa thường tuỳ nhu cầu.
+Bạn cần mình làm luôn bản không phân biệt hoa thường không?
+
