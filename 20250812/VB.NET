@@ -1,0 +1,62 @@
+Rồi, mình viết gọn theo cách 2 để bạn bỏ thẳng vào Invoke Code trong UiPath, có thể nhận 2 chuỗi đầu vào và xuất log những phần tử bị thiếu.
+
+
+---
+
+VB.NET cho UiPath (Invoke Code)
+
+'=== Tham số In ===
+' str1 As String  (chuỗi gốc)
+' str2 As String  (chuỗi so sánh)
+
+'=== Tham số Out ===
+' missingValues As String  (chuỗi các giá trị thiếu)
+
+Dim arr1 = str1.Split(","c).Select(Function(s) s.Trim()).ToArray()
+Dim arr2 = str2.Split(","c).Select(Function(s) s.Trim()).ToArray()
+
+Dim missingList = arr1.Except(arr2).ToList()
+
+If missingList.Count > 0 Then
+    missingValues = String.Join(", ", missingList)
+    Console.WriteLine("Thiếu: " & missingValues)
+Else
+    missingValues = ""
+    Console.WriteLine("Không thiếu giá trị nào.")
+End If
+
+
+---
+
+Cách dùng trong UiPath
+
+1. Dùng Invoke Code
+
+Language: VB
+
+Arguments:
+
+str1 (In, String) → Chuỗi gốc, ví dụ "A,B,C,D"
+
+str2 (In, String) → Chuỗi so sánh, ví dụ "A,C"
+
+missingValues (Out, String)
+
+
+
+
+2. Sau khi chạy, bạn có thể:
+
+Dùng Write Line hoặc Log Message: "Thiếu: " & missingValues
+
+Hoặc ghi missingValues vào Excel.
+
+
+
+
+
+---
+
+Nếu bạn muốn, mình có thể viết thêm phiên bản rút gọn chỉ trong 1 Assign để không cần Invoke Code, dùng LINQ luôn.
+Bạn có cần bản rút gọn đó để dùng trong Assign không?
+
