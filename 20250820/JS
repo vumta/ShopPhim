@@ -1,0 +1,62 @@
+Ok 👍. Trong UiPath khi bạn dùng activity Inject JS Script hoặc Execute JavaScript, bạn có thể chạy một đoạn JS để click vào item trong dropdown (giả sử dropdown của bạn là thẻ <ul><li>...</li></ul>).
+
+Bạn muốn chọn theo tên item thay vì li:nth-child(index), thì có thể dùng đoạn code sau:
+
+(function(itemName) {
+    // Tìm tất cả các thẻ li trong dropdown
+    var items = document.querySelectorAll("ul li");
+
+    for (var i = 0; i < items.length; i++) {
+        // So sánh text hiển thị của item với tên cần chọn
+        if (items[i].innerText.trim() === itemName) {
+            items[i].click(); // Click vào item
+            return true; // Thành công
+        }
+    }
+
+    return false; // Không tìm thấy item
+})("Tên Item Cần Chọn");
+
+
+---
+
+Cách dùng trong UiPath
+
+Dùng activity Inject JS Script hoặc Execute JavaScript.
+
+Trong phần Code, dán đoạn trên.
+
+Thay "Tên Item Cần Chọn" bằng một tham số đầu vào (argument) trong UiPath để có thể truyền động.
+
+
+Ví dụ, nếu bạn có một biến trong UiPath tên itemName, bạn truyền nó vào script:
+
+(function(itemName) {
+    var items = document.querySelectorAll("ul li");
+
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].innerText.trim() === itemName) {
+            items[i].click();
+            return true;
+        }
+    }
+    return false;
+})(itemName);
+
+👉 Lưu ý:
+
+Nếu dropdown của bạn không phải ul li mà là div > div, bạn chỉ cần đổi selector trong querySelectorAll("ul li").
+
+Nếu item có khoảng trắng/thêm ký tự ẩn, nên dùng includes thay vì ===:
+
+if (items[i].innerText.trim().includes(itemName)) {
+    items[i].click();
+    return true;
+}
+
+
+
+---
+
+Bạn có cần mình viết luôn phiên bản tham số hóa (UiPath truyền vào itemName) để copy-paste trực tiếp vào Inject JS Script không?
+
