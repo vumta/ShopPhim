@@ -1,0 +1,93 @@
+À 👍 bạn đang bị đúng trường hợp 4:
+
+> Xóa file Excel rồi upload file mới → Power Automate vẫn cache lại metadata cũ → Get tables ra trống hoặc báo không có table.
+
+
+
+
+---
+
+🔧 Cách xử lý khi bị cache
+
+Cách 1. Không xóa file → chỉ Overwrite (Replace)
+
+Trên SharePoint/OneDrive, nếu bạn replace file thì table metadata sẽ giữ ổn hơn.
+
+Khi đó Get tables sẽ đọc được table trong file mới.
+
+Đây là cách Microsoft khuyến nghị, vì mỗi lần delete + upload thì file có fileId mới, Flow mất liên kết.
+
+
+
+---
+
+Cách 2. Xóa cache bằng cách tham chiếu Custom value thay vì chọn từ UI
+
+Khi chọn file ở Get tables hoặc List rows, thường bạn bấm Browse → nó lưu ID cứng.
+
+Bạn thay bằng Custom value với công thức kiểu:
+
+
+/Documents/Reports/MyExcel.xlsx
+
+hoặc (nếu dùng SharePoint):
+
+/sites/TestSite/Shared Documents/Reports/MyExcel.xlsx
+
+→ Như vậy Flow sẽ luôn đọc file path, không quan tâm fileId.
+Khi bạn upload file mới (cùng tên, cùng path), Get tables sẽ hoạt động.
+
+
+---
+
+Cách 3. Force refresh bằng Delay + Get tables lại
+
+Có lúc SharePoint/OneDrive chưa kịp cập nhật metadata khi bạn vừa upload.
+
+Bạn có thể thêm action:
+
+1. Upload file
+
+
+2. Delay 5–10 giây
+
+
+3. Get tables → khi đó sẽ thấy table mới.
+
+
+
+
+
+---
+
+Cách 4. Đọc bảng theo tên mong muốn
+
+Sau khi Get tables, bạn lọc ra table đúng tên. Ví dụ:
+
+
+first(
+  filter(
+    outputs('Get_tables')?['body/value'],
+    item()?['name'] eq 'DataTable'
+  )
+)?['id']
+
+→ Luôn lấy đúng table "DataTable" trong file mới (dù fileId khác).
+
+
+---
+
+👉 Tóm lại, để xử lý hẳn tình huống xóa & upload file mới bạn nên kết hợp:
+
+Dùng Custom value (path) thay vì chọn file trong UI.
+
+Dùng Get tables → lọc theo tên.
+
+Nếu cần, thêm Delay 5–10 giây sau upload.
+
+
+
+---
+
+Bạn có muốn mình viết cho bạn một đoạn mẫu trong Flow (dùng Get tables → lọc theo tên Table → List rows) để copy-paste dùng luôn không?
+
