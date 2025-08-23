@@ -1,0 +1,164 @@
+Rất tốt 👍. Mình hiểu yêu cầu mới:
+
+Khi convert từ CSV → TXT:
+
+Ngoài việc tách cột đúng (tab-delimited, không BOM), cần xoá các ký tự thừa như Excel thường sinh ra khi export CSV (=""value"", ="00123", hoặc thừa " bao quanh).
+
+Kết quả trong TXT chỉ giữ lại giá trị thực (value), không còn dấu =, "", hoặc BOM.
+
+
+
+
+---
+
+✅ Code VB.NET (Invoke Code trong UiPath)
+
+' INPUT:  csvPath As String (In)
+' OUTPUT: txtPath As String (Out)
+
+' 1) Tạo đường dẫn .txt đích từ .csv
+txtPath = System.IO.Path.ChangeExtension(csvPath, ".txt")
+
+' 2) Chuẩn bị danh sách encoding (hỗ trợ Nhật/Trung/Hàn)
+Dim encodings As System.Text.Encoding() = New System.Text.Encoding() {
+    System.Text.Encoding.UTF8,
+    System.Text.Encoding.Unicode,            ' UTF-16 LE
+    System.Text.Encoding.BigEndianUnicode,   ' UTF-16 BE
+    System.Text.Encoding.GetEncoding("shift_jis"),
+    System.Text.Encoding.GetEncoding("gb2312"),
+    System.Text.Encoding.GetEncoding("euc-kr")
+}
+
+' 3) Danh sách delimiter phổ biến
+Dim possibleDelims As Char() = New Char() {","c, ";"c, ChrW(9), "|"c} ' ChrW(9) = tab
+
+' 4) Phát hiện encoding + delimiter tốt nhất dựa trên dòng đầu
+Dim chosenEncoding As System.Text.Encoding = System.Text.Encoding.UTF8
+Dim chosenDelimiter As Char = ","c
+Dim maxCols As Integer = -1
+
+Dim eIdx As Integer
+For eIdx = 0 To encodings.Length - 1
+    Dim enc As System.Text.Encoding = encodings(eIdx)
+    Try
+        Using sr As New System.IO.StreamReader(csvPath, enc, True)
+            Dim firstLine As String = Nothing
+            Do While Not sr.EndOfStream AndAlso (firstLine Is Nothing OrElse firstLine.Length = 0)
+                firstLine = sr.ReadLine()
+            Loop
+            If firstLine Is Nothing Then Exit Try
+            If firstLine.Length > 0 AndAlso AscW(firstLine(0)) = &HFEFF Then
+                firstLine = firstLine.Substring(1)
+            End If
+
+            Dim bestForThisEnc As Char = ","c
+            Dim bestCols As Integer = -1
+
+            Dim dIdx As Integer
+            For dIdx = 0 To possibleDelims.Length - 1
+                Dim d As Char = possibleDelims(dIdx)
+                Dim parts() As String = firstLine.Split(d)
+                Dim colCount As Integer = parts.Length
+                If colCount > bestCols Then
+                    bestCols = colCount
+                    bestForThisEnc = d
+                End If
+            Next
+
+            If bestCols > maxCols Then
+                maxCols = bestCols
+                chosenEncoding = enc
+                chosenDelimiter = bestForThisEnc
+            End If
+        End Using
+    Catch ex As System.Exception
+        ' Bỏ qua encoding lỗi
+    End Try
+Next
+
+' 5) Đọc CSV và ghi sang TXT (UTF-8 không BOM)
+Dim utf8NoBom As New System.Text.UTF8Encoding(False)
+
+Using reader As New System.IO.StreamReader(csvPath, chosenEncoding, True)
+    Using writer As New System.IO.StreamWriter(txtPath, False, utf8NoBom)
+        Do While Not reader.EndOfStream
+            Dim line As String = reader.ReadLine()
+            If line Is Nothing Then Exit Do
+
+            ' Bỏ BOM U+FEFF đầu dòng nếu có
+            If line.Length > 0 AndAlso AscW(line(0)) = &HFEFF Then
+                line = line.Substring(1)
+            End If
+
+            ' Parser CSV cơ bản (dấu "…" và escape "")
+            Dim fields As New System.Collections.Generic.List(Of String)()
+            Dim sb As New System.Text.StringBuilder()
+            Dim inQuotes As Boolean = False
+            Dim i As Integer = 0
+            Do While i < line.Length
+                Dim ch As Char = line(i)
+                If ch = """"c Then
+                    If inQuotes AndAlso i + 1 < line.Length AndAlso line(i + 1) = """"c Then
+                        sb.Append(""""c)
+                        i += 1
+                    Else
+                        inQuotes = Not inQuotes
+                    End If
+                ElseIf (ch = chosenDelimiter) AndAlso Not inQuotes Then
+                    fields.Add(sb.ToString())
+                    sb.Length = 0
+                Else
+                    sb.Append(ch)
+                End If
+                i += 1
+            Loop
+            fields.Add(sb.ToString())
+
+            ' Làm sạch dữ liệu từng field (xoá ="", xoá thừa quote)
+            Dim cleanFields As New System.Collections.Generic.List(Of String)()
+            For Each f As String In fields
+                Dim val As String = f.Trim()
+
+                ' Xoá ="..." → ...
+                If val.StartsWith("=""") AndAlso val.EndsWith("""") Then
+                    val = val.Substring(3, val.Length - 4)
+                End If
+
+                ' Xoá quote bọc ngoài nếu có
+                If val.StartsWith("""") AndAlso val.EndsWith("""") AndAlso val.Length > 1 Then
+                    val = val.Substring(1, val.Length - 2)
+                End If
+
+                cleanFields.Add(val)
+            Next
+
+            ' Ghi sang TXT bằng tab
+            writer.WriteLine(String.Join(vbTab, cleanFields.ToArray()))
+        Loop
+    End Using
+End Using
+
+' 6) Xoá file CSV gốc
+If System.IO.File.Exists(csvPath) Then
+    System.IO.File.Delete(csvPath)
+End If
+
+
+---
+
+🔎 Cải tiến thêm:
+
+Xử lý =""value"" → value
+
+Xử lý ="00123" → 00123 (giữ số 0 đầu)
+
+Xoá thừa " bọc ngoài
+
+Tất cả output luôn là UTF-8 không BOM
+
+
+
+---
+
+Bạn có muốn mình thêm Out argument logDetail để trả về trong UiPath (ví dụ: "Encoding=Shift_JIS, Delimiter=','") để dễ debug khi nhiều loại CSV khác nhau không?
+
