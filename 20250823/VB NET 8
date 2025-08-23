@@ -1,0 +1,179 @@
+Rõ 👍. Vấn đề bạn nói chính là dạng Excel CSV xuất ra thường có "=""xxx""".
+Ví dụ:
+
+Trong CSV có "=""1""" → phải ra 1
+
+"=""outer""" → phải ra outer
+
+"=""ABC123""" → phải ra ABC123
+
+
+Tức là luôn có mẫu ="xxx" bao quanh, và xxx có độ dài động.
+
+Mình sẽ cập nhật parser trong Invoke Code VB.NET:
+
+Giữ nguyên phần auto detect encoding, delimiter
+
+Trong bước làm sạch field, thêm check If val.StartsWith("=""") AndAlso val.EndsWith("""") thì cắt bỏ =" ở đầu và " ở cuối
+
+Không còn hardcode độ dài cắt → xử lý động chính xác
+
+
+
+---
+
+✅ Code hoàn chỉnh (chạy trong UiPath Invoke Code)
+
+' INPUT:  csvPath As String (In)
+' OUTPUT: txtPath As String (Out)
+
+' 1) Tạo đường dẫn .txt từ .csv
+txtPath = System.IO.Path.ChangeExtension(csvPath, ".txt")
+
+' 2) Encoding (UTF-8, Nhật, Trung, Hàn)
+Dim encodings As System.Text.Encoding() = New System.Text.Encoding() {
+    System.Text.Encoding.UTF8,
+    System.Text.Encoding.Unicode,
+    System.Text.Encoding.BigEndianUnicode,
+    System.Text.Encoding.GetEncoding("shift_jis"),
+    System.Text.Encoding.GetEncoding("gb2312"),
+    System.Text.Encoding.GetEncoding("euc-kr")
+}
+
+' 3) Danh sách delimiter có thể có
+Dim possibleDelims As Char() = New Char() {","c, ";"c, ChrW(9), "|"c}
+
+Dim chosenEncoding As System.Text.Encoding = System.Text.Encoding.UTF8
+Dim chosenDelimiter As Char = ","c
+Dim maxCols As Integer = -1
+
+' 4) Detect encoding + delimiter
+Dim eIdx As Integer
+For eIdx = 0 To encodings.Length - 1
+    Dim enc As System.Text.Encoding = encodings(eIdx)
+    Try
+        Using sr As New System.IO.StreamReader(csvPath, enc, True)
+            Dim firstLine As String = Nothing
+            Do While Not sr.EndOfStream AndAlso (firstLine Is Nothing OrElse firstLine.Length = 0)
+                firstLine = sr.ReadLine()
+            Loop
+            If firstLine Is Nothing Then Exit Try
+            If firstLine.Length > 0 AndAlso AscW(firstLine(0)) = &HFEFF Then
+                firstLine = firstLine.Substring(1)
+            End If
+
+            Dim bestForThisEnc As Char = ","c
+            Dim bestCols As Integer = -1
+            Dim dIdx As Integer
+            For dIdx = 0 To possibleDelims.Length - 1
+                Dim d As Char = possibleDelims(dIdx)
+                Dim parts() As String = firstLine.Split(d)
+                Dim colCount As Integer = parts.Length
+                If colCount > bestCols Then
+                    bestCols = colCount
+                    bestForThisEnc = d
+                End If
+            Next
+
+            If bestCols > maxCols Then
+                maxCols = bestCols
+                chosenEncoding = enc
+                chosenDelimiter = bestForThisEnc
+            End If
+        End Using
+    Catch ex As System.Exception
+        ' bỏ qua
+    End Try
+Next
+
+' 5) Đọc CSV → ghi TXT UTF-8 no BOM
+Dim utf8NoBom As New System.Text.UTF8Encoding(False)
+
+Using reader As New System.IO.StreamReader(csvPath, chosenEncoding, True)
+    Using writer As New System.IO.StreamWriter(txtPath, False, utf8NoBom)
+
+        Do While Not reader.EndOfStream
+            Dim line As String = reader.ReadLine()
+            If line Is Nothing Then Exit Do
+
+            If line.Length > 0 AndAlso AscW(line(0)) = &HFEFF Then
+                line = line.Substring(1)
+            End If
+
+            ' Parser field
+            Dim fields As New System.Collections.Generic.List(Of String)()
+            Dim sb As New System.Text.StringBuilder()
+            Dim inQuotes As Boolean = False
+            Dim i As Integer = 0
+
+            Do While i < line.Length
+                Dim ch As Char = line(i)
+                If ch = """"c Then
+                    If inQuotes AndAlso i + 1 < line.Length AndAlso line(i + 1) = """"c Then
+                        sb.Append(""""c)
+                        i += 1
+                    Else
+                        inQuotes = Not inQuotes
+                    End If
+                ElseIf (ch = chosenDelimiter) AndAlso Not inQuotes Then
+                    fields.Add(sb.ToString())
+                    sb.Length = 0
+                Else
+                    sb.Append(ch)
+                End If
+                i += 1
+            Loop
+            fields.Add(sb.ToString())
+
+            ' Làm sạch field
+            Dim cleanFields As New System.Collections.Generic.List(Of String)()
+            For Each f As String In fields
+                Dim val As String = f.Trim()
+
+                ' Trường hợp đặc biệt: ="xxx"
+                If val.StartsWith("=""") AndAlso val.EndsWith("""") AndAlso val.Length > 3 Then
+                    ' Bỏ ="  ở đầu và " ở cuối
+                    val = val.Substring(2, val.Length - 3)
+                ElseIf val.StartsWith("""") AndAlso val.EndsWith("""") AndAlso val.Length > 1 Then
+                    ' Bỏ quote ngoài (nếu có)
+                    val = val.Substring(1, val.Length - 2)
+                End If
+
+                ' Xóa xuống dòng trong cell
+                val = val.Replace(vbCrLf, " ").Replace(vbCr, " ").Replace(vbLf, " ")
+
+                cleanFields.Add(val)
+            Next
+
+            writer.WriteLine(String.Join(vbTab, cleanFields.ToArray()))
+        Loop
+
+    End Using
+End Using
+
+' 6) Xoá file CSV gốc
+If System.IO.File.Exists(csvPath) Then
+    System.IO.File.Delete(csvPath)
+End If
+
+
+---
+
+🔑 Điểm mới
+
+"=""xxx""" → tách chính xác xxx (chiều dài động).
+
+Không mất ký tự đầu/cuối như trước (outer → chuẩn, không còn thành uter).
+
+Unicode an toàn (UTF-8, Shift-JIS, GB2312, EUC-KR).
+
+Xuất .txt tab-delimited, 1 row CSV = 1 row TXT.
+
+CSV gốc bị xóa.
+
+
+
+---
+
+👉 Bạn có muốn mình bổ sung thêm logDetail (Out Argument) ghi rõ Encoding + Delimiter đã detect không, để dễ debug sau này?
+
