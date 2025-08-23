@@ -1,0 +1,87 @@
+👌 hiểu rồi. Trong Invoke Code của UiPath, bạn không thể khai báo Sub Main() hoặc function riêng, mà chỉ cần viết code chạy trực tiếp (UiPath sẽ wrap giùm).
+
+Mình sẽ chỉnh lại code để chạy thẳng, không lỗi.
+
+
+---
+
+🔹 Code VB.NET (chạy trực tiếp trong Invoke Code UiPath)
+
+Trong Invoke Code → VB.NET, bạn chỉ cần dán:
+
+Imports System.IO
+Imports System.Text
+
+' Kiểm tra file CSV tồn tại
+If Not File.Exists(csvPath) Then
+    Throw New FileNotFoundException("Không tìm thấy file CSV: " & csvPath)
+End If
+
+' Các encoding phổ biến (UTF-8, UTF-16, Shift-JIS, GB2312, EUC-KR)
+Dim encodings As Encoding() = {
+    Encoding.UTF8,
+    Encoding.Unicode,            ' UTF-16 LE
+    Encoding.BigEndianUnicode,   ' UTF-16 BE
+    Encoding.GetEncoding("shift_jis"),
+    Encoding.GetEncoding("gb2312"),
+    Encoding.GetEncoding("euc-kr")
+}
+
+' Các delimiter phổ biến
+Dim delimiters As Char() = {","c, ";"c, vbTab, "|"c}
+Dim bestDelimiter As Char = ","c
+
+Dim chosenEncoding As Encoding = Encoding.UTF8
+Dim maxColumns As Integer = 0
+
+' Thử từng encoding để detect delimiter tốt nhất
+For Each enc As Encoding In encodings
+    Try
+        Using sr As New StreamReader(csvPath, enc, True)
+            Dim firstLine As String = sr.ReadLine()
+            If Not String.IsNullOrEmpty(firstLine) Then
+                For Each d As Char In delimiters
+                    Dim colCount As Integer = firstLine.Split(d).Length
+                    If colCount > maxColumns Then
+                        maxColumns = colCount
+                        bestDelimiter = d
+                        chosenEncoding = enc
+                    End If
+                Next
+            End If
+        End Using
+    Catch ex As Exception
+        ' Nếu encoding này không hợp lệ thì bỏ qua
+    End Try
+Next
+
+' Writer với UTF-8 không BOM
+Dim utf8NoBOM As New UTF8Encoding(False)
+
+' Đọc toàn bộ CSV với encoding detect được và ghi TXT tab-delimited
+Using reader As New StreamReader(csvPath, chosenEncoding, True)
+    Using writer As New StreamWriter(txtPath, False, utf8NoBOM)
+        Dim line As String
+        Do While Not reader.EndOfStream
+            line = reader.ReadLine()
+            Dim columns() As String = line.Split(bestDelimiter)
+            writer.WriteLine(String.Join(vbTab, columns))
+        Loop
+    End Using
+End Using
+
+
+---
+
+🔹 Cách cấu hình Arguments trong Invoke Code
+
+csvPath → Direction: In → Type: String → Ví dụ: "C:\Data\input.csv"
+
+txtPath → Direction: In → Type: String → Ví dụ: "C:\Data\output.txt"
+
+
+
+---
+
+👉 Bạn có muốn mình gửi luôn file .xaml mẫu (UiPath workflow có sẵn Invoke Code + arguments) để chỉ cần import là chạy được không?
+
