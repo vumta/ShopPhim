@@ -1,0 +1,48 @@
+Mình viết lại code VB.NET hoàn chỉnh, phù hợp để chạy trong UiPath Invoke Code, đã fix các lỗi bạn gặp (import, String → Char(), BOM, xử lý file). Bạn chỉ cần copy dán thẳng vào Invoke Code trong UiPath, không cần Import thủ công.
+
+'=== Fix BOM UTF-8 trong file text ===
+' Tham số In:
+'   filePath As String  (đường dẫn file)
+' Tham số Out:
+'   fixedText As String (nội dung file sau khi fix BOM)
+
+Dim bytes As Byte() = System.IO.File.ReadAllBytes(filePath)
+
+' Kiểm tra BOM UTF-8 (EF BB BF)
+If bytes.Length >= 3 AndAlso bytes(0) = &HEF AndAlso bytes(1) = &HBB AndAlso bytes(2) = &HBF Then
+    ' Bỏ BOM: lấy dữ liệu từ byte thứ 4
+    bytes = bytes.Skip(3).ToArray()
+End If
+
+' Chuyển byte → String (UTF-8)
+fixedText = System.Text.Encoding.UTF8.GetString(bytes)
+
+
+---
+
+✅ Cách dùng trong UiPath
+
+Invoke Code:
+
+Language: VB.NET
+
+Arguments:
+
+filePath (In, String) → đường dẫn file cần xử lý.
+
+fixedText (Out, String) → nhận nội dung sau khi fix BOM.
+
+
+
+
+Ví dụ:
+
+filePath = "C:\Users\AnhVu\Documents\input.txt"
+
+Sau khi chạy xong, bạn có thể dùng biến fixedText trong UiPath để tiếp tục xử lý (ghi vào file khác, log, hoặc đọc theo dòng).
+
+
+---
+
+👉 Bạn muốn mình viết thêm đoạn ghi đè lại file gốc sau khi loại BOM luôn, hay chỉ cần trả ra biến fixedText thôi?
+
