@@ -1,0 +1,58 @@
+Có 3 lý do hay gặp khiến ô “trông trống” nhưng công thức vẫn coi là có dữ liệu:
+
+1. Ô nguồn có ký tự ẩn (dấu cách, NBSP = CHAR(160), xuống dòng…)
+
+
+2. Ô nguồn chứa công thức trả về "" (rỗng chuỗi) — ISBLANK() sẽ không coi là trống.
+
+
+3. Ô nguồn là số 0 nhưng định dạng làm nó “mất hình”.
+
+
+
+Cách sửa nhanh (khuyến nghị)
+
+Dùng kiểm tra “trống thật” bằng cách loại hết ký tự ẩn trước khi tính:
+
+=IF(LEN(TRIM(SUBSTITUTE(OtherSheet!A1,CHAR(160),""))) = 0, "", <công_thức_của_bạn>)
+
+SUBSTITUTE(...,CHAR(160),"") bỏ NBSP (khoảng trắng web).
+
+TRIM() bỏ khoảng trắng đầu/cuối (ASCII 32).
+
+LEN(...)=0 → coi là trống thật.
+
+
+Nếu bạn đang dùng ISBLANK(OtherSheet!A1), hãy đổi thành so sánh rỗng chuỗi:
+
+=IF(OtherSheet!A1 = "", "", <công_thức_của_bạn>)
+
+(vì ISBLANK() sẽ trả FALSE nếu ô có công thức, dù công thức trả về "").
+
+Nếu cần coi 0 cũng như trống:
+
+=IF(LEN(TRIM(SUBSTITUTE(OtherSheet!A1,CHAR(160),""))) = 0, "", 
+   IF(N(OtherSheet!A1)=0, "", <công_thức_của_bạn>)
+)
+
+Cách kiểm tra nhanh nguyên nhân
+
+Ở một ô trống khác, nhập: =LEN(OtherSheet!A1)
+
+> > 0 nghĩa là đang có ký tự ẩn.
+
+
+
+
+
+Kiểm tra ký tự đầu: =CODE(LEFT(OtherSheet!A1,1))
+
+> 160 ⇒ đang có NBSP (không xóa bằng TRIM thường).
+
+
+
+Dùng: =FORMULATEXT(OtherSheet!A1) để xem ô nguồn có công thức trả về "" không.
+
+
+Bạn chỉ cần thay OtherSheet!A1 bằng địa chỉ ô thực tế và nhét <công_thức_của_bạn> vào là xong. Nếu muốn, gửi mình công thức hiện tại và địa chỉ ô nguồn, mình chỉnh đúng luôn cho bạn.
+
