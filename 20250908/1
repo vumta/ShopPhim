@@ -1,0 +1,98 @@
+Bạn nói đến lỗi chạy UiPath trên Orchestrator (OC), gặp thông báo liên quan đến “Windows Session Logger” đúng không?
+Lỗi này thường xuất hiện khi robot không mở được session Windows để chạy process. Một số nguyên nhân phổ biến:
+
+
+---
+
+Nguyên nhân thường gặp
+
+1. Tài khoản robot chưa cấu hình đúng trên Orchestrator
+
+Username/Domain hoặc mật khẩu nhập sai → không đăng nhập được vào Windows.
+
+Robot được set dạng Service thay vì User → chạy trên background không có desktop session.
+
+
+
+2. Robot license / Unattended license chưa có
+
+Nếu dùng Attended robot thì Orchestrator không thể mở session RDP tự động.
+
+Cần license Unattended để chạy job từ Orchestrator.
+
+
+
+3. Máy robot đang bị khóa session hoặc chưa cấu hình cho phép logon
+
+Nếu dùng Windows Server: session cũ chưa thoát, Orchestrator không mở được session mới.
+
+Nếu dùng Windows 10/11: máy phải bật, có quyền logon qua RDP.
+
+
+
+4. Resolution hoặc Windows settings chưa đúng
+
+Orchestrator cần thiết lập Resolution (Width, Height, Depth) trong Robot Settings (hoặc Orchestrator → Modern Folder → Machine template → Runtime settings).
+
+Nếu để trống, đôi khi UiPath không tạo được session desktop.
+
+
+
+5. Chưa cấp quyền Local Policy
+
+User chạy robot cần quyền:
+
+Log on locally
+
+Log on as a batch job
+
+Log on through Remote Desktop Services (nếu dùng RDP)
+
+
+
+
+
+
+---
+
+Cách xử lý
+
+✅ Kiểm tra lần lượt:
+
+1. Vào Orchestrator → Tenant → Folders → Users/Machines: xác nhận Username/Password robot đúng định dạng (MAYCHU\username hoặc username@domain).
+
+
+2. Đảm bảo bạn có license Unattended gán cho robot.
+
+
+3. Trong Orchestrator → Machines → Runtime Settings, set Resolution:
+
+Width: 1920
+
+Height: 1080
+
+Depth: 32
+
+
+
+4. Kiểm tra Windows:
+
+Cho phép user logon bằng RDP.
+
+Máy không bị sleep/hibernate.
+
+Thử logoff toàn bộ session cũ rồi run lại job từ OC.
+
+
+
+5. Nếu vẫn lỗi: bật Robot Logs chi tiết trong C:\Users\<user>\AppData\Local\UiPath\Logs để xem rõ hơn Windows Session Logger báo gì (ví dụ: sai mật khẩu, không tìm thấy user, v.v.).
+
+
+
+
+---
+
+👉 Bạn có thể gửi mình ảnh chụp lỗi đầy đủ (ví dụ “Cannot create Windows Session” hay “Windows Session Logger ended unexpectedly”) thì mình sẽ chỉ chính xác nguyên nhân hơn.
+
+Bạn có muốn mình viết checklist step-by-step (từ Orchestrator xuống máy robot) để test nhanh lỗi này không?
+
