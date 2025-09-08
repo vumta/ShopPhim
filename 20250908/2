@@ -1,0 +1,113 @@
+Ok, mình giải thích kỹ hơn mục 4 và 5 nhé (đây là 2 nguyên nhân hay gặp nhất với lỗi Windows Session Logger khi chạy UiPath trên Orchestrator):
+
+
+---
+
+🔹 Mục 4: Resolution hoặc Windows settings chưa đúng
+
+Khi Orchestrator mở một Windows Session mới, nó cần biết kích thước màn hình (Resolution).
+Nếu không khai báo hoặc khai báo sai → robot không tạo được desktop session, dẫn tới Windows Session Logger lỗi.
+
+Cách xử lý:
+
+1. Vào Orchestrator → Tenant → Machines.
+
+
+2. Chọn Machine template bạn đã gán cho robot.
+
+
+3. Mở tab Runtime settings (hoặc Settings → Remote Runtime tuỳ bản UiPath).
+
+
+4. Thiết lập:
+
+Resolution Width: 1920
+
+Resolution Height: 1080
+
+Resolution Depth (Color depth): 32
+
+
+
+5. Save lại → thử run job.
+
+
+
+👉 Lưu ý:
+
+Nếu để 0,0,0 thì Orchestrator sẽ lấy resolution mặc định của Windows, nhưng nhiều server chạy headless (không màn hình) → gây lỗi.
+
+Một số trường hợp cần test 1366 x 768 nếu server cấu hình thấp.
+
+
+
+---
+
+🔹 Mục 5: Chưa cấp quyền Local Policy cho user robot
+
+User mà bạn dùng để chạy Robot cần có quyền để Orchestrator mở session. Nếu thiếu quyền, job sẽ fail ngay từ bước Windows Session Logger.
+
+Các quyền cần có (Windows Local Security Policy):
+
+1. Allow log on locally
+
+Cho phép user đăng nhập trực tiếp vào máy.
+
+
+
+2. Allow log on through Remote Desktop Services
+
+Cho phép user đăng nhập qua RDP (cần nếu Orchestrator mở session dạng RDP).
+
+
+
+3. Log on as a batch job
+
+Cho phép user chạy process tự động từ service/batch (UiPath Robot service dùng quyền này).
+
+
+
+
+
+---
+
+Cách cấp quyền:
+
+1. Vào máy robot → mở secpol.msc (Local Security Policy).
+
+
+2. Điều hướng:
+Local Policies → User Rights Assignment.
+
+
+3. Tìm và thêm user robot vào các policy:
+
+Allow log on locally
+
+Allow log on through Remote Desktop Services
+
+Log on as a batch job
+
+
+
+4. Áp dụng → logoff máy → run job lại.
+
+
+
+👉 Nếu dùng Domain account, cần check với Admin để gán các quyền này ở mức Group Policy (GPO), vì GPO có thể override Local Policy.
+
+
+---
+
+🔧 Tóm lại:
+
+Mục 4: đảm bảo có Resolution chuẩn trong Orchestrator.
+
+Mục 5: đảm bảo user robot có đủ quyền logon trong Windows.
+
+
+
+---
+
+Bạn có muốn mình viết luôn một step-by-step checklist để bạn test mục 4 và 5 theo thứ tự (5–10 phút làm trên máy) không?
+
