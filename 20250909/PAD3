@@ -1,0 +1,68 @@
+Ok, để mình phân tích kỹ cho bạn 👇
+
+Trong Power Automate Desktop (PAD), khi bạn chạy CreateObject("Outlook.Application") mà bị lỗi thì thường có 3 nguyên nhân chính:
+
+
+---
+
+🔎 Nguyên nhân thường gặp
+
+1. Chưa cài Outlook Desktop (MS Outlook)
+CreateObject("Outlook.Application") chỉ chạy được khi máy có cài Outlook bản desktop (thuộc Office). Nếu bạn chỉ có Outlook Web (OWA) thì sẽ báo lỗi.
+
+
+2. Outlook không được cấu hình profile mặc định
+PAD gọi đến Outlook qua COM, nó cần có ít nhất 1 profile mail đã login sẵn trong Outlook. Nếu chưa mở Outlook và đăng nhập thì CreateObject sẽ fail.
+
+
+3. Chạy PAD ở 32-bit vs Outlook 64-bit không khớp
+
+PAD dùng 64-bit runtime, nhưng nếu Outlook cài 32-bit (hoặc ngược lại) → lỗi COM.
+
+
+
+
+
+---
+
+✅ Cách xử lý
+
+Bạn có 2 hướng:
+
+Cách 1: Dùng Outlook Interop qua COM (chỉ khi có Outlook desktop)
+
+Thử code đơn giản để test:
+
+Dim outlookApp As Object
+outlookApp = CreateObject("Outlook.Application")
+MsgBox("Outlook version: " & outlookApp.Version)
+
+👉 Nếu chạy ok, bạn mới tiếp tục lấy mail.
+Nếu vẫn báo lỗi → kiểm tra lại 3 nguyên nhân ở trên.
+
+
+---
+
+Cách 2: Không dùng Outlook COM, mà gọi Graph API / EWS
+
+Nếu bạn chỉ cần địa chỉ email gửi/nhận chứ không cần Outlook desktop, thì có thể:
+
+Gọi Microsoft Graph API bằng action Invoke Web Service trong PAD, hoặc
+
+Dùng Exchange Web Services (EWS).
+
+
+Cách này không phụ thuộc Outlook cài trên máy, nhưng cần Access Token từ Azure AD.
+
+
+---
+
+👉 Cho mình hỏi rõ hơn:
+
+Máy bạn có cài Outlook Desktop (Office Outlook) chưa?
+
+Bạn cần giải pháp chạy được trong PAD trên mọi máy (không cần Outlook), hay chỉ trên máy có Outlook desktop thôi?
+
+
+Nếu bạn cần mình viết code chạy không cần Outlook, mình sẽ viết luôn bản dùng Graph API cho bạn. Bạn muốn theo hướng nào?
+
