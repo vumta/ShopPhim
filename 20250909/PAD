@@ -1,0 +1,63 @@
+Bạn muốn lấy địa chỉ email từ Outlook trong Power Automate Desktop (PAD) bằng VB.NET code đúng không? 👍
+
+Trong PAD, bạn có thể dùng action Invoke Code (VB.NET), sau đó tham chiếu thư viện Outlook (Microsoft.Office.Interop.Outlook) để truy cập email.
+Dưới đây là một ví dụ cơ bản để lấy danh sách địa chỉ email từ Inbox:
+
+' Biến đầu ra
+Dim MailAddresses As New System.Collections.Generic.List(Of String)
+
+' Khởi tạo Outlook
+Dim outlookApp As Object = CreateObject("Outlook.Application")
+Dim outlookNs As Object = outlookApp.GetNamespace("MAPI")
+
+' Mở Inbox
+Dim inbox As Object = outlookNs.GetDefaultFolder(6) ' 6 = olFolderInbox
+Dim items As Object = inbox.Items
+
+' Lặp qua một số mail (ví dụ 50 mail gần nhất)
+Dim count As Integer = Math.Min(50, items.Count)
+
+For i As Integer = 1 To count
+    Dim mail As Object = items(i)
+    If Not mail Is Nothing Then
+        Try
+            ' Lấy địa chỉ người gửi
+            Dim senderEmail As String = ""
+            If Not mail.Sender Is Nothing Then
+                senderEmail = mail.Sender.Address
+            End If
+
+            If Not String.IsNullOrEmpty(senderEmail) Then
+                MailAddresses.Add(senderEmail)
+            End If
+        Catch ex As Exception
+            ' Bỏ qua mail lỗi (ví dụ: meeting request)
+        End Try
+    End If
+Next
+
+' Trả về cho Power Automate Desktop
+result = MailAddresses
+
+Cách dùng trong Power Automate Desktop:
+
+1. Thêm action Invoke Code → chọn VB.NET.
+
+
+2. Copy code trên vào.
+
+
+3. Tạo biến output result (kiểu List of Text) để nhận danh sách địa chỉ email.
+
+
+4. Sau khi chạy, bạn sẽ có danh sách email từ 50 thư gần nhất trong Inbox.
+
+
+
+👉 Bạn có muốn mình viết thêm code để:
+
+Lấy Subject + Body + Sender Address cùng lúc,
+
+Hay chỉ cần địa chỉ mail người gửi thôi?
+
+
