@@ -1,0 +1,47 @@
+Trong Power Automate Desktop (PAD) khi bạn dùng Invoke Code (VB.NET) thì môi trường chạy code không cho phép add reference thủ công giống như Visual Studio (Add Reference → COM → Outlook).
+
+👉 Vì vậy có 2 cách để dùng thư viện Outlook trong PAD:
+
+
+---
+
+Cách 1: Late Binding (không cần add reference)
+
+Dùng CreateObject("Outlook.Application") như mình viết ở trên.
+
+Ưu điểm: Chạy được ngay trong PAD, không cần thêm tham chiếu.
+
+Nhược điểm: Không có gợi ý IntelliSense, dễ sai chính tả, performance hơi chậm.
+
+
+Ví dụ:
+
+Dim outlookApp As Object = CreateObject("Outlook.Application")
+Dim outlookNs As Object = outlookApp.GetNamespace("MAPI")
+Dim inbox As Object = outlookNs.GetDefaultFolder(6) ' 6 = Inbox
+
+
+---
+
+Cách 2: Early Binding (cần tham chiếu Interop)
+
+Nếu bạn thực sự muốn dùng đầy đủ thư viện Microsoft.Office.Interop.Outlook để có IntelliSense thì phải:
+
+1. Trên máy cài sẵn Outlook Desktop.
+
+
+2. Xuất code VB.NET ra .dll hoặc .exe từ Visual Studio, có tham chiếu COM (Microsoft Outlook xx.x Object Library).
+
+
+3. Trong PAD, bạn gọi file .exe hoặc dùng Run .NET assembly để chạy.
+
+
+
+Nhưng cách này phức tạp, thường PAD developer sẽ chọn Late Binding (Cách 1).
+
+
+---
+
+👉 Vậy trong PAD, bạn không cần add reference gì cả, chỉ cần dùng CreateObject("Outlook.Application").
+Nếu bạn cần code lấy địa chỉ mail người gửi, người nhận (To, CC, BCC) thì mình có thể viết bản hoàn chỉnh cho bạn luôn. Bạn có muốn bản đó không?
+
