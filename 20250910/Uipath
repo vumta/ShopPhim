@@ -1,0 +1,44 @@
+Ok 👍 Trong UiPath bạn có nhiều cách để xử lý chuỗi ID này. Mình đưa bạn 3 cách thông dụng nhất:
+
+
+---
+
+🟢 Cách 1: Dùng Assign Activity với If
+
+Giả sử biến chứa ID là storeId (kiểu String).
+
+storeId = If(storeId.Length = 4 AndAlso storeId.StartsWith("0"), storeId.Substring(1), storeId)
+
+👉 Nếu ID có 4 ký tự và bắt đầu bằng 0 thì bỏ ký tự đầu.
+👉 Nếu không, giữ nguyên.
+
+
+---
+
+🟢 Cách 2: Dùng Assign Activity với Regex
+
+storeId = System.Text.RegularExpressions.Regex.Replace(storeId, "^0(\d{3})$", "$1")
+
+Regex kiểm tra chuỗi có đúng 4 ký tự, bắt đầu bằng 0, theo sau là 3 số.
+
+Nếu đúng → trả về 3 số sau.
+
+Nếu không khớp → giữ nguyên.
+
+
+
+---
+
+🟢 Cách 3: Áp dụng cho DataTable (nếu có danh sách nhiều ID)
+
+Dùng For Each Row in DataTable:
+
+row("StoreID") = If(row("StoreID").ToString.Length = 4 AndAlso row("StoreID").ToString.StartsWith("0"),
+                    row("StoreID").ToString.Substring(1),
+                    row("StoreID").ToString)
+
+
+---
+
+👉 Với bạn đang làm việc trong UiPath, bạn muốn xử lý một biến chuỗi đơn lẻ hay là cột StoreID trong DataTable?
+
