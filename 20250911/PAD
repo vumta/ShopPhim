@@ -1,0 +1,91 @@
+Trong Power Automate Desktop (PAD), bạn có thể sử dụng Encode và Decode (Uncode) để chuyển đổi dữ liệu chuỗi sang các định dạng khác nhau, thường dùng trong xử lý text, URL, Base64 hoặc HTML. Mình giải thích chi tiết nhé:
+
+
+---
+
+1. Các hành động có sẵn trong PAD
+
+PAD cung cấp các action liên quan đến encode/decode trong nhóm Text > Encoding:
+
+Encode text
+
+Chuyển đổi chuỗi sang:
+
+Base64
+
+URL
+
+HTML
+
+JavaScript string
+
+XML
+
+
+
+Decode text
+
+Giải mã ngược lại từ các định dạng trên về chuỗi gốc.
+
+
+
+
+---
+
+2. Ví dụ sử dụng
+
+Encode → Decode Base64
+
+Input: "Hello PAD"
+
+Action: Encode text → Encoding = Base64
+
+Output: "SGVsbG8gUEFE"
+
+
+Sau đó nếu dùng:
+
+Action: Decode text → Encoding = Base64
+
+Output: "Hello PAD"
+
+
+
+---
+
+Encode → Decode URL
+
+Input: "https://contoso.com/query?name=PAD & value=100%"
+
+Action: Encode text → Encoding = URL
+
+Output:
+
+https%3A%2F%2Fcontoso.com%2Fquery%3Fname%3DPAD%20%26%20value%3D100%25
+
+Action: Decode text → Encoding = URL
+
+Output trở lại:
+
+https://contoso.com/query?name=PAD & value=100%
+
+
+
+---
+
+3. Khi nào nên dùng
+
+Base64: khi cần nhúng file, hình ảnh, hoặc truyền dữ liệu nhị phân qua API.
+
+URL encode/decode: khi truyền query string hoặc parameter có ký tự đặc biệt (&, %, space).
+
+HTML encode/decode: khi xuất nhập văn bản có chứa <, > hoặc &.
+
+XML/JS encode: khi xử lý dữ liệu nhúng vào XML hoặc JavaScript.
+
+
+
+---
+
+👉 Bạn muốn mình viết một demo PAD flow (từng step Encode/Decode URL hoặc Base64) để bạn copy chạy thử luôn không?
+
