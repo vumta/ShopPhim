@@ -1,0 +1,189 @@
+Ok, mình sẽ giải thích chi tiết ngày 1 trong plan training Power Automate Desktop (PAD) cho người đã có kinh nghiệm UiPath, nhưng mới chuyển qua PAD. Ngày 1 học 6.5 giờ, nội dung sẽ như sau:
+
+
+---
+
+Ngày 1 – Giới thiệu Power Automate Desktop & Cơ bản về Flow
+
+⏰ Thời lượng: ~6.5h
+
+
+---
+
+1. Giới thiệu Power Automate & PAD (1h)
+
+Mục tiêu: Hiểu PAD nằm trong hệ sinh thái Power Platform như thế nào, khác gì UiPath.
+
+Nội dung:
+
+Power Automate có 2 phần:
+
+Cloud Flow (trên web) → dùng cho automation cloud-based (API, SharePoint, Outlook, Teams...).
+
+Desktop Flow (PAD) → dùng cho RPA, thao tác với ứng dụng desktop/web.
+
+
+Cách PAD tích hợp với Cloud Flow (trigger từ UiPath → gọi Cloud Flow → chạy Desktop Flow).
+
+So sánh với UiPath:
+
+UiPath Studio = PAD Designer.
+
+UiPath Robot = PAD Runtime.
+
+UiPath Orchestrator = Power Automate Cloud + Dataverse.
+
+
+Ưu/nhược điểm khi dùng PAD thay UiPath.
+
+
+
+👉 Tài liệu:
+
+Giới thiệu Power Automate Desktop
+
+So sánh UiPath vs PAD
+
+
+
+---
+
+2. Làm quen giao diện PAD (1h)
+
+Mục tiêu: Hiểu cách thao tác trên PAD Designer.
+
+Nội dung:
+
+Màn hình chính của PAD:
+
+Action Pane (danh sách activity).
+
+Main Canvas (nơi kéo thả).
+
+Variables Pane (quản lý biến).
+
+Error list & Debug.
+
+
+Cách tạo mới Desktop Flow, mở flow, save flow.
+
+Cách chạy flow, debug step-by-step, log output.
+
+Thực hành nhỏ: tạo flow “Hello World” hiển thị Message Box.
+
+
+
+👉 Tài liệu:
+
+PAD Interface Overview
+
+
+
+---
+
+3. Làm việc với Action cơ bản (2h)
+
+Mục tiêu: Nắm được action cơ bản tương tự như UiPath activity.
+
+Nội dung:
+
+Variables & Data Types: Text, Number, Boolean, Datetime, List, DataTable.
+
+Input/Output dialog: Message Box, Input Dialog.
+
+File actions: tạo, đọc, ghi file txt/csv.
+
+Clipboard actions: copy/paste.
+
+System actions: mở ứng dụng, wait, delay.
+
+So sánh với activity trong UiPath (Assign, Write Line, Read Text File, etc.).
+
+Thực hành:
+
+Tạo flow nhập tên từ Input Dialog → ghi vào file txt → hiển thị lại bằng Message Box.
+
+
+
+
+👉 Tài liệu:
+
+PAD Actions Reference
+
+
+
+---
+
+4. Control Flow & Debugging (1.5h)
+
+Mục tiêu: Biết dùng cấu trúc điều khiển, xử lý lỗi cơ bản.
+
+Nội dung:
+
+If, Switch, Loop (For Each, While, Do Until).
+
+Try-Catch trong PAD (subflow On Error).
+
+Debug: run step-by-step, kiểm tra biến trong khi chạy.
+
+Logging: dùng Write to Log File action.
+
+So sánh với UiPath “Try-Catch, Flow Decision, For Each”.
+
+Thực hành:
+
+Flow duyệt qua list số → nếu số chẵn thì ghi ra file A, số lẻ ghi ra file B.
+
+Flow có Try-Catch: đọc file → nếu lỗi thì log ra file error.txt.
+
+
+
+
+👉 Tài liệu:
+
+PAD Control Flow
+
+
+
+---
+
+5. Bài tập tổng hợp ngày 1 (1h)
+
+Mục tiêu: Áp dụng toàn bộ kiến thức ngày 1.
+
+Yêu cầu:
+
+Flow cho phép nhập một list số từ người dùng.
+
+Duyệt qua list:
+
+Nếu số > 50 → ghi ra file “greater50.txt”.
+
+Nếu số ≤ 50 → ghi ra file “lessEqual50.txt”.
+
+
+Nếu người dùng nhập không phải số → ghi log error.txt.
+
+
+So sánh với cách làm trong UiPath → để quen mapping kiến thức cũ sang PAD.
+
+
+
+---
+
+👉 Kết thúc ngày 1, bạn sẽ:
+
+Biết sự khác nhau giữa PAD và UiPath.
+
+Biết giao diện, chạy flow, debug.
+
+Làm việc với action cơ bản, control flow.
+
+Thực hành xây dựng flow nhỏ có input → xử lý → output + log error.
+
+
+
+---
+
+Bạn có muốn mình viết chi tiết luôn script mẫu (code PAD actions) cho bài tập cuối ngày 1 để bạn copy-paste vào PAD thực hành không?
+
