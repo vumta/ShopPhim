@@ -1,0 +1,210 @@
+Rất hay 👍 Sau khi bạn đã hoàn thành 6 buổi cơ bản + dự án thực tế với PAD, thì việc lên plan nâng cao tập trung vào tích hợp ngôn ngữ lập trình & script là bước cực kỳ quan trọng. Nhất là khi bạn vốn có nền tảng UiPath + .NET → bạn sẽ tận dụng tốt phần này để mở rộng sức mạnh của PAD, vượt qua giới hạn “drag & drop”.
+
+Mình đề xuất Kế hoạch 6 ngày nâng cao (mỗi ngày 6.5h) như sau:
+
+
+---
+
+📅 Training Plan Nâng Cao Power Automate Desktop (PAD + Scripting)
+
+Ngày 1 – VB.NET trong PAD
+
+Mục tiêu: Nắm cách viết, chạy và debug VB.NET code trong PAD (action Run VBScript hoặc Invoke Code).
+
+Nội dung:
+
+Cách gọi Run VBScript trong PAD.
+
+Truyền biến từ PAD vào VB.NET, trả kết quả về PAD.
+
+Demo: xử lý chuỗi, tính toán logic phức tạp.
+
+Xây dựng function re-usable (ví dụ: format ID, validate số, xử lý ngày giờ).
+
+So sánh ưu/nhược so với UiPath Invoke Code.
+
+
+Thực hành:
+
+Viết hàm parse JSON đơn giản bằng VB.NET (tránh giới hạn PAD).
+
+Tạo module xử lý DataTable (lọc, join, group).
+
+Gọi API bằng HttpClient trong VB.NET.
+
+
+
+
+---
+
+Ngày 2 – Excel nâng cao với VBA & Macro
+
+Mục tiêu: Sử dụng PAD kết hợp với VBA để xử lý Excel ở mức nâng cao.
+
+Nội dung:
+
+Tạo và gọi Macro từ PAD.
+
+Viết VBA để:
+
+Tối ưu import/export dữ liệu lớn.
+
+Làm sạch dữ liệu (remove duplicate, xử lý NA/NAN).
+
+Tạo báo cáo Pivot, Chart.
+
+
+Tích hợp VBA với PAD: chạy macro xong → PAD tiếp tục workflow.
+
+
+Thực hành:
+
+Tự động mở Excel → chạy macro “CleanData” → export ra file mới.
+
+Viết VBA merge nhiều sheet thành 1 → gọi từ PAD.
+
+Macro format báo cáo + gửi mail qua PAD.
+
+
+
+
+---
+
+Ngày 3 – PowerShell Integration
+
+Mục tiêu: Tận dụng PowerShell để thao tác hệ thống, file, registry, Active Directory, SharePoint.
+
+Nội dung:
+
+Action Run PowerShell Script trong PAD.
+
+Truyền input từ PAD vào PowerShell, nhận output về.
+
+Dùng PowerShell để:
+
+Lấy danh sách process, service, system info.
+
+Gọi API với Invoke-RestMethod.
+
+Làm việc với file, nén/giải nén, zip.
+
+SharePoint PnP: tải/xuống file hàng loạt.
+
+
+
+Thực hành:
+
+Script copy/move file hàng loạt theo điều kiện.
+
+PowerShell gọi Graph API → lấy danh sách file trong SharePoint.
+
+PAD + PowerShell để đọc registry key hoặc environment variable.
+
+
+
+
+---
+
+Ngày 4 – JavaScript & JSON/XML parsing
+
+Mục tiêu: Mở rộng PAD bằng JavaScript để xử lý dữ liệu phức tạp.
+
+Nội dung:
+
+Action Run JavaScript Code trong PAD.
+
+Parse JSON nâng cao bằng JS.
+
+Làm việc với Regex, String manipulation.
+
+Xử lý XML (dùng DOMParser).
+
+
+Thực hành:
+
+Tạo hàm JS parse API response (JSON nhiều tầng) → trả DataTable về PAD.
+
+Sử dụng Regex trong JS để extract số điện thoại, email.
+
+Convert XML → JSON → table để PAD xử lý.
+
+
+
+
+---
+
+Ngày 5 – Hybrid Automation & Advanced Integration
+
+Mục tiêu: Xây dựng automation kết hợp nhiều công nghệ.
+
+Nội dung:
+
+Kết hợp: PAD (RPA UI) + PowerShell (hệ thống) + VBA (Excel) + JS (API/JSON).
+
+Best practices: khi nào dùng script thay vì PAD action.
+
+Sử dụng PAD để gọi script lưu trong Git (version control).
+
+
+Thực hành dự án nhỏ:
+
+PAD đọc danh sách file → gọi PowerShell zip → gọi VB.NET xử lý chuỗi → chạy VBA format báo cáo → gửi Outlook mail.
+
+Workflow đa bước với script xen kẽ PAD.
+
+
+
+
+---
+
+Ngày 6 – Mini Project & Best Practices
+
+Mục tiêu: Tổng hợp toàn bộ kỹ năng.
+
+Dự án thực tế:
+“Tự động lấy dữ liệu từ SharePoint → xử lý bằng JS (parse JSON) → ghi Excel bằng VBA → nén bằng PowerShell → gửi email + log.”
+
+Checklist:
+
+Logging nâng cao.
+
+Error handling với Try-Catch cho script.
+
+Documentation: hướng dẫn deploy flow + script.
+
+Performance test (xử lý file lớn).
+
+
+Tổng kết:
+
+Khi nào dùng PAD native action.
+
+Khi nào dùng script (ưu tiên tốc độ, flexibility).
+
+Chiến lược maintain script trong PAD project.
+
+
+
+
+---
+
+📌 Tài liệu tham khảo:
+
+Power Automate Desktop Docs
+
+VB.NET Basics
+
+Excel VBA Reference
+
+PowerShell Docs
+
+JavaScript MDN
+
+
+
+---
+
+👉 Mình gợi ý: Sau 6 ngày này, bạn có thể tiếp tục nâng lên Level Expert bằng cách build dự án end-to-end, dùng PAD + Cloud + script, giống mô hình enterprise của UiPath.
+
+Bạn có muốn mình xuất luôn file Excel Training Plan nâng cao (giống hôm trước mình làm) với lịch từng ngày, nội dung và link tài liệu không?
+
