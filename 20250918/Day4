@@ -1,0 +1,263 @@
+Tốt — dưới đây mình giải thích rất chi tiết cho Ngày 4 — API & Integration (6.5h). Mình sẽ nêu mục tiêu, phân bổ giờ, từng bước thao tác (action name chính xác trong PAD), ví dụ cụ thể (weather API), cách parse JSON, cách gọi PAD từ Cloud Flow + input/output, mẫu error-handling, và những lỗi hay gặp + cách fix. Mình kèm các tham chiếu Microsoft chính thức ở chỗ quan trọng.
+
+
+---
+
+Ngày 4 — API & Integration (6.5h)
+
+Mục tiêu hôm nay
+
+Gọi REST API từ PAD (GET/POST, header, body), nhận và kiểm tra response.
+
+Parse JSON trả về thành object/biến trong PAD để xử lý.
+
+Tích hợp: gọi Desktop Flow từ Power Automate (Cloud Flow), truyền input/output giữa Cloud ⇄ Desktop.
+
+Hoàn thành mini-project: Cloud Flow (kích hoạt từ email) → gọi PAD → PAD gọi Weather API → ghi kết quả vào Excel.
+
+
+Phân bổ thời gian (gợi ý)
+
+Invoke web service (HTTP) — 2.0h
+
+Parse JSON & thao tác dữ liệu — 1.0h
+
+Cloud Flow gọi Desktop Flow (inputs/outputs) — 1.5h
+
+Mini project (build + test) — 2.0h
+
+
+
+---
+
+A. Gọi API bằng PAD — action chính: Invoke web service
+
+Action bạn sẽ dùng: Invoke web service (trong nhóm Web / HTTP actions). Đây là action để gửi GET/POST/PUT/DELETE tới API và lưu response. 
+
+Quan trọng trong cấu hình:
+
+URL: endpoint (ví dụ https://api.openweathermap.org/data/2.5/weather?q=Hanoi&appid=APIKEY)
+
+Method: GET / POST / PUT / ...
+
+Accept (response content type) — thường application/json
+
+Content type (request body type) — application/json khi gửi JSON
+
+Custom headers: để thêm Authorization: Bearer <token> hoặc header API key.
+
+Request body: cho POST/PUT (thường JSON string).
+
+Save response: chọn “Get text into variable” — response text sẽ vào biến (mặc định tên WebServiceResponse).
+
+Connection timeout, Follow redirection, Fail on error status (xem note bên dưới).
+
+
+Action sẽ tạo biến chứa response (ví dụ WebServiceResponse) và biến StatusCode (HTTP code) — bạn dùng để kiểm tra HTTP 200/400/500. 
+
+
+Mẹo cấu hình
+
+Nếu bạn muốn tự kiểm tra status code và xử lý lỗi thủ công, đặt Fail on error status = False (vì nếu bật, action sẽ ném exception trên HTTP error). Nếu muốn action ném exception cho HTTP lỗi, bật True. 
+
+Với auth: nhiều API chấp nhận Authorization: Bearer <token> hoặc key trong query string. Không lưu key dưới dạng text cứng trong flow — đánh dấu biến chứa key là sensitive (xem phần Input/Output variables).
+
+
+Lưu ý
+
+Một số authentication (ví dụ NTLM) không được hỗ trợ cho web requests trong PAD — kiểm tra docs nếu dùng auth đặc biệt. 
+
+
+
+---
+
+B. Parse JSON trong PAD (Convert JSON → Custom Object)
+
+PAD có action: Convert JSON to custom object (trong nhóm Variables). Dùng action này để chuyển JSON text (string) thành 1 custom object mà bạn có thể truy xuất thuộc tính bằng cú pháp index. 
+
+Flow ví dụ:
+
+1. Invoke web service → Save response text → biến WebServiceResponse (text). 
+
+
+2. Convert JSON to custom object → Input: %WebServiceResponse% → Output: JsonAsCustomObject. 
+
+
+3. Truy xuất giá trị: ví dụ Temperature = %JsonAsCustomObject['main']['temp']% hoặc Description = %JsonAsCustomObject['weather'][0]['description']%. (cú pháp dùng bracket ['key'], chỉ số mảng dùng [0]) 
+
+
+
+
+Ví dụ chuyển nhiệt độ (OpenWeatherMap)
+
+API trả main.temp bằng Kelvin. Sau khi đã có JsonAsCustomObject['main']['temp'] (ví dụ 300.15), chuyển sang Celsius:
+
+Celsius = %JsonAsCustomObject['main']['temp']% - 273.15 (tạo variable mới bằng action Set variable với biểu thức trên).
+
+
+
+Lỗi parse JSON hay gặp
+
+Response không phải JSON (ví dụ HTML lỗi) → Convert JSON to custom object sẽ lỗi. Trước khi parse, luôn kiểm tra StatusCode == 200 và (tùy API) kiểm tra response Content-Type có chứa application/json. Nếu không thỏa, log và stop/retry.
+
+
+
+---
+
+C. Gọi Desktop Flow từ Cloud Flow (Power Automate portal)
+
+Cloud Flow action: Run a flow built with Power Automate for desktop — dùng trong designer để gọi Desktop Flow đã publish. Trong Cloud Flow, sau khi thêm action này bạn có thể chọn connection, Desktop Flow, và truyền input variables; Desktop Flow có thể trả output variables về Cloud Flow. 
+
+Giới hạn và lưu ý: Input size limit: 2 MB (1 MB cho China regions). Nếu input nhạy cảm, đánh dấu là sensitive (Cloud Flow sẽ tôn trọng). 
+
+
+Cách tạo input/output trong PAD
+
+Trong PAD Designer → Variables pane → + → chọn Input hoặc Output, đặt tên, kiểu (Text/Number/Boolean/Custom object/List/DataTable). Trường External name là tên hiển thị trên Cloud Flow khi truyền giá trị. Bạn cũng có thể đánh dấu input là sensitive. 
+
+
+Flow Cloud → Desktop (ví dụ)
+
+1. Cloud Flow trigger: When a new email arrives (Outlook) — lấy city name từ body/email subject.
+
+
+2. Thêm action Run a flow built with Power Automate for desktop → chọn desktop flow GetWeather → truyền input City = <value-from-email> và (nếu muốn) APIKey (nên đánh dấu sensitive trong PAD). 
+
+
+3. Desktop flow chạy, trả về outputs (ví dụ WeatherSummary) → Cloud Flow tiếp tục (gửi email report, ghi log, v.v.).
+
+
+
+
+---
+
+D. Mini-project: Cloud trigger → PAD → Weather API → Excel
+
+Mô tả: khi nhận email dạng weather: <city>, Cloud Flow truyền <city> vào Desktop Flow. Desktop Flow gọi OpenWeatherMap, parse JSON, lưu kết quả vào Excel, trả output Status về Cloud Flow.
+
+Cloud Flow (tóm tắt)
+
+Trigger: When a new email arrives (Outlook) — filter subject contains weather:.
+
+Action: Run a flow built with Power Automate for desktop → chọn Desktop Flow GetWeather → map input City = expression extract from subject.
+
+(Tuỳ chọn) Nếu Desktop Flow trả Status hoặc FilePath, Cloud Flow có thể gửi reply với file đính kèm.
+
+
+Desktop Flow GetWeather (PAD) — step-by-step (action names chính xác)
+
+1. Input variable (Variables pane): City (Text, External name City), APIKey (Text, mark as sensitive). 
+
+
+2. Set variable url = "https://api.openweathermap.org/data/2.5/weather?q=" & City & "&appid=" & APIKey
+
+
+3. Invoke web service
+
+URL: %url%
+
+Method: GET
+
+Accept: application/json
+
+Save response: Get text into variable → WebServiceResponse
+
+(Keep Fail on error status = False so you can inspect StatusCode)
+
+After action you get StatusCode and WebServiceResponse. 
+
+
+
+4. If StatusCode <> 200 → Write to log file (ghi status + WebServiceResponse) → Set output variable Status = "ERROR" → Exit.
+
+
+5. Convert JSON to custom object → Input: %WebServiceResponse% → Output: JsonAsCustomObject. 
+
+
+6. Set variable TempK = %JsonAsCustomObject['main']['temp']%
+
+
+7. Set variable TempC = %TempK% - 273.15 (sử dụng Set variable với biểu thức)
+
+
+8. Create new data table weatherDT với cột City, TempC, Description, Time
+
+
+9. Insert row into data table → [City, TempC, JsonAsCustomObject['weather'][0]['description'], FormatDateTime(Now())]
+
+
+10. Launch Excel → tạo hoặc mở file C:\PAD\Output\WeatherReport.xlsx (Excel instance)
+
+
+11. Write to Excel worksheet → DataTable: weatherDT, Start cell A1, Include headers = True.
+
+
+12. Set output variable Status = "OK" và ReportFilePath = "C:\PAD\Output\WeatherReport.xlsx"
+
+
+13. End flow (Cloud Flow sẽ nhận 2 outputs và có thể gửi mail).
+
+
+
+Kiểm thử: test với city = Hanoi (với APIKey hợp lệ). Nếu trả mã 401 → kiểm tra APIKey / header. Nếu JSON structure khác → debug bằng Display message show %WebServiceResponse% hoặc Write text to file.
+
+
+---
+
+E. Error-handling & troubleshooting (ngay trong PAD)
+
+Kiểm tra HTTP StatusCode sau Invoke web service; nếu không 2xx → log + retry/backoff.
+
+Try-Catch: bọc Invoke web service trong block Try/Catch; catch: Take screenshot, Write to log, set output error, exit.
+
+JSON parse fail: thường do response HTML (error page) → log WebServiceResponse to file để xem.
+
+Auth errors (401/403): kiểm tra header Authorization, token expiry, hoặc scope. Nếu dùng Basic auth, dùng advanced settings (credentials) trong action. 
+
+Timeouts: tăng Connection timeout nếu API chậm.
+
+Response too lớn: đối với payload rất lớn, cân nhắc gọi API giới hạn fields, hoặc lưu response ra file (Download to disk) thay vì giữ trong memory.
+
+
+
+---
+
+F. Một số mẹo & best practices
+
+Đánh dấu biến chứa API keys là sensitive (Variables pane) — tránh lộ trong logs. 
+
+Nếu cần xử lý JSON phức tạp (mảng lớn), bạn có thể dùng Convert JSON → custom object rồi duyệt thuộc tính trong loop. 
+
+Test API bằng Postman trước, đảm bảo endpoint + headers + body đúng, rồi mới chạy PAD.
+
+Log đầy đủ (StatusCode + URL + response snippet) để debug nhanh.
+
+
+
+---
+
+Tham khảo chính thức (những chỗ quan trọng mình dùng trong hướng dẫn)
+
+Invoke web service (HTTP actions) — docs chính thức (hướng dẫn cài đặt, biến trả về: WebServiceResponse, StatusCode). 
+
+Trigger / Run desktop flows từ Cloud Flow (cách chọn action “Run a flow built with Power Automate for desktop”, input/output, giới hạn input size). 
+
+Convert JSON to custom object (action & cách dùng). 
+
+Manage variables / tạo Input & Output variables + sensitive flag. 
+
+
+
+---
+
+Nếu bạn muốn mình làm tiếp một trong hai (mình sẽ làm ngay trong tin nhắn này):
+
+1. Viết danh sách action-by-action (từng action + mọi parameter cụ thể — bạn chỉ copy/paste values vào PAD) cho mini-project (Cloud trigger → PAD → weather → Excel).
+
+
+2. Hoặc cập nhật file Excel TrainingPlan_PAD.xlsx: thêm chi tiết Day 4 trong cột Note (và checklist sub-task để tick khi xong).
+
+
+
+Bạn muốn mình làm phương án (1) hay (2)? Mình sẽ tạo luôn — không cần bạn chờ.
+
