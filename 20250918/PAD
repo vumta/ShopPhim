@@ -1,0 +1,237 @@
+Rõ rồi 👍
+Bạn đã có nền tảng RPA (UiPath) nên không cần học lại mấy thứ cơ bản như biến, if/else, loop,… mà tập trung vào cách PAD khác UiPath, thế mạnh PAD (UI + tích hợp Power Platform), và ứng dụng thực tế để làm dự án.
+
+👉 Mình sẽ lên plan 5 ngày (full-time 8h/ngày) dạng “bootcamp” để bạn có thể chuyển nhanh sang PAD.
+
+
+---
+
+📅 Training Plan Power Automate Desktop (cho người đã biết UiPath)
+
+Ngày 1: Làm quen & So sánh với UiPath (8h)
+
+Mục tiêu: Hiểu sự khác biệt giữa PAD và UiPath, làm quen nhanh giao diện + cách debug.
+
+1. Giới thiệu & Setup (1h)
+
+Cài PAD, mở Flow, tìm hiểu Action Pane, Debugger.
+
+So sánh: Flow trong PAD ≈ Workflow trong UiPath.
+
+
+
+2. Variable & Data types (1h)
+
+Kiểu dữ liệu trong PAD (simple, list, datatable).
+
+Khác biệt so với UiPath.
+
+
+
+3. Control Flow (2h)
+
+If/Else, Switch, Loop.
+
+Thực hành: duyệt folder, xử lý file.
+
+
+
+4. Practice project mini (3h)
+
+Input: Folder chứa 10 file text.
+
+Output: Đọc nội dung, lọc theo từ khóa, ghi log vào 1 file.
+
+
+
+
+📚 Tài liệu:
+
+PAD Introduction
+
+Variables & data types
+
+
+
+---
+
+Ngày 2: File, Excel, DataTable (8h)
+
+Mục tiêu: Làm chủ Excel Automation & DataTable trong PAD (rất hay dùng trong dự án).
+
+1. File & Folder actions (1h)
+
+Copy, Move, Delete, Get file list.
+
+
+
+2. Excel Automation cơ bản (2h)
+
+Launch Excel, Read/Write Cell, Append Rows.
+
+Khác biệt với UiPath Excel activities.
+
+
+
+3. DataTable (2h)
+
+Tạo DataTable, thêm dòng, filter, merge.
+
+So sánh với DataTable UiPath.
+
+
+
+4. Practice project mini (3h)
+
+Duyệt folder chứa nhiều file Excel → lấy dữ liệu sheet “Data” → gộp vào 1 file tổng.
+
+
+
+
+📚 Tài liệu:
+
+Excel actions
+
+Datatable actions
+
+
+
+---
+
+Ngày 3: UI Automation & Web Automation (8h)
+
+Mục tiêu: Làm chủ recorder + UI Automation (desktop & web).
+
+1. Desktop Recorder (2h)
+
+Select UI element, Click, Send Keys, Extract data.
+
+So sánh với UiPath selectors.
+
+
+
+2. Web Recorder (2h)
+
+Open browser, navigate, extract data table.
+
+Demo: scrape dữ liệu giá vàng từ web.
+
+
+
+3. Error Handling (1h)
+
+Try/Catch, Retry loop, log error.
+
+
+
+4. Practice project mini (3h)
+
+Mở website tin tức → lấy 10 tiêu đề mới nhất → ghi vào Excel.
+
+
+
+
+📚 Tài liệu:
+
+UI Automation
+
+Web Automation
+
+
+
+---
+
+Ngày 4: Tích hợp Power Platform & API (8h)
+
+Mục tiêu: Học cách chạy PAD từ Cloud Flow và làm việc với API.
+
+1. Power Automate Cloud + PAD (2h)
+
+Tạo Cloud Flow → gọi PAD.
+
+Trigger PAD từ Outlook/SharePoint.
+
+
+
+2. API trong PAD (2h)
+
+HTTP actions (GET, POST).
+
+Parse JSON không có sẵn → dùng chuỗi.
+
+
+
+3. Practice project mini (3h)
+
+Cloud Flow trigger từ email → gọi PAD Flow → PAD call API thời tiết → ghi dữ liệu ra Excel.
+
+
+
+4. So sánh UiPath Orchestrator vs Power Automate Cloud (1h)
+
+
+
+📚 Tài liệu:
+
+Run desktop flows from cloud flows
+
+Invoke web service
+
+
+
+---
+
+Ngày 5: Build dự án thực tế (8h)
+
+Mục tiêu: Xây dựng end-to-end PAD project giống như dự án thật.
+
+Case study: Báo cáo bán hàng tự động
+
+1. Input: SharePoint folder chứa file Excel bán hàng từng ngày.
+
+
+2. PAD Flow:
+
+Duyệt tất cả file → đọc dữ liệu → gộp thành 1 DataTable.
+
+Ghi báo cáo tổng vào Excel.
+
+Gửi email báo cáo (Outlook).
+
+
+
+3. Error handling & logging.
+
+
+4. Tích hợp với Cloud Flow để auto-run khi có file mới.
+
+
+
+📚 Tài liệu:
+
+Best practices for PAD
+
+PAD tutorials
+
+
+
+---
+
+✅ Kết quả sau 5 ngày bootcamp:
+
+Hiểu rõ khác biệt UiPath vs PAD.
+
+Thành thạo Excel, DataTable, File handling.
+
+Làm chủ UI/Web Automation.
+
+Biết tích hợp PAD vào Power Platform (Cloud Flow, API).
+
+Tự build 1 project hoàn chỉnh.
+
+
+
+---
+
+Bạn có muốn mình làm thêm slide outline từng buổi (theo kiểu đào tạo nội bộ) để bạn dùng train team luôn không?
+
