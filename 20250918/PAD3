@@ -1,0 +1,284 @@
+Ok, mình sẽ chi tiết hóa nội dung học từng ngày (6 ngày × 6.5h) thành một chương trình học đầy đủ. Mỗi ngày sẽ gồm:
+
+Phân bổ giờ học
+
+Nội dung chi tiết
+
+Bài tập thực hành
+
+Tài liệu tham khảo
+
+
+
+---
+
+📅 Training Plan Power Automate Desktop (6 ngày × 6.5h)
+
+
+---
+
+Ngày 1 – Làm quen & So sánh với UiPath (6.5h)
+
+🎯 Mục tiêu: Làm quen nhanh với PAD, hiểu khác biệt với UiPath, nắm cơ bản để bắt đầu làm flow.
+
+Phân bổ thời gian & nội dung:
+
+1. Giới thiệu PAD & so sánh với UiPath (0.5h)
+
+Flow = Workflow (UiPath)
+
+Actions = Activities (UiPath)
+
+PAD không có package cài thêm như UiPath
+
+
+
+2. Giao diện, debug, record (1h)
+
+Action Pane, Variables Pane, Output Pane
+
+Debug step-by-step, Breakpoint
+
+
+
+3. Variables & Data Types (1h)
+
+Text, Number, Boolean, List, DataTable
+
+So sánh DataTable PAD vs UiPath DataTable
+
+
+
+4. Control Flow (2h)
+
+If/Else, Switch
+
+Loop (For Each, While)
+
+Giống khác gì với UiPath Flow Decision/Flow Switch
+
+
+
+5. Mini Project (2h)
+
+Input: Folder chứa 10 file text
+
+Yêu cầu: Đọc nội dung → lọc dòng có từ khóa “ERROR” → ghi log ra file tổng
+
+
+
+
+📚 Tài liệu:
+
+PAD Introduction
+
+Variables in PAD
+
+
+
+---
+
+Ngày 2 – File, Excel, DataTable (6.5h)
+
+🎯 Mục tiêu: Làm chủ xử lý file và Excel (thường dùng nhất trong dự án).
+
+Phân bổ thời gian & nội dung:
+
+1. File & Folder Actions (0.5h)
+
+Create, Copy, Move, Delete, Get file list
+
+
+
+2. Excel Automation cơ bản (2h)
+
+Launch Excel, Read Cell, Write Cell, Close Excel
+
+Khác biệt với UiPath Excel Application Scope
+
+
+
+3. DataTable (2h)
+
+Create DataTable, Add Row, Filter, Merge
+
+Giống và khác với UiPath Build DataTable
+
+
+
+4. Mini Project (2h)
+
+Input: Folder chứa nhiều file Excel có sheet “Sales”
+
+Yêu cầu: Gộp dữ liệu từ tất cả file vào 1 file tổng
+
+
+
+
+📚 Tài liệu:
+
+Excel actions
+
+DataTable actions
+
+
+
+---
+
+Ngày 3 – UI Automation (Desktop + Web) (6.5h)
+
+🎯 Mục tiêu: Thành thạo Desktop Recorder và Web Recorder.
+
+Phân bổ thời gian & nội dung:
+
+1. Desktop Recorder & selectors (2h)
+
+Select element, Click, Send Keys, Get Text
+
+Giống và khác với UiPath selectors
+
+
+
+2. Web Recorder & scraping (2h)
+
+Open Browser, Navigate, Extract data table
+
+Demo: lấy giá vàng/ngoại tệ từ web
+
+
+
+3. Error Handling (1h)
+
+Try/Catch, Retry
+
+Giống khác với UiPath Try Catch
+
+
+
+4. Mini Project (1.5h)
+
+Mở website báo → lấy 10 tiêu đề mới nhất → ghi vào Excel
+
+
+
+
+📚 Tài liệu:
+
+UI automation
+
+Web automation
+
+
+
+---
+
+Ngày 4 – API & Integration (6.5h)
+
+🎯 Mục tiêu: Biết cách gọi API và chạy PAD từ Cloud Flow.
+
+Phân bổ thời gian & nội dung:
+
+1. Gọi API bằng HTTP actions (2h)
+
+GET, POST, Headers, Body
+
+So sánh với UiPath HTTP Request
+
+
+
+2. Parse JSON đơn giản (1h)
+
+Xử lý string JSON bằng Text actions
+
+
+
+3. Power Automate Cloud gọi PAD (1.5h)
+
+Trigger từ Outlook, SharePoint
+
+Run PAD flow từ Cloud Flow
+
+
+
+4. Mini Project (2h)
+
+Email tới Outlook → Cloud Flow trigger → gọi PAD → PAD call API thời tiết → ghi kết quả ra Excel
+
+
+
+
+📚 Tài liệu:
+
+Run desktop flows from cloud flows
+
+Web service actions
+
+
+
+---
+
+Ngày 5 – Dự án thực tế (phần 1) (6.5h)
+
+🎯 Mục tiêu: Bắt đầu build dự án lớn, mô phỏng tình huống thật.
+
+Case study: Báo cáo bán hàng tự động
+
+1. Yêu cầu & phân tích (0.5h)
+
+
+2. PAD Flow:
+
+Duyệt folder SharePoint/local chứa file Excel (1h)
+
+Đọc dữ liệu từ mỗi file → gộp DataTable (2h)
+
+Xử lý: tính tổng, thêm cột (1h)
+
+Ghi file kết quả (1h)
+
+
+
+3. Thực hành & fix bug (1h)
+
+
+
+
+---
+
+Ngày 6 – Dự án thực tế (phần 2) (6.5h)
+
+🎯 Mục tiêu: Hoàn thiện dự án, bổ sung automation & logging.
+
+1. Logging & Error Handling nâng cao (1h)
+
+Try/Catch + log error ra file
+
+
+
+2. Gửi báo cáo qua Outlook (1h)
+
+
+3. Tích hợp Cloud Flow: auto-run khi có file mới (2h)
+
+
+4. So sánh UiPath Orchestrator vs Power Automate Cloud (0.5h)
+
+
+5. Ôn tập & tổng kết best practices PAD (2h)
+
+
+
+📚 Tài liệu:
+
+Best practices for PAD
+
+PAD tutorials
+
+
+
+---
+
+👉 Như vậy bạn vừa có “sườn” (file Excel) để tick tiến độ, vừa có nội dung học chi tiết mỗi ngày.
+
+Bạn có muốn mình cập nhật lại file Excel TrainingPlan_PAD.xlsx và bổ sung luôn chi tiết từng mục (giống nội dung trên) + link tài liệu vào cột “Note” không?
+
