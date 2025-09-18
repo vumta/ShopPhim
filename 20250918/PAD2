@@ -1,0 +1,171 @@
+Ok 👍 mình sẽ tinh gọn lại, giữ đủ nội dung cần để bạn làm dự án thực tế bằng PAD, nhưng phân bổ theo 6.5h/ngày (thay vì 8h).
+👉 Plan này mình làm 6 ngày (full-time ~6.5h/ngày).
+
+
+---
+
+📅 Training Plan Power Automate Desktop (cho người có kinh nghiệm UiPath)
+
+⏱ Thời lượng: 6 ngày × 6.5h/ngày
+
+
+---
+
+Ngày 1 – Làm quen & so sánh với UiPath (6.5h)
+
+Mục tiêu: Nắm giao diện PAD, điểm khác biệt so với UiPath.
+
+1. Giới thiệu PAD & so sánh UiPath (0.5h)
+
+
+2. Giao diện, debug, record (1h)
+
+
+3. Variables & data types (1h)
+
+
+4. Control Flow (if/else, loop, switch) (2h)
+
+
+5. Mini project: duyệt folder file text, lọc theo keyword, ghi log (2h)
+
+
+
+📚 PAD Introduction
+
+
+---
+
+Ngày 2 – File, Excel, DataTable (6.5h)
+
+Mục tiêu: Thành thạo xử lý file và Excel (rất hay dùng trong dự án).
+
+1. File & Folder actions (0.5h)
+
+
+2. Excel Automation cơ bản (Launch, Read/Write) (2h)
+
+
+3. DataTable (tạo, filter, merge) (2h)
+
+
+4. Mini project: duyệt nhiều file Excel → gộp thành 1 file tổng (2h)
+
+
+
+📚 Excel actions
+
+
+---
+
+Ngày 3 – UI Automation (Desktop + Web) (6.5h)
+
+Mục tiêu: Làm chủ recorder + selectors trong PAD.
+
+1. Desktop Recorder & selectors (2h)
+
+
+2. Web Recorder & data scraping (2h)
+
+
+3. Error Handling (Try/Catch, Retry) (1h)
+
+
+4. Mini project: scrape tin tức từ web → ghi Excel (1.5h)
+
+
+
+📚 UI automation
+
+
+---
+
+Ngày 4 – API & Integration (6.5h)
+
+Mục tiêu: Biết cách tích hợp PAD với hệ thống khác.
+
+1. Gọi API bằng HTTP actions (GET, POST) (2h)
+
+
+2. Parse JSON đơn giản trong PAD (1h)
+
+
+3. Power Automate Cloud gọi PAD (1.5h)
+
+
+4. Mini project: Cloud Flow trigger email → gọi PAD → PAD call API thời tiết → ghi vào Excel (2h)
+
+
+
+📚 Invoke web service
+
+
+---
+
+Ngày 5 – Dự án thực tế (phần 1) (6.5h)
+
+Case study: Báo cáo bán hàng tự động
+
+1. Yêu cầu & phân tích (0.5h)
+
+
+2. PAD Flow:
+
+Duyệt folder SharePoint/Local (1h)
+
+Đọc dữ liệu từ nhiều file Excel → gộp DataTable (2h)
+
+Xử lý, tính toán thêm cột tổng (1h)
+
+Ghi file kết quả (1h)
+
+
+
+3. Thực hành + fix bug (1h)
+
+
+
+
+---
+
+Ngày 6 – Dự án thực tế (phần 2) (6.5h)
+
+1. Bổ sung Logging & Error Handling (1h)
+
+
+2. Gửi báo cáo qua Outlook (1h)
+
+
+3. Tích hợp Cloud Flow: auto-run khi có file mới (2h)
+
+
+4. So sánh UiPath Orchestrator vs Power Automate Cloud (0.5h)
+
+
+5. Ôn tập & tổng kết: best practices PAD (2h)
+
+
+
+📚 Best practices PAD
+
+
+---
+
+✅ Kết quả sau 6 ngày:
+
+Hiểu rõ khác biệt UiPath vs PAD.
+
+Thành thạo Excel, DataTable, File, API.
+
+Làm chủ UI/Web Automation.
+
+Biết tích hợp PAD với Power Automate Cloud.
+
+Hoàn thành 1 end-to-end project (báo cáo tự động).
+
+
+
+---
+
+Bạn có muốn mình xuất plan này thành file Excel dạng checklist (mỗi ngày, mỗi mục, có cột Done/Note) để tiện theo dõi tiến độ học không?
+
