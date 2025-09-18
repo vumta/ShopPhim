@@ -1,0 +1,494 @@
+Tuyệt — dưới đây là giải thích chi tiết từng ngày cho khóa 7 ngày Enterprise PAD bạn yêu cầu. Mỗi ngày mình nêu: mục tiêu, phân bổ thời gian, nội dung kỹ thuật (các pattern/flow/subflow cụ thể), ví dụ thực hành, checklist kiểm thử và lỗi thường gặp + cách khắc phục. Bạn có thể copy thẳng nội dung này vào tài liệu đào tạo hoặc file Excel.
+
+Enterprise PAD — Chi tiết 7 ngày (mỗi ngày ~6.5h)
+
+
+---
+
+Ngày 1 — Design Patterns & Best Practices
+
+Mục tiêu: Thiết kế flow theo chuẩn, dễ bảo trì, reuse components, sẵn sàng cho team phát triển.
+
+Thời lượng (gợi ý):
+
+Theory & patterns: 1.0h
+
+Subflow/library design: 1.5h
+
+Naming, config & conventions: 0.75h
+
+Dispatcher/Performer pattern: 1.25h
+
+Thực hành: tách flow + build reusable lib: 1.5h
+
+Review & checklist: 0.5h
+
+
+Nội dung chi tiết
+
+Quy ước đặt tên: Flow names, subflow names, biến, output/input.
+
+Ví dụ: proc_ProcessFile, sub_LogMessage, in_FilePath, out_Status.
+
+
+Tổ chức project:
+
+Main (orchestrator) — gọi subflows.
+
+sub_ProcessItem — xử lý 1 item/file.
+
+sub_LogMessage, sub_RetryPolicy, sub_ValidateInput.
+
+
+Dispatcher – Performer (queue pattern):
+
+Dispatcher: build queue (SharePoint list / Excel / Dataverse) of items to process.
+
+Performer: worker PAD đơn lẻ hoặc nhiều worker lấy item từ queue, xử lý, update status.
+
+Lợi: phân tán tải, dễ retry, audit.
+
+
+Configuration file: 1 file JSON/INI/Excel chứa paths, thresholds, API keys (ký hiệu sensitive). PAD đọc config 1 lần.
+
+Library & reuse: chuẩn hoá subflow common: logging, read/write file, Excel helper, error handler.
+
+
+Bài tập thực hành
+
+Xây 1 project mẫu: MainDispatcher (đọc danh sách file từ Excel) + Performer (process file). Tạo subflow log + retry.
+
+
+Checklist (sau buổi)
+
+Có ít nhất 5 subflow reusable.
+
+Có config file và strategy deployment (DEV/PROD paths).
+
+Naming convention document có sẵn.
+
+
+Lỗi hay gặp
+
+Biến global bị đặt tên không rõ → gây conflict. Fix: áp dụng prefix in_/out_/var_.
+
+Subflow lồng quá sâu → khó debug. Fix: tách logic, dùng tên rõ ràng.
+
+
+
+---
+
+Ngày 2 — Error Handling & Logging nâng cao
+
+Mục tiêu: Xây framework log/monitor, pattern retry/skip/alert, capture evidence (screenshot, dump).
+
+Thời lượng:
+
+Error strategy theory: 1.0h
+
+Build LogMessage subflow + format: 1.0h
+
+Try/Catch patterns + Retry: 1.25h
+
+Evidence capture (screenshot, dump), failed items list: 1.0h
+
+Integrate alerting (email/Teams): 1.0h
+
+Test & refine: 0.25h
+
+
+Nội dung chi tiết
+
+Log format chuẩn (structured):
+timestamp | level | flowId | step | message | detail
+Ví dụ: 2025-09-18T08:04:22Z | ERROR | proc_Performer | ReadExcel | FileLocked | path=C:\...
+
+Log sinks (tuỳ nhu cầu):
+
+Local file (txt/csv) — đơn giản, offline.
+
+SharePoint list / Dataverse table — dễ query & audit.
+
+SQL DB / Application Insights — enterprise monitoring.
+
+
+Subflow sub_LogMessage(level, tag, message, meta): tạo 1 dòng log, append vào file, optional: post HTTP to monitoring API.
+
+Retry pattern: attempts loop (max 3), exponential backoff, trên fail cuối: mark as failed, add to FailedFiles.csv.
+
+Global Exception Handler: chế tạo subflow sub_HandleException được gọi trong catch: take screenshot, collect environment info, log stack/message, optionally notify team.
+
+Alerting: nếu critical error → send Teams message (via webhook) hoặc send email (Outlook action / Cloud Flow).
+
+Evidence capture: Take screenshot + save temp copy of problematic file (move to C:\PAD\Failed\<runid>\).
+
+
+Bài tập
+
+Implement sub_LogMessage + sub_HandleException. Simulate errors: locked file, malformed row → verify logs/alerts.
+
+
+Checklist
+
+Log file có timestamps, runId, step names.
+
+FailedFiles list và screenshots tồn tại.
+
+Alerts sent when critical.
+
+
+Lỗi hay gặp
+
+Log quá lớn -> rotate logs per day or per run id.
+
+Alerts spam -> implement de-duplication (only alert once per incident).
+
+
+
+---
+
+Ngày 3 — Cloud Flow ⇄ PAD Integration (hybrid)
+
+Mục tiêu: Thiết kế & triển khai flow hybrid: Cloud Flow triggers PAD, PAD trả outputs; patterns safe để xử lý file/queue.
+
+Thời lượng:
+
+Cloud Flow basics & Desktop Flow linking: 1.0h
+
+Input/Output variable design: 0.75h
+
+File transfer patterns (OneDrive sync vs base64 vs shared storage): 1.25h
+
+Queue patterns (SharePoint/Dataverse) + concurrency: 1.25h
+
+Practical build: SharePoint→Cloud→PAD example: 1.0h
+
+Test & robustification: 0.25h
+
+
+Nội dung chi tiết
+
+Cloud -> PAD: Cloud Flow uses action Run a flow built with Power Automate for desktop, map inputs (text, filePath, sensitive), wait for outputs.
+
+File transfer options:
+
+OneDrive/Sync folder: Cloud Flow creates file in synced folder — PAD uses local path. (simple, reliable)
+
+Base64 content passing: Cloud Flow passes file content to PAD input (size limits apply → avoid big files).
+
+Cloud queue + Worker: Cloud Flow writes metadata to Dataverse/SharePoint; PAD worker polls and processes.
+
+
+Concurrency control: use "claim" pattern: worker takes item and marks processing=true (atomic update) so others skip. Use locks or update status column.
+
+Security: inputs labelled sensitive; secrets passed securely. Prefer Cloud Flow to hold credentials and pass short-lived tokens.
+
+Example flow:
+
+1. User upload file → SharePoint trigger Cloud Flow.
+
+
+2. Cloud Flow Get file content → Create file in OneDrive folder PADInput.
+
+
+3. Cloud Flow Run desktop flow with input localPath = C:\Users\<user>\OneDrive\PADInput\<name>.
+
+
+4. PAD processes file, writes ReportPath as output. Cloud Flow receives outputs → email/notify.
+
+
+
+
+Bài tập
+
+Build Cloud Flow + PAD test: upload small file, ensure PAD processes & Cloud Flow sends notification.
+
+
+Checklist
+
+Input size under limit (if using base64).
+
+Worker idempotency (prevent duplicate processing).
+
+Secrets not hard-coded.
+
+
+Lỗi hay gặp
+
+OneDrive sync delay → include wait/retry or ensure Cloud Flow creates file inside synced folder with sufficient time.
+
+Input size too large → use Cloud storage and pass reference instead.
+
+
+
+---
+
+Ngày 4 — AI Builder & OCR nâng cao (Document Processing)
+
+Mục tiêu: Áp dụng AI Builder / OCR + PAD để tự động trích xuất thông tin từ hóa đơn/biên lai; xử lý lỗi OCR & confidence handling.
+
+Thời lượng:
+
+Giới thiệu AI Builder capabilities & form processing concept: 0.75h
+
+Integration patterns PAD ↔ Cloud AI Builder: 1.0h
+
+Preprocessing images (dọn ảnh, DPI, deskew): 1.0h
+
+Post-processing & confidence handling (validation rules): 1.0h
+
+Practical: invoice flow (PAD+Cloud+AI Builder→Excel→ERP): 1.5h
+
+Test & tuning: 0.25h
+
+
+Nội dung chi tiết
+
+Architectures: PAD uploads PDF/image to SharePoint → Cloud Flow triggers AI Builder Form Processing model (or Form Recognizer) → returns structured fields → Cloud Flow stores results (SharePoint/Dataverse) → PAD downloads/reads results for UI automation or writing to Excel.
+
+Preprocessing for OCR: convert PDF pages to high-DPI images, crop to region, deskew, increase contrast — can use ImageMagick/PowerShell or Azure preprocessing. Tăng accuracy.
+
+Handling confidence scores: AI result includes confidence per field — create rules: if confidence < threshold → route to human validation (Teams approval) or send for secondary OCR.
+
+Fallbacks: if AI fails → use PAD OCR (built-in) or manual review queue.
+
+Security & privacy: remove PII from logs, secure storage for documents.
+
+
+Bài tập
+
+Build invoice demo: upload sample invoices → Cloud Flow + AI Builder → PAD reads structured output → write to Excel & create task in Teams if low confidence.
+
+
+Checklist
+
+Confidence threshold implemented.
+
+Human-in-the-loop path exists.
+
+Preprocessing improves OCR % (test with sample set).
+
+
+Lỗi hay gặp
+
+Poor scan quality -> need preprocessing.
+
+Unexpected invoice layouts -> retrain model / add new templates.
+
+
+
+---
+
+Ngày 5 — Governance, Security & Deployment
+
+Mục tiêu: Thiết lập quy trình triển khai, môi trường, DLP, secrets handling, versioning.
+
+Thời lượng:
+
+Environment & DLP overview: 1.0h
+
+Deployment pipeline DEV→TEST→PROD: 1.25h
+
+Secrets & credential management (Key Vault/Environment variables): 1.0h
+
+Source control & versioning (export/import flows): 1.0h
+
+Practice: export/import + deploy sample: 1.0h
+
+Runbook & access policy writing: 0.25h
+
+
+Nội dung chi tiết
+
+Environments: tách DEV/TEST/PROD trong Power Platform; flows phát triển trên DEV, test trong TEST, deploy vào PROD.
+
+DLP & Security: cấu hình Data Loss Prevention policies để chặn flow truy xuất dữ liệu nhạy cảm.
+
+Secrets storage:
+
+Use Azure Key Vault for API keys, service accounts.
+
+Pass secrets from Cloud Flow to PAD as sensitive inputs (do not hardcode).
+
+
+Deployment: export PAD flow as solution/zip, store in Git (artifact with version tag), import into target environment. Document dependencies (Node, .NET, PowerShell modules).
+
+Access control: chỉ người có role X mới publish flows; review/approval process for production changes.
+
+
+Bài tập
+
+Export a flow, commit artifact to Git, import in Test env. Configure Key Vault usage.
+
+
+Checklist
+
+Deployment checklist (pre-deploy tests, backup old flows).
+
+Secrets managed externally.
+
+Retention policy for logs & documents.
+
+
+Lỗi hay gặp
+
+Missing dependencies on target machine (Node, .NET) → document prerequisites.
+
+Secret exposure in logs → mark sensitive and avoid printing secret variables.
+
+
+
+---
+
+Ngày 6 — Monitoring & Performance Optimization
+
+Mục tiêu: Giám sát hoạt động, đo hiệu suất, tối ưu bottleneck, tư vấn scaling.
+
+Thời lượng:
+
+Monitoring options (App Insights, Power BI, SQL): 1.0h
+
+Instrumentation: what to log (metrics): 1.0h
+
+Performance techniques (batch, script offload): 1.25h
+
+Profiling & benchmark: 1.0h
+
+Implement improvements & test: 1.0h
+
+Review & checklist: 0.25h
+
+
+Nội dung chi tiết
+
+Metrics to collect: runCount, successRate, avgDuration, errors by type, queue length, throughput (items/hour).
+
+How to collect:
+
+Log structured lines and ingest into Azure Log Analytics or push to SQL/Dataverse.
+
+Use Cloud Flow to forward logs to Application Insights via HTTP.
+
+Build Power BI dashboard to visualize trends.
+
+
+Optimize flows:
+
+Replace repeated UI interactions with API calls or direct file operations.
+
+Batch DataTable operations and write once.
+
+Use compiled scripts (VB.NET, Node) for heavy data manipulations.
+
+Minimize Excel opens: read whole sheet, close, process, then write once.
+
+
+Parallelization & scaling: multiple PAD worker VMs each processing queue items. Implement lease/claim pattern to avoid duplicates.
+
+Profiling: instrument timestamps at major steps (startStepX, endStepX) to spot slow steps.
+
+
+Bài tập
+
+Measure time for processing 1k rows; refactor to use Node/VB.NET for heavy compute and compare time.
+
+
+Checklist
+
+Dashboards show run health.
+
+Bottleneck eliminated / improved > X% (target).
+
+
+Lỗi hay gặp
+
+Over-parallelization → contention on shared resources (DB/SharePoint). Use limits & throttling.
+
+
+
+---
+
+Ngày 7 — Mini Enterprise Project (end-to-end)
+
+Mục tiêu: Kết hợp mọi kiến thức: hybrid Cloud+PAD+AI+governance+monitoring; có deliverable đầy đủ.
+
+Thời lượng:
+
+Design & task breakdown: 0.5h
+
+Implement flows & scripts: 3.5h
+
+Integrate monitoring & alerts: 1.0h
+
+Test suite & runbook + presentation: 1.0h
+
+Buffer / polish: 0.5h
+
+
+Đề bài (ví dụ hoàn chỉnh)
+
+Input: Upload invoice PDF to SharePoint Invoices/Incoming.
+
+Cloud Flow: Trigger on create → move file to OneDrive sync for PAD and call PAD with local path (or push metadata to queue).
+
+PAD Flow:
+
+Download file (if needed) → Preprocess image (PowerShell/ImageMagick) → Call Cloud AI Builder / Form Recognizer (Cloud Flow) or call Cognitive Service via HTTP → receive structured fields (invoiceNo, date, total, vendor) → validate fields (rules/confidence).
+
+If confidence low → create review item in SharePoint/Teams (approval) and exit.
+
+If OK → Input data into ERP (desktop UI automation) or call API → generate Sales_Master Excel entry.
+
+Log result to SQL/Dataverse and put success message to monitoring pipeline.
+
+Save processed file to Invoices/Processed/<date> and archive.
+
+
+Notification: Cloud Flow sends success/failure mail & posts Teams summary.
+
+Monitoring: flows push metrics to App Insights/Power BI dataset.
+
+Deliverables: PAD flows (with subflows), Cloud Flow, sample scripts, runbook for deployment, test cases, demo recording.
+
+
+Checklist kiểm thử
+
+End-to-end run OK on sample set (normal, low-confidence, malformed).
+
+Logs & dashboard show runs & exceptions.
+
+Retry & reprocess path tested.
+
+Deployment step (export/import) documented.
+
+
+Final deliverables
+
+Git repo with scripts & artifacts.
+
+Exported PAD flows (zip).
+
+Runbook: how to deploy & operate.
+
+Power BI dashboard sample.
+
+
+
+---
+
+Kết thúc & bước tiếp theo
+
+Mình đã chi tiết hoá từng ngày cho 7 ngày Enterprise — bạn muốn mình làm tiếp 1 trong các việc sau không?
+
+1. Xuất file Excel (checklist + tasks từng ngày) — mình sẽ tạo file và gửi link tải.
+
+
+2. Viết action-by-action (danh sách action PAD + parameter cụ thể) cho 1 ngày bạn chọn (ví dụ Day3 Cloud→PAD hoặc Day7 mini project).
+
+
+3. Soạn Runbook mẫu cho project mini (deployment steps, prereqs, rollback).
+
+
+
+Chọn 1 trong 3 hoặc nói “Không cần, OK” — mình sẽ thực hiện ngay.
+
