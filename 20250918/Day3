@@ -1,0 +1,303 @@
+Tuyệt — dưới đây là giải thích rất chi tiết cho Ngày 3 — UI Automation (Desktop + Web) để bạn làm theo trong 6.5h. Mình để rõ: mục tiêu, phân bổ thời gian, từng nội dung kèm ví dụ thực hành, checklist các action PAD cụ thể, mẹo tăng độ ổn định, lỗi hay gặp và cách khắc phục.
+
+Ngày 3 – UI Automation (Desktop + Web) (6.5h)
+
+Mục tiêu:
+
+Thành thạo dùng Desktop Recorder và Web Recorder trong PAD.
+
+Hiểu cách PAD nhận diện UI (UI element properties / selectors-style), cách xử lý control không chuẩn (Java apps, canvas, image/OCR).
+
+Biết các kỹ thuật tăng độ ổn định (wait, retry, fallback).
+
+Thực hành scraping web cơ bản và automation app desktop.
+
+
+
+---
+
+Phân bổ thời gian (gợi ý)
+
+Desktop Recorder & selectors — 2.0h
+
+Web Recorder & data scraping — 2.0h
+
+Error handling, độ bền (reliability) — 1.0h
+
+Mini project: scrape tin tức → ghi Excel — 1.5h
+
+
+
+---
+
+1) Desktop Recorder & UI element (≈2h)
+
+Nội dung chính
+
+Mục đích recorder: ghi lại thao tác trên ứng dụng desktop (click, double-click, type, get text).
+
+Các action thường dùng: Click UI element, Double-click UI element, Populate text field, Get details of UI element (Get text), Focus window, Wait for window, Attach window, Take screenshot.
+
+Cách PAD xác định element: không phải chuỗi selector XML như UiPath — PAD lưu UI element object gồm tập thuộc tính (Name, AutomationId, ClassName, ControlType, Index, v.v.). Khi tậu element, PAD dùng những thuộc tính đó để tìm element trên UI.
+
+
+Thực hành (Notepad example)
+
+1. Launch new process → Program: notepad.exe (Output: notepadProcess)
+
+
+2. Populate text field (use UI recorder/picker) → nhập: "Xin chào từ PAD"
+
+
+3. Take screenshot (lưu ảnh để debug)
+
+
+4. Save file bằng Send keys cho Ctrl+S hoặc click menu → Ghi file.
+
+
+5. Close window.
+
+
+
+Kỹ thuật xác thực element
+
+Dùng Get details of UI element để inspect thuộc tính element (Name, AutomationId, ClassName).
+
+Nếu một thuộc tính (ví dụ AutomationId) ổn định — ưu tiên dùng nó.
+
+Tránh dùng tọa độ tuyệt đối (Click at position) trừ khi bắt buộc.
+
+
+Lưu ý với app không chuẩn (Java/Swing, Electron)
+
+Một số control không expose AutomationId/Name → recorder có thể tạo element kém ổn định (dùng Index).
+
+Giải pháp: dùng image-based (Find image on screen / Click image) hoặc OCR (Recognize text with OCR) để lấy text/nhấn nút.
+
+
+
+---
+
+2) Web Recorder & Data scraping (≈2h)
+
+Nội dung chính
+
+PAD có Web Recorder cho Chrome/Edge (cần cài extension trình duyệt nếu yêu cầu).
+
+Actions: Open browser, Navigate to, Click UI element in web, Populate text field in web, Extract data from web page (thường tạo DataTable), Get details of web element, Download file.
+
+Khi dùng recorder, PAD sẽ lưu UI element của trang (kèm thuộc tính DOM như id, class, innerText).
+
+
+Cách scrape tin tức (kịch bản chung)
+
+1. Open browser → URL mục tiêu.
+
+
+2. Wait for element (ví dụ: selector cho danh sách bài).
+
+
+3. Dùng Extract data from web page (nếu recorder hỗ trợ auto-extract table) hoặc dùng Get details of element trong loop để lấy từng tiêu đề. Kết quả thường là một DataTable.
+
+
+4. Write to Excel worksheet để lưu DataTable.
+
+
+
+Xử lý SPA / lazy-loading
+
+Nếu trang load nội dung via JavaScript/AJAX: thêm Wait for element hoặc Wait for window + kiểm tra element existence với timeout.
+
+Nếu cần scroll để load thêm: dùng Scroll element into view hoặc Send keys (PgDn).
+
+
+Thực hành (scrape 10 headlines)
+
+Mở trang tin (vd: homepage news).
+
+Dùng Web Recorder chọn danh sách tiêu đề → tạo DataTable newsDT.
+
+Lọc/trim text -> Write to Excel.
+
+
+
+---
+
+3) Selectors / Element identification — chi tiết & so sánh với UiPath (≈0.5h)
+
+Điểm chính
+
+UiPath: dùng string XML selector; có thể chỉnh tay.
+
+PAD: UI element object dựa trên thuộc tính; UI element được lưu trong thư mục UI elements của flow (bạn có thể sửa thuộc tính hoặc thêm wildcards).
+
+Wildcard & dynamic attribute: nếu thuộc tính thay đổi, bạn có thể thay đổi rule (ví dụ dùng contains thay vì equals) hoặc thêm/loại bỏ thuộc tính để tăng tính linh hoạt.
+
+Best practice: ưu tiên AutomationId/aria-*/id/name — thuộc tính càng chuyên dụng càng tốt.
+
+
+
+---
+
+4) OCR & Image-based automation (≈0.5h)
+
+Khi cần dùng
+
+Ứng dụng không expose UI properties (Canvas, legacy app).
+
+Element thay đổi vị trí/ID hoặc không thể định nghĩa selector ổn định.
+
+
+Actions
+
+Find image on screen / Click image — tìm điểm ảnh tương tự. Dễ break khi scale/zoom thay đổi.
+
+Recognize text with OCR — đọc text từ ảnh/screen capture. PAD hỗ trợ các engine OCR (tùy phiên bản).
+
+
+Mẹo
+
+Image-based là phương án cuối cùng — kém ổn định. Nếu dùng, giữ ảnh nhỏ, crop sát vùng cần tìm, test trên nhiều resolution.
+
+
+
+---
+
+5) Error handling & độ bền (reliability) (≈1.0h)
+
+Chiến lược tổng quát
+
+Always check existence trước khi click: If UI element exists (với timeout) → action.
+
+Retry pattern: vòng try → nếu fail, chờ 1-2s → thử lại N lần.
+
+Fallback: nếu UI element k không có, thử image-based hoặc alternate selector.
+
+Timeouts: set timeout hợp lý; không set quá nhỏ với trang load chậm.
+
+Logging: Write to log file + Take screenshot on error để debug sau.
+
+
+Mẫu Try-Catch
+
+Bao quanh block UI actions với Begin/End error handling (Try/Catch) — trong catch: Take screenshot, Write to log file, Send notification (nếu cần), Retry hoặc Exit with failure.
+
+
+
+---
+
+6) Debugging & công cụ hỗ trợ (≈0.5h)
+
+Highlight UI element trong UI elements pane để kiểm tra PAD có tìm đúng element không.
+
+Get details of UI element để in ra các thuộc tính và dùng Display message / Write to log để debug.
+
+Use breakpoints và chạy step-by-step; quan sát biến trong Variables pane.
+
+Take screenshot trước/after bước quan trọng để lưu trạng thái màn hình khi lỗi xảy ra.
+
+
+
+---
+
+7) Mini Project — Scrape 10 tiêu đề tin tức → Ghi Excel (1.5h)
+
+Yêu cầu: Lấy 10 tiêu đề đầu tiên của trang tin (ví dụ vnexpress.net / news site) và ghi vào Excel.
+
+Flow outline (step-by-step):
+
+1. Open browser → URL = https://... (Output: browserInstance)
+
+
+2. Wait for UI element (danh sách title) — timeout 15s.
+
+
+3. Extract data from web page (nếu recorder auto-detect list) → DataTable newsDT
+
+Nếu không: Find all UI elements (danh sách node), For Each element → Get details of UI element (innerText) → Add row vào newsDT.
+
+
+
+4. If newsDT.RowCount < 10 → Log warning / retry 1 lần after 3s.
+
+
+5. Write to Excel worksheet → file C:\PAD\Output\Headlines.xlsx (start cell A1, include headers)
+
+
+6. Close browser.
+
+
+
+Các bước kiểm tra: mở Excel, confirm 10 dòng, trim whitespace.
+
+
+---
+
+8) Bài tập luyện (3 mức độ)
+
+1. Cơ bản (30–45 phút): Tạo flow mở Notepad, ghi text, save file — dùng Desktop Recorder.
+
+
+2. Trung cấp (1h): Mở trang báo, lấy 5 tiêu đề đầu tiên bằng Web Recorder → ghi vào CSV.
+
+
+3. Nâng cao (1.5–2h): Auto-login vào trang demo (username/password từ file Excel), navigate đến trang báo cáo, download file PDF → lưu vào folder, verify file tồn tại. Thêm Try/Catch + screenshot on error.
+
+
+
+
+---
+
+9) Mẹo & lỗi hay gặp (với cách fix)
+
+Element intermittently not found: tăng timeout; thêm tiny delay trước action; dùng Wait for element thay vì sleep.
+
+Dynamic attribute (id thay đổi): dùng contains hoặc bỏ attribute đó, chọn attributes khác (text, class, AutomationId).
+
+Single-page app (AJAX): Wait for element or wait for specific text to appear; dùng scroll để load.
+
+Different browser behavior: đảm bảo extension PAD cho Chrome/Edge được cài & bật; test trên browser target.
+
+Resolution/DPI differences break image-based: tránh dùng image-based nếu có thể.
+
+
+
+---
+
+10) Mapping nhanh UiPath → PAD (tham khảo)
+
+UiPath Click → PAD Click UI element
+
+UiPath Type Into → PAD Populate text field
+
+UiPath Get Text → PAD Get details of UI element / Get text
+
+UiPath Find Element → PAD Wait for UI element / If UI element exists
+
+UiPath Data Scraping → PAD Extract data from web page / recorder
+
+UiPath Image Exists → PAD Find image on screen
+
+
+
+---
+
+Tài liệu tham khảo (chính thức)
+
+UI automation docs: https://learn.microsoft.com/power-automate/desktop-flows/actions-reference/ui-automation
+
+Web automation docs: https://learn.microsoft.com/power-automate/desktop-flows/actions-reference/web-automation
+
+
+
+---
+
+Nếu bạn muốn mình làm tiếp:
+
+Mình có thể viết hướng dẫn “action-by-action” (list các action PAD + cách set từng parameter) cho mini project scrape 10 headlines để bạn copy vào PAD nhanh.
+
+Hoặc tạo file checklist (ở file Excel bạn đã có) bổ sung chi tiết ngày 3.
+
+
+Bạn muốn mình làm cái nào tiếp theo?
+
