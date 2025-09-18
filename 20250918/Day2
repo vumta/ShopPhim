@@ -1,0 +1,254 @@
+Tốt — dưới đây mình giải thích chi tiết nội dung ngày 2 (File, Excel, DataTable) theo form bước-nhỏ-rõ để bạn làm theo trong 6.5h. Mình cũng đưa luôn hướng dẫn thực hành (mini-project) từng bước, mẹo, và lỗi thường gặp + cách khắc phục.
+
+Ngày 2 — File, Excel, DataTable (6.5h)
+
+Mục tiêu: thành thạo thao tác file/folder, đọc/ghi Excel hiệu quả và thao tác DataTable (tạo, ghép, lọc, cập nhật) — đủ để làm bài tập “gộp nhiều file Excel thành 1 file tổng” trong thực tế.
+
+
+---
+
+Tổng phân bổ thời gian
+
+File & Folder actions — 0.5h
+
+Excel Automation (read/write) — 2.0h
+
+DataTable (tạo, chèn, cập nhật, duyệt) — 2.0h
+
+Mini project: Gộp nhiều file Excel → 2.0h
+
+
+
+---
+
+1) File & Folder actions — nội dung & ví dụ (≈0.5h)
+
+Nội dung chính
+
+Các action cơ bản: Get files in folder, Create folder, Copy file, Move file, Delete file, Read text from file, Write text to file.
+
+Get files in folder trả về list variable (dùng để lặp qua tất cả file trong một thư mục). Bạn có thể lọc theo pattern (ví dụ *.xlsx). 
+
+
+Tips / thực hành nhanh
+
+Test: đặt 3 file sales1.xlsx, sales2.xlsx, readme.txt trong folder C:\PAD\input. Dùng Get files in folder (pattern *.xlsx) → output filesList.
+
+Dùng For Each file in filesList để xử lý từng file (đối tượng mỗi phần tử thường chứa đường dẫn + tên file).
+
+
+Lưu ý
+
+Nếu cần duyệt sub-folders: bật/kiểm tra tùy chọn (nếu phiên bản PAD hỗ trợ) hoặc làm đệ quy bằng flow. 
+
+
+
+---
+
+2) Excel Automation — đọc/ghi hiệu quả (≈2h)
+
+Khái quát
+
+Dùng Launch Excel (mở workbook) hoặc Attach to running Excel để thao tác.
+
+Dùng Read from Excel worksheet để lấy dữ liệu (có thể lấy 1 cell, 1 range, hoặc toàn bộ range) — action này lưu kết quả vào một DataTable variable nếu đọc nhiều hàng/cột. Để ghi DataTable trở lại Excel dùng Write to Excel worksheet. 
+
+
+Cách làm chuẩn (best practice)
+
+1. Mở/khởi tạo instance Excel 1 lần (ví dụ masterExcelInstance) thay vì open/close cho mỗi file — tiết kiệm thời gian.
+
+
+2. Khi đọc file: dùng Read from Excel worksheet với tùy chọn "Use first row as column names" nếu file có header.
+
+
+3. Khi ghi: dùng Write to Excel worksheet với start cell = A1 để ghi header + data (hoặc A2 nếu bạn muốn giữ header cũ).
+
+
+4. Khi hoàn thành: Save workbook → Close Excel (chỉ save khi cần).
+
+
+
+Ví dụ thiết lập
+
+Launch Excel → Path: C:\PAD\master.xlsx → Output: masterExcelInstance
+
+Read from Excel worksheet → ExcelInstance: currentExcelInstance → Range: blank/usedrange → Output: currentDataTable (DataTable type). 
+
+
+Các lỗi thường gặp & cách khắc phục
+
+Excel bị mở bởi người khác / file locked → xử lý bằng Try/Catch, hoặc kiểm tra file lock trước khi mở.
+
+Số lớn bị chuyển thành exponential khi ghi DataTable → kiểm soát định dạng cột trong Excel hoặc convert số trước khi ghi (xem mục Convert text→number bên dưới). (câu hỏi phổ biến trên cộng đồng). 
+
+
+
+---
+
+3) DataTable — thao tác, tạo, ghép, cập nhật (≈2h)
+
+Khái niệm
+
+DataTable là biến kiểu bảng (hàng × cột) trong PAD. Bạn có thể Create new data table, Insert row into data table, Delete row, Update data table item, Find or replace in data table, v.v. — dùng để xử lý dữ liệu trước khi ghi ra Excel. 
+
+
+Các hành động thường dùng
+
+Create new data table: khởi tạo master DataTable với tên cột bạn muốn (ví dụ Date, Product, Qty, Price, Total).
+
+Insert row into data table: chèn 1 hàng (khi gộp từ file con sang master).
+
+For Each (row) in DataTable: duyệt từng dòng; trong mỗi vòng lấy CurrentItem["ColumnName"] để truy xuất giá trị.
+
+Update data table item: cập nhật một ô cụ thể (dùng khi cần convert/calculate). 
+
+
+Tính toán / convert dữ liệu
+
+Nếu bạn cần tính cột mới (Total = Qty * Price):
+
+Trong loop For Each row của currentDataTable lấy qty = CurrentItem["Qty"], price = CurrentItem["Price"].
+
+Dùng action Convert text to number nếu giá trị dạng text → số, rồi Set Variable để tính total = qtyNum * priceNum. (PAD có action Convert text to number). 
+
+Sau đó Insert row into data table với giá trị total đã tính vào masterDataTable.
+
+
+
+Mẹo hiệu năng
+
+Thay vì Insert row hàng-hàng vào Excel, hãy đổ toàn bộ vào masterDataTable rồi Write to Excel worksheet một lần (nhiều file → 1 write) — nhanh hơn nhiều.
+
+
+
+---
+
+4) Mini project — Gộp nhiều file Excel vào 1 file tổng (chi tiết bước-một-một) (≈2h)
+
+Scenario: Thư mục C:\PAD\Input chứa nhiều file .xlsx, mỗi file có sheet Sales có header: Date | Product | Qty | Price. Bạn cần gộp tất cả thành C:\PAD\Output\Sales_Master.xlsx và thêm cột Total = Qty * Price.
+
+Bước thực hiện (flow outline)
+
+1. Get files in folder
+
+Folder: C:\PAD\Input
+
+Pattern: *.xlsx
+
+Output: filesList. 
+
+
+
+2. Create new data table (master)
+
+Columns: Date, Product, Qty, Price, Total
+
+Output variable: masterDT. 
+
+
+
+3. For Each fileItem in filesList
+
+Launch Excel (or Attach) → Path: fileItem.Path → Output: curExcel
+
+Read from Excel worksheet → ExcelInstance: curExcel, Worksheet: Sales, Use first row as column names = True → Output: curDT. 
+
+For Each row in curDT
+
+qtyText = row["Qty"] ; priceText = row["Price"]
+
+Convert text to number: input qtyText → output qtyNum ; input priceText → output priceNum. 
+
+total = qtyNum * priceNum (Set Variable or expression)
+
+Insert row into data table masterDT with values [row["Date"], row["Product"], qtyNum, priceNum, total]. 
+
+
+Close Excel (dont save) for curExcel.
+
+
+
+4. Sau loop xong: Launch Excel hoặc Attach to Sales_Master.xlsx (mở mới hoặc tạo mới) → Write to Excel worksheet → ExcelInstance: masterExcel, DataTable: masterDT, Start cell A1, Include headers = True. 
+
+
+5. Save & Close Excel.
+
+
+
+Kiểm tra & hoàn thiện
+
+Mở Sales_Master.xlsx → kiểm tra header + dữ liệu sample.
+
+Nếu thấy header lặp (nếu mỗi file có header bị chèn vào master) → khi đọc curDT bỏ hàng header bằng cách đọc from row 2 hoặc khi insert skip header row (nên đảm bảo Read action đã chọn "Use first row as column names" nên curDT sẽ have header as columns, không phải 1st row data).
+
+
+Tùy chọn nâng cao
+
+Sau khi gộp, có thể dùng DataTable actions để Remove Duplicate rows, Sort, Filter (nếu phiên bản PAD có các action này). Nếu không có, implement bằng loop + logic.
+
+
+Tham khảo mẫu hướng dẫn (cách người khác làm)
+
+Có nhiều bài tutorial/guides hướng dẫn pattern này (get files → read → append → write). Ví dụ tutorial kết hợp các bước tương tự. 
+
+
+
+---
+
+5) Mẹo, lỗi hay gặp và cách khắc phục nhanh
+
+Hiệu suất kém khi open/close Excel nhiều lần → mở một instance master, attach file con rồi đọc, close file con; hoặc chỉ attach/open Excel khi cần. 
+
+Format số bị sai (exponential) → convert text → number trước khi ghi; hoặc format cột Excel sau khi ghi. 
+
+File bị khóa → catch error, ghi log, skip file và tiếp tục (retry sau).
+
+Header lặp → ensure bạn đọc file con với option “first row as header” và khi append chỉ chèn data rows (không chèn header).
+
+
+
+---
+
+6) Bài tập thực hành (để hoàn thành trong 2h mini-project)
+
+1. Tạo 5 file Excel mẫu trong C:\PAD\Input với sheet Sales và các cột Date, Product, Qty, Price (mỗi file 5 dòng).
+
+
+2. Xây flow theo outline ở mục Mini project và chạy. Kết quả: C:\PAD\Output\Sales_Master.xlsx chứa 25 dòng + cột Total.
+
+
+3. Thử điều chỉnh: một file có hàng data thiếu Price → flow phải log lỗi và tiếp tục các file khác.
+
+
+
+
+---
+
+Tài liệu tham khảo (chính thức)
+
+File actions reference (Power Automate Desktop). 
+
+Get files in folder — hướng dẫn & ví dụ. 
+
+Excel actions reference — Read from Excel worksheet, Write to Excel worksheet. 
+
+DataTable actions — Create new data table, Insert row, Update item, Delete row, Find/replace. 
+
+Convert text to number (text actions) — dùng khi cần chuyển string→numeric trước phép tính. 
+
+Ví dụ thực tế/guides về combine Excel files (tham khảo community/tutorial). 
+
+
+
+---
+
+Nếu bạn muốn, mình sẽ:
+
+Viết flow mẫu từng action (dạng danh sách step-by-step) để bạn copy-paste vào PAD (vì PAD dùng giao diện kéo thả — mình sẽ liệt kê action + cài đặt cụ thể).
+
+Hoặc cập nhật file Excel training bằng cách thêm phần “Nội dung chi tiết ngày 2 + checklist” vào cột Note (mình có thể export lại file để bạn tải).
+
+
+Bạn muốn mình làm tiếp theo theo lựa chọn nào? (mình sẽ tạo flow-steps chi tiết hoặc cập nhật file Excel cho bạn).
+
