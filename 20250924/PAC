@@ -1,0 +1,31 @@
+Ok, mình hiểu. Bạn đang muốn viết một công thức trong Power Automate Cloud (expression editor), trong đó:
+
+'Status: ' và 'open: ' là chuỗi cố định.
+
+value, value2 là biến (có thể là dynamic content).
+
+Bạn muốn dùng If để kiểm tra điều kiện, nếu value = "For not found" thì nối chuỗi theo 1 cách, còn nếu không thì theo cách khác.
+
+
+👉 Công thức chuẩn sẽ dùng if(), equals(), và concat() trong Power Automate:
+
+if(
+   equals(variables('value'), 'For not found'),
+   concat('Status: ', variables('value')),
+   concat('Status: ', variables('value'), ' open: ', variables('value2'))
+)
+
+Giải thích:
+
+equals(variables('value'), 'For not found') → so sánh biến value với chuỗi.
+
+Nếu đúng → concat('Status: ', variables('value')).
+
+Nếu sai → concat('Status: ', variables('value'), ' open: ', variables('value2')).
+
+
+
+---
+
+Bạn có muốn mình viết thêm phiên bản dùng trực tiếp dynamic content (thay vì variables('value')) không? Ví dụ nếu value là output từ 1 action nào đó.
+
