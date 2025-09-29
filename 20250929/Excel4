@@ -1,0 +1,52 @@
+À mình hiểu rồi 👍
+
+Khi bạn dùng =A1-364 thì Excel online (Excel for the Web) có thể báo lỗi vì nó không hiểu đây là thao tác ngày trong một số cấu hình (đặc biệt nếu A1 chưa phải là date serial number).
+
+👉 Để an toàn và không bị lỗi khi dùng Excel Online, bạn nên dùng hàm EDATE hoặc DATE thay vì trừ thẳng số ngày.
+
+
+---
+
+Công thức thay thế =A1-364:
+
+Nếu ô A1 là ngày Chủ nhật của tuần trước (như ta đã tính ở bước trước):
+
+=EDATE(A1,-12)
+
+EDATE(A1,-12) sẽ lùi lại đúng 12 tháng (1 năm) so với ngày hiện tại trong A1.
+
+Ưu điểm: hoạt động trên cả Excel Desktop và Excel Online, không bị lỗi định dạng.
+
+Nhược điểm nhỏ: với năm nhuận (366 ngày), ngày map có thể lệch 1 ngày.
+
+
+
+---
+
+Nếu muốn chuẩn ISO week (không lệch, kể cả năm nhuận):
+
+Ta cần lấy ISO week number của ngày hiện tại rồi tìm ngày Chủ nhật cuối của tuần đó trong năm trước.
+
+Giả sử A1 = ngày Chủ nhật tuần trước.
+
+=DATE(YEAR(A1)-1,1,1) - WEEKDAY(DATE(YEAR(A1)-1,1,1),2) + 7*ISOWEEKNUM(A1)
+
+🔹 Công thức trên:
+
+1. DATE(YEAR(A1)-1,1,1) → ngày 01/01 năm trước.
+
+
+2. -WEEKDAY(...,2) → chỉnh về ngày Chủ nhật trước hoặc bằng ngày 01/01.
+
+
+3. +7*ISOWEEKNUM(A1) → nhảy đến đúng số tuần của ngày A1 nhưng ở năm trước.
+
+
+
+Kết quả: luôn ra ngày Chủ nhật của tuần tương ứng năm trước, đúng với chuẩn ISO (dù năm có 52 hay 53 tuần, tháng 2 có 28 hoặc 29 ngày).
+
+
+---
+
+👉 Bạn muốn mình viết lại toàn bộ công thức bảng (chủ nhật → thứ 2, map sang năm trước) với 3 cột (Ngày năm trước – Ngày năm nay – Thứ) theo cách ISO chuẩn luôn không?
+
