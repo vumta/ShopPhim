@@ -1,0 +1,61 @@
+Ok, mình sẽ viết chi tiết các công thức Excel theo yêu cầu của bạn 👇
+
+
+---
+
+1. Lấy ngày cuối cùng của tuần trước đó (ngày Chủ nhật)
+
+Giả sử hôm nay là TODAY().
+
+=TODAY()-WEEKDAY(TODAY())
+
+👉 Công thức này trả về ngày Chủ nhật gần nhất (kết thúc của tuần trước).
+
+
+---
+
+2. Lấy ngày cuối cùng của tuần của năm trước đó, map với thứ tự tuần của ngày ở mục 1
+
+Ý bạn: lấy đúng số tuần (ISO week) của ngày Chủ nhật ở mục 1, rồi tìm ra ngày Chủ nhật cùng số tuần đó nhưng của năm trước.
+
+Giả sử ô A1 chứa công thức ở mục 1 (ngày Chủ nhật tuần trước).
+
+=A1-364
+
+👉 Vì 1 năm thường có 52 tuần (364 ngày), nên trừ đi 364 sẽ trả về ngày Chủ nhật cùng thứ tự tuần nhưng năm trước.
+(Nếu bạn muốn chính xác theo chuẩn ISO week thì cần dùng ISOWEEKNUM và DATE, nhưng cách này đủ ổn cho mapping tuần-tuần.)
+
+
+---
+
+3. Lấy tên thứ và ngày tính lui lại tới thứ 2, ngày cuối là ngày Chủ nhật ở mục 1
+
+Giả sử ô A1 chứa ngày Chủ nhật (mục 1).
+Bạn muốn liệt kê từ Thứ 2 → Thứ 7 → Chủ nhật.
+
+Công thức cho ô đầu tiên (Thứ 2):
+
+=TEXT(A1-6,"dddd dd/mm/yyyy")
+
+Sau đó tăng dần:
+
+Thứ 3 → =TEXT(A1-5,"dddd dd/mm/yyyy")
+
+Thứ 4 → =TEXT(A1-4,"dddd dd/mm/yyyy")
+
+…
+
+Chủ nhật → =TEXT(A1,"dddd dd/mm/yyyy")
+
+
+👉 Nếu muốn tự động, bạn có thể đặt cột từ 2 → 0 (đại diện cho Thứ 2 đến Chủ nhật), rồi công thức:
+
+Giả sử ô B1 chứa số thứ tự (2 → 0):
+
+=TEXT($A$1-(7-B1),"dddd dd/mm/yyyy")
+
+
+---
+
+Bạn có muốn mình viết luôn một bảng động (dynamic array) để Excel tự đổ ra cả tuần (Thứ 2 đến Chủ nhật) chỉ với một công thức duy nhất không?
+
