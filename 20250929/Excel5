@@ -1,0 +1,48 @@
+Ok chuẩn luôn 👍, nếu A1 có thể đang ở dạng text (ví dụ "29/09/2025") thì Excel sẽ không hiểu khi đem cộng trừ số ngày → gây lỗi.
+Mình sẽ fix để ép về kiểu ngày trước khi tính toán.
+
+
+---
+
+Cách fix
+
+Bạn dùng hàm DATEVALUE để chuyển text thành date serial number:
+
+=DATEVALUE(A1)
+
+Rồi dùng trong công thức.
+
+
+---
+
+Công thức chuẩn ISO (map đúng ngày Chủ nhật của tuần trước, so với năm trước)
+
+Giả sử A1 = ngày Chủ nhật của tuần trước (có thể là text):
+
+=DATE(YEAR(DATEVALUE(A1))-1,1,1) - WEEKDAY(DATE(YEAR(DATEVALUE(A1))-1,1,1),2) + 7*ISOWEEKNUM(DATEVALUE(A1))
+
+
+---
+
+Giải thích:
+
+1. DATEVALUE(A1) → ép text thành ngày hợp lệ.
+
+
+2. DATE(...-1,1,1) → lấy mốc ngày 01/01 của năm trước.
+
+
+3. -WEEKDAY(...,2) → chỉnh về ngày Chủ nhật đầu tiên hoặc bằng ngày 01/01 năm trước.
+
+
+4. +7*ISOWEEKNUM(DATEVALUE(A1)) → nhảy tới đúng tuần ISO của ngày trong A1, nhưng ở năm trước.
+
+
+
+👉 Kết quả: luôn trả về ngày Chủ nhật tương ứng của tuần ISO cùng số thứ tự nhưng thuộc năm trước, không bị lỗi dù A1 là text, năm nhuận hay tháng 2 có 28/29 ngày.
+
+
+---
+
+Bạn có muốn mình viết lại nguyên bảng 3 cột (Ngày năm trước – Ngày năm nay – Thứ) với công thức đã fix DATEVALUE luôn không?
+
