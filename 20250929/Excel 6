@@ -1,0 +1,81 @@
+Ok, mình viết công thức lần lượt cho bạn nhé. Giả sử ngày gốc bạn đang nhập vào ô A1 (ví dụ là ngày hôm nay).
+
+
+---
+
+1. Lấy các ngày của tuần trước đó (tính cả Chủ nhật)
+
+Ta sẽ tìm Chủ nhật của tuần trước, rồi cộng thêm 0–6 ngày để có đủ cả tuần.
+
+👉 Công thức lấy Chủ nhật của tuần trước:
+
+=A1-WEEKDAY(A1)
+
+👉 Công thức lấy đủ các ngày trong tuần trước (đặt ngang hoặc dọc, thay +0 → +1 … +6):
+
+=$A$1-WEEKDAY($A$1)+0   'Chủ nhật tuần trước
+=$A$1-WEEKDAY($A$1)+1   'Thứ Hai tuần trước
+=$A$1-WEEKDAY($A$1)+2
+=$A$1-WEEKDAY($A$1)+3
+=$A$1-WEEKDAY($A$1)+4
+=$A$1-WEEKDAY($A$1)+5
+=$A$1-WEEKDAY($A$1)+6   'Thứ Bảy tuần trước
+
+
+---
+
+2. Lấy các ngày năm trước (cùng số tuần, cùng thứ trong tuần ở mục 1)
+
+Với từng ngày của tuần trước đã có ở mục 1, chỉ cần trừ đi 365 ngày (nếu không phải năm nhuận) hoặc dùng hàm EDATE để chắc chắn hơn.
+
+👉 Công thức (ví dụ ngày tuần trước nằm ở ô B2):
+
+=EDATE(B2,-12)
+
+Cách này sẽ ra cùng ngày/thứ trong tháng nhưng của năm trước.
+
+Nếu bạn muốn chính xác map tuần-thứ (chủ nhật tuần N của năm trước ↔ chủ nhật tuần N năm nay), thì:
+
+=B2-364
+
+(Nếu gặp lỗi với năm nhuận, thì thay bằng =B2-365+IF(AND(MONTH(B2)=2,DAY(B2)=29),1,0) để xử lý.)
+
+
+---
+
+3. Lấy tên thứ cho ngày ở mục 1
+
+Ví dụ ngày tuần trước ở ô B2, ta lấy tên thứ bằng:
+
+Nếu muốn tên tiếng Anh ngắn (Sun, Mon, …):
+
+
+=TEXT(B2,"ddd")
+
+Nếu muốn tên tiếng Anh đầy đủ (Sunday, Monday, …):
+
+
+=TEXT(B2,"dddd")
+
+Nếu muốn tiếng Việt (Thứ Hai, Thứ Ba, … Chủ nhật) thì tùy Office, có thể dùng:
+
+
+=TEXT(B2,"[$-42A]dddd")
+
+
+---
+
+👉 Tóm lại bạn sẽ có:
+
+Mục 1: công thức ra ngày của tuần trước.
+
+Mục 2: công thức ra ngày cùng tuần nhưng năm trước.
+
+Mục 3: công thức ra tên thứ từ ngày ở mục 1.
+
+
+
+---
+
+Bạn muốn mình gom lại thành một bảng hoàn chỉnh (7 ngày, tuần trước + năm trước + tên thứ) để bạn copy-paste vào Excel luôn không?
+
