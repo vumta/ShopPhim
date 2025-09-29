@@ -1,0 +1,71 @@
+Ok 👍 mình viết lại công thức đầy đủ:
+
+Tạo 3 cột:
+
+1. Ngày năm trước (map ISO week)
+
+
+2. Ngày năm nay (tuần trước)
+
+
+3. Thứ của ngày tương ứng
+
+
+
+Sắp xếp giảm dần từ Chủ nhật → Thứ 2.
+
+
+
+---
+
+✅ Công thức Dynamic Array
+
+=HSTACK(
+   TEXT(SORT(
+      DATE(YEAR(SEQUENCE(7,1,TODAY()-WEEKDAY(TODAY(),2)-6,1))-1,1,1)
+      -WEEKDAY(DATE(YEAR(SEQUENCE(7,1,TODAY()-WEEKDAY(TODAY(),2)-6,1))-1,1,4),2)
+      +7*ISOWEEKNUM(SEQUENCE(7,1,TODAY()-WEEKDAY(TODAY(),2)-6,1)),,-1),
+   "dd/mm/yyyy"),
+   TEXT(SORT(SEQUENCE(7,1,TODAY()-WEEKDAY(TODAY(),2)-6,1),,-1),"dd/mm/yyyy"),
+   TEXT(SORT(SEQUENCE(7,1,TODAY()-WEEKDAY(TODAY(),2)-6,1),,-1),"dddd")
+)
+
+
+---
+
+✅ Giải thích
+
+SEQUENCE(7,1,TODAY()-WEEKDAY(TODAY(),2)-6,1) → tạo 7 ngày liên tiếp Thứ 2 → Chủ nhật tuần trước (năm nay).
+
+ISOWEEKNUM(...) + DATE(...) → map sang ngày năm trước cùng tuần ISO.
+
+SORT(...,,-1) → sắp xếp giảm dần (Chủ nhật → Thứ 2).
+
+TEXT(...,"dd/mm/yyyy") → định dạng ngày.
+
+TEXT(...,"dddd") → lấy tên thứ.
+
+HSTACK(...) → ghép thành bảng 3 cột.
+
+
+
+---
+
+✅ Ví dụ (hôm nay 29/09/2025 – Thứ Hai)
+
+Ngày năm trước	Ngày năm nay	Thứ
+
+28/09/2024	28/09/2025	Sunday
+27/09/2024	27/09/2025	Saturday
+26/09/2024	26/09/2025	Friday
+25/09/2024	25/09/2025	Thursday
+24/09/2024	24/09/2025	Wednesday
+23/09/2024	23/09/2025	Tuesday
+22/09/2024	22/09/2025	Monday
+
+
+
+---
+
+👉 Bạn có muốn mình bổ sung thêm cột số tuần ISO (ISOWEEKNUM) để dễ kiểm tra mapping tuần không?
+
