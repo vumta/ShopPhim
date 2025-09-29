@@ -1,0 +1,33 @@
+Rồi 👍 mình chỉnh công thức để cột Ngày cũng tự format về dd/mm/yyyy, không cần chỉnh thủ công nữa.
+
+
+---
+
+Công thức mảng động (2 cột):
+
+=HSTACK(
+   TEXT(SEQUENCE(7,1,A1-6,1),"dddd"),
+   TEXT(SEQUENCE(7,1,A1-6,1),"dd/mm/yyyy")
+)
+
+
+---
+
+Kết quả:
+
+Thứ	Ngày
+
+Monday	22/09/2025
+Tuesday	23/09/2025
+Wednesday	24/09/2025
+Thursday	25/09/2025
+Friday	26/09/2025
+Saturday	27/09/2025
+Sunday	28/09/2025
+
+
+
+---
+
+👉 Bạn có muốn mình viết thêm phiên bản 3 cột (Thứ / Ngày / Số tuần trong năm ISOWEEKNUM) để tiện theo dõi tuần luôn không?
+
