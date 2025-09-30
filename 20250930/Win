@@ -1,0 +1,71 @@
+Ok, vậy là các tổ hợp Alt+Enter và Alt+Shift không hoạt động trên máy Windows 11 này, trong khi trên máy khác thì bình thường 👍.
+Trường hợp này thường liên quan đến cài đặt hotkey, ngôn ngữ bàn phím hoặc driver hơn là hỏng phím cứng. Bạn thử từng hướng sau nhé:
+
+
+---
+
+1. Kiểm tra Alt có hoạt động riêng lẻ không
+
+Mở On-Screen Keyboard (gõ osk trong Start).
+
+Bấm phím Alt trên bàn phím thật → nếu OSK sáng lên thì Windows nhận phím.
+
+Nếu Alt nhận → chỉ lỗi ở tổ hợp phím. Nếu không sáng → lỗi driver hoặc bàn phím.
+
+
+
+---
+
+2. Kiểm tra phím tắt Alt+Shift
+
+Đây là phím tắt mặc định để chuyển layout ngôn ngữ bàn phím.
+
+Trong Win 11, có thể đã bị thay bằng Win+Space.
+👉 Vào:
+Settings > Time & language > Typing > Advanced keyboard settings > Input language hot keys.
+
+Chọn Language bar options → tab Advanced Key Settings.
+
+Kiểm tra xem Alt+Shift còn được gán không, nếu chưa thì bấm Change Key Sequence để bật lại.
+
+
+
+
+---
+
+3. Kiểm tra phím tắt Alt+Enter
+
+Alt+Enter trong Explorer mở Properties, trong game thường là Fullscreen.
+
+Nếu không hoạt động:
+
+Test trong File Explorer: chọn 1 file → nhấn Alt+Enter. Nếu không mở Properties → có thể phím tắt bị override.
+
+Một số driver VGA (NVIDIA/Intel) có thể chiếm tổ hợp Alt+Enter. Kiểm tra trong NVIDIA Control Panel hoặc Intel Graphics Command Center → tắt Hotkey nếu có.
+
+
+
+
+---
+
+4. Kiểm tra Accessibility
+
+Vào Settings > Accessibility > Keyboard → tắt hết Sticky Keys, Filter Keys, Toggle Keys.
+Các tính năng này dễ làm sai tổ hợp phím.
+
+
+
+---
+
+5. Cập nhật / gỡ driver bàn phím
+
+Mở Device Manager > Keyboards, chuột phải → Uninstall device.
+
+Restart máy để Windows tự cài lại driver.
+
+
+
+---
+
+👉 Bạn muốn mình viết hướng dẫn chi tiết cách bật lại Alt+Shift đổi ngôn ngữ trong Win 11 không? Đây là lỗi hay gặp nhất.
+
