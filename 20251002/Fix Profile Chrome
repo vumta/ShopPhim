@@ -1,0 +1,84 @@
+Mình hiểu vấn đề của bạn:
+Trong UiPath khi chạy với Chrome, lâu lâu nó không dùng đúng profile bạn đã sign in sẵn, mà lại tự sinh ra một profile trắng mới (thường là "Profile 1", "Profile 2" …).
+
+👉 Nguyên nhân thường gặp:
+
+1. UiPath mở Chrome bằng default user-data-dir tạm thời → Chrome coi như chưa có profile.
+
+
+2. Cấu hình extension UiPath không load đúng profile.
+
+
+3. Chrome bị policy hoặc flag ép tạo profile mới.
+
+
+
+
+---
+
+Cách fix để luôn dùng profile có sẵn:
+
+1. Xác định thư mục profile hiện tại của bạn
+
+Mặc định:
+
+Windows:
+
+C:\Users\<USERNAME>\AppData\Local\Google\Chrome\User Data\
+
+Trong thư mục này bạn sẽ thấy các folder: Default, Profile 1, Profile 2...
+
+
+Nếu bạn đang dùng profile đã đăng nhập Google, ví dụ là Profile 2, thì cần note lại đường dẫn đó.
+
+
+
+---
+
+2. Ép UiPath mở đúng profile
+
+Trong UiPath bạn có thể mở Chrome bằng Open Application / Start Process với argument:
+
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --profile-directory="Profile 2" --user-data-dir="C:\Users\<USERNAME>\AppData\Local\Google\Chrome\User Data"
+
+--profile-directory="Profile 2" : thay bằng tên thư mục profile của bạn.
+
+--user-data-dir=... : đường dẫn User Data.
+
+
+> Như vậy Chrome sẽ luôn dùng profile đó, không tự tạo mới.
+
+
+
+
+---
+
+3. Kiểm tra UiPath Extension for Chrome
+
+Vào Chrome → chrome://extensions/ → chắc chắn extension UiPath Web Automation đã được bật trong đúng profile bạn muốn dùng.
+
+Nếu bạn cài trong profile A nhưng UiPath lại mở profile B → sẽ lỗi.
+
+
+
+---
+
+4. Một số mẹo khác:
+
+Vào chrome://settings/manageProfile → xóa bớt profile thừa, giữ lại 1 profile mặc định.
+
+Nếu không muốn xóa: Đặt profile bạn cần làm Default profile (mỗi lần mở sẽ auto load nó).
+
+Với Modern Experience (UiPath.UIAutomationNext), bạn có thể bật/disable Chrome → Incognito / Private để tránh Chrome tạo profile mới.
+
+
+
+---
+
+👉 Tóm lại, cách chắc chắn nhất: ép Chrome dùng đúng profile bằng --profile-directory khi UiPath mở.
+
+
+---
+
+Bạn có muốn mình viết sẵn một đoạn UiPath workflow mẫu (Start Process) để mở Chrome đúng profile, không bị tạo mới không?
+
