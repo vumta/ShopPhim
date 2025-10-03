@@ -1,0 +1,101 @@
+Ok, mình phân tích và viết lại logic của bạn cho rõ ràng, sau đó sẽ đề xuất công thức/từng bước xử lý trong Excel hoặc Power Automate:
+
+
+---
+
+Logic chi tiết
+
+1. Xác định dateWeekend:
+
+Nếu Today = Thứ 2 → dateWeekend = Chủ nhật tuần trước.
+
+Nếu Today = Thứ 3 → CN → dateWeekend = Chủ nhật tuần hiện tại.
+
+
+
+2. Xác định dãy ngày (WeekDates):
+
+Nếu dateWeekend = CN tuần trước → lấy nguyên tuần trước (Thứ 2 → CN).
+
+Nếu dateWeekend = CN tuần hiện tại → lấy nguyên tuần hiện tại từ Thứ 2 → (Today - 1).
+
+
+
+3. Tính số thứ tự tuần trong tháng của dateWeekend:
+
+Dựa vào ngày dateWeekend, tính xem nó nằm tuần thứ mấy trong tháng.
+(Ví dụ: Chủ nhật 29/9/2024 là tuần thứ 5 của tháng 9).
+
+
+
+4. Tìm tuần tương ứng năm trước:
+
+Dùng tháng hiện tại - 1 năm, và cùng số thứ tự tuần trong tháng.
+
+Lấy ra tuần này ở năm trước.
+
+
+
+5. Lấy dãy ngày năm trước:
+
+Khi xác định đúng tuần của năm trước → xuất ra toàn bộ ngày trong tuần đó (T2 → CN).
+
+
+
+
+
+---
+
+Excel công thức khả thi
+
+Giả sử Today nằm ở ô A1:
+
+1. Tính dateWeekend:
+
+=IF(WEEKDAY(A1,2)=1, A1-1, A1+(7-WEEKDAY(A1,2)))
+
+WEEKDAY(A1,2) → Thứ 2 = 1, … CN = 7.
+
+Nếu A1 là Thứ 2 → lấy CN tuần trước.
+
+Nếu A1 là Thứ 3 trở đi → CN tuần hiện tại.
+
+
+2. Tính ngày đầu tuần (Thứ 2):
+
+=DateWeekend-6
+
+→ đây là Thứ 2 của tuần cần xét.
+
+3. Sinh ra nguyên tuần:
+
+Thứ 2: =DateWeekend-6
+
+Thứ 3: =DateWeekend-5
+
+…
+
+Chủ nhật: =DateWeekend
+
+
+4. Xác định tuần thứ mấy trong tháng:
+
+=INT((DAY(DateWeekend)-1)/7)+1
+
+5. Lấy ngày tương ứng năm trước:
+
+Ví dụ muốn lấy CN năm trước:
+
+=DATE(YEAR(DateWeekend)-1, MONTH(DateWeekend),1) 
+   + (TuầnThứ-1)*7 
+   + (7-WEEKDAY(DATE(YEAR(DateWeekend)-1, MONTH(DateWeekend),1),2))
+
+→ Sau đó cộng 0 → 6 để ra đủ các ngày trong tuần đó.
+
+
+---
+
+👉 Cách này có thể triển khai bằng Excel, hoặc nếu bạn muốn mình viết luôn phiên bản Power Automate expression thì mình sẽ quy đổi ra hàm addDays(), dayOfWeek(), addMonths() … cho bạn.
+
+Bạn muốn mình viết thành Excel công thức hoàn chỉnh (copy-paste chạy được), hay thành Power Automate expression để dùng luôn trong Flow?
+
