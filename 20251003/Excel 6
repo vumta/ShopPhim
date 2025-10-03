@@ -1,0 +1,91 @@
+Dựa trên logic bạn cung cấp, tôi sẽ xây dựng các công thức Excel để tính các giá trị theo từng bước. Giả sử bạn có ngày hiện tại (today) trong ô **A1** (định dạng ngày, ví dụ: 03/10/2025). Dưới đây là các công thức Excel cho từng bước, với giả định các ô cụ thể để lưu kết quả.
+
+### Bước 1: Tính ngày Chủ nhật (date_weekend)
+- **Logic**: 
+  - Nếu hôm nay là thứ Hai (WEEKDAY = 2), date_weekend là Chủ nhật của tuần trước.
+  - Nếu hôm nay từ thứ Ba trở đi (WEEKDAY ≥ 3), date_weekend là Chủ nhật của tuần hiện tại.
+- **Công thức Excel** (giả sử kết quả lưu ở ô **B1**):
+  ```excel
+  =IF(WEEKDAY(A1)=2, A1-1, A1+7-WEEKDAY(A1))
+  ```
+  - **Giải thích**:
+    - `WEEKDAY(A1)` trả về số từ 1 (Chủ nhật) đến 7 (Thứ Bảy).
+    - Nếu `WEEKDAY(A1)=2` (thứ Hai), lấy `A1-1` (Chủ nhật tuần trước).
+    - Nếu không, lấy `A1+7-WEEKDAY(A1)` để tính ngày Chủ nhật của tuần hiện tại (di chuyển đến ngày tiếp theo là Chủ nhật).
+
+### Bước 2: Lấy danh sách các ngày trong tuần dựa trên date_weekend
+- **Logic**:
+  - Nếu date_weekend là Chủ nhật tuần trước, lấy các ngày từ thứ Hai đến Chủ nhật của tuần trước.
+  - Nếu date_weekend là Chủ nhật tuần hiện tại, lấy các ngày từ thứ Hai đến ngày trước today trong tuần hiện tại.
+- **Công thức Excel**:
+  - Giả sử date_weekend ở ô **B1**. Ta sẽ tạo danh sách ngày từ thứ Hai đến Chủ nhật (hoặc đến ngày trước today) trong các ô, ví dụ **C1:C6** (6 ngày tối đa).
+  - **Ô C1** (ngày thứ Hai):
+    ```excel
+    =IF(WEEKDAY(A1)=2, B1-6, B1-6)
+    ```
+    - Luôn lấy thứ Hai của tuần chứa date_weekend (Chủ nhật - 6 = thứ Hai).
+  - **Ô C2 đến C6** (các ngày tiếp theo):
+    - Ô C2: `=C1+1` (thứ Ba)
+    - Ô C3: `=C2+1` (thứ Tư)
+    - Ô C4: `=C3+1` (thứ Năm)
+    - Ô C5: `=C4+1` (thứ Sáu)
+    - Ô C6: `=C5+1` (thứ Bảy)
+  - **Lọc ngày nếu date_weekend là tuần hiện tại**:
+    - Để chỉ lấy các ngày trước today (nếu date_weekend là tuần hiện tại), thêm điều kiện ở các ô C1:C6:
+      ```excel
+      =IF(AND(WEEKDAY(A1)>=3, C1>=A1), "", C1)
+      ```
+      - Thay C1 bằng ô tương ứng (C2, C3,...). Nếu ngày ≥ today, trả về rỗng ("").
+
+### Bước 3: Tính thứ tự tuần trong tháng hiện tại dựa trên date_weekend
+- **Logic**: Tính tuần thứ mấy trong tháng của date_weekend (tuần thứ n = ((ngày - 1) // 7) + 1).
+- **Công thức Excel** (giả sử kết quả ở ô **D1**):
+  ```excel
+  =INT((DAY(B1)-1)/7)+1
+  ```
+  - **Giải thích**:
+    - `DAY(B1)` lấy ngày trong tháng của date_weekend.
+    - `(DAY(B1)-1)/7` chia lấy nguyên để tính tuần (0-based), cộng 1 để bắt đầu từ tuần 1.
+
+### Bước 4: Tìm thứ tự tuần tương ứng trong năm trước và lấy ngày của tuần đó
+- **Logic**:
+  - Lấy thứ tự tuần của date_weekend trong tháng hiện tại (từ bước 3).
+  - Tìm tuần tương ứng trong cùng tháng của năm trước.
+  - Lấy các ngày từ thứ Hai đến Chủ nhật của tuần đó trong năm trước.
+- **Công thức Excel**:
+  - **Ngày Chủ nhật của tuần tương ứng trong năm trước** (giả sử lưu ở ô **E1**):
+    ```excel
+    =DATE(YEAR(B1)-1, MONTH(B1), MIN((D1*7), DAY(EOMONTH(DATE(YEAR(B1)-1, MONTH(B1), 1), 0)))) - (7-WEEKDAY(DATE(YEAR(B1)-1, MONTH(B1), MIN((D1*7), DAY(EOMONTH(DATE(YEAR(B1)-1, MONTH(B1), 1), 0))))))
+    ```
+    - **Giải thích**:
+      - `YEAR(B1)-1` và `MONTH(B1)` lấy năm trước và cùng tháng.
+      - `D1*7` ước tính ngày cuối tuần (Chủ nhật) của tuần thứ D1.
+      - `EOMONTH(DATE(YEAR(B1)-1, MONTH(B1), 1), 0)` lấy ngày cuối tháng của năm trước.
+      - `MIN((D1*7), DAY(...))` đảm bảo không vượt quá ngày cuối tháng (đặc biệt cho tháng 2 năm không nhuận).
+      - Phần cuối điều chỉnh để ngày này là Chủ nhật.
+  - **Danh sách ngày từ thứ Hai đến Chủ nhật của tuần năm trước** (ô F1:F6):
+    - Ô F1 (thứ Hai): `=E1-6`
+    - Ô F2: `=F1+1`
+    - Ô F3: `=F2+1`
+    - Ô F4: `=F3+1`
+    - Ô F5: `=F4+1`
+    - Ô F6: `=F5+1`
+
+### Xử lý trường hợp tháng2 (tuần 5 năm nhuận, tuần 4 năm không nhuận)
+- **Kiểm tra năm nhuận** (ô G1, để hỗ trợ logic):
+  ```excel
+  =IF(OR(MOD(YEAR(B1), 4)=0, AND(MOD(YEAR(B1), 100)=0, MOD(YEAR(B1), 400)=0)), 1, 0)
+  ```
+  - Trả về 1 nếu năm hiện tại là năm nhuận, 0 nếu không.
+- **Kiểm tra năm trước** (ô G2):
+  ```excel
+  =IF(OR(MOD(YEAR(B1)-1, 4)=0, AND(MOD(YEAR(B1)-1, 100)=0, MOD(YEAR(B1)-1, 400)=0)), 1, 0)
+  ```
+- **Điều chỉnh nếu tuần 5 không tồn tại trong năm trước**:
+  - Thêm kiểm tra ở ô E1:
+    ```excel
+    =IF(AND(D1=5, G2=0, MONTH(B1)=2), DATE(YEAR(B1)-1, MONTH(B1), 28) - (7-WEEKDAY(DATE(YEAR(B1)-1, MONTH(B1), 28))), E1)
+    ```
+   ස
+
+System: * Today's date and time is 09:27 AM +07 on Friday, October 03, 2025.
