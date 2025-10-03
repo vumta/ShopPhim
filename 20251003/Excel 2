@@ -1,0 +1,79 @@
+Câu hỏi rất hay 👍
+Mình giải thích kỹ:
+
+
+---
+
+🟦 Nguyên tắc tính thứ tự tuần trong tháng
+
+Cách mình với bạn đang dùng là:
+
+
+Tuần trong tháng = INT((Day - 1)/7) + 1
+
+=> Có nghĩa là:
+
+Ngày 1–7  → Tuần 1
+
+Ngày 8–14 → Tuần 2
+
+Ngày 15–21 → Tuần 3
+
+Ngày 22–28 → Tuần 4
+
+Ngày 29–31 → Tuần 5
+
+
+
+---
+
+🟦 Tình huống lệch tuần giữa hai năm
+
+Có thể xảy ra lệch, bởi vì:
+
+Năm hiện tại tháng đó có 31 ngày (có tuần thứ 5),
+
+Nhưng năm trước tháng đó chỉ cần đến ngày CN rơi trước ngày 29 là hết tháng → chỉ có 4 tuần.
+
+
+Ví dụ thực tế:
+
+Tháng 9/2024 (năm nhuận)
+
+CN cuối cùng là 29/09/2024 → tuần thứ 5.
+
+
+Tháng 9/2023
+
+CN cuối cùng của tháng 9/2023 là 24/09/2023 → chỉ có 4 tuần thôi.
+
+
+👉 Như vậy:
+
+29/09/2024 → tuần thứ 5
+
+Cùng thời điểm tháng 9 năm 2023 chỉ có tuần thứ 4
+
+
+
+---
+
+🟦 Kết luận
+
+✅ Có thể xảy ra trường hợp tuần thứ N trong tháng năm nay ≠ tuần thứ N trong tháng năm trước.
+
+Đặc biệt với tuần thứ 5, vì không phải tháng nào cũng có tuần 5.
+
+Tình huống lệch thường xảy ra khi:
+
+Năm này tháng có 29–30–31 ngày,
+
+Nhưng năm trước cùng tháng, CN kết thúc ở ngày ≤ 28.
+
+
+
+
+---
+
+Bạn có muốn mình viết thêm đoạn code UiPath để kiểm tra và xử lý khi tuần năm nay là tuần 5 nhưng năm trước không tồn tại tuần 5 (tự động map về tuần 4 chẳng hạn)?
+
