@@ -1,0 +1,107 @@
+Ok, mình viết chi tiết công thức Excel cho cả 3 bước theo yêu cầu của bạn nhé 👇
+
+Giả sử:
+
+A1 = WeekendDate (chủ nhật của tuần cần xét trong năm hiện tại).
+
+
+
+---
+
+1. Thứ tự tuần trong năm hiện tại từ WeekendDate
+
+Công thức:
+
+=INT((A1-DATE(YEAR(A1),1,1)+WEEKDAY(DATE(YEAR(A1),1,1),2))/7)+1
+
+👉 Giải thích:
+
+DATE(YEAR(A1),1,1) = ngày 01/01 của năm hiện tại.
+
+WEEKDAY(DATE(YEAR(A1),1,1),2) = thứ trong tuần của ngày đầu năm (thứ 2=1, CN=7).
+
+Tính khoảng cách từ đầu năm đến WeekendDate, chia cho 7, làm tròn xuống rồi cộng 1 → ra thứ tự tuần trong năm.
+
+
+
+---
+
+2. Thứ tự tuần tương ứng của năm trước
+
+Giả sử công thức ở bước 1 nằm tại ô B1, thì năm trước cùng thứ tự tuần chính là:
+
+=B1
+
+👉 Tức là: tuần 15 năm nay → cũng lấy tuần 15 năm trước.
+
+
+---
+
+3. Lấy tất cả ngày trong tuần đó (năm trước)
+
+Đầu tiên cần tìm Chủ nhật của tuần thứ N trong năm trước:
+
+=DATE(YEAR(A1)-1,1,1) + (B1-1)*7 + (7-WEEKDAY(DATE(YEAR(A1)-1,1,1),2))
+
+Đây chính là WeekendDate năm trước, ứng với tuần thứ B1.
+
+
+Giả sử công thức này nằm ở ô C1 → chính là Chủ nhật năm trước.
+
+Sau đó sinh ra các ngày trong tuần đó (Thứ 2 → CN):
+
+Thứ 2:
+
+
+=C1-6
+
+Thứ 3:
+
+
+=C1-5
+
+Thứ 4:
+
+
+=C1-4
+
+Thứ 5:
+
+
+=C1-3
+
+Thứ 6:
+
+
+=C1-2
+
+Thứ 7:
+
+
+=C1-1
+
+Chủ nhật:
+
+
+=C1
+
+
+---
+
+✅ Vậy bạn có thể nhập WeekendDate (CN bất kỳ) → ra:
+
+1. Số thứ tự tuần trong năm hiện tại.
+
+
+2. Tuần tương ứng năm trước.
+
+
+3. Danh sách ngày trong tuần đó (năm trước).
+
+
+
+
+---
+
+Bạn có muốn mình gộp các công thức này thành một bảng mẫu Excel (A1 nhập WeekendDate, tự động ra hết tuần năm trước) để bạn copy dùng luôn không?
+
