@@ -1,0 +1,112 @@
+Ok 👍 mình sẽ viết công thức Excel đầy đủ cho từng giá trị theo logic bạn đưa ra.
+Giả sử Today nằm ở ô A1.
+
+
+---
+
+1. Xác định dateWeekend (chủ nhật của tuần cần xét)
+
+=IF(WEEKDAY(A1,2)=1, A1-1, A1+(7-WEEKDAY(A1,2)))
+
+Nếu A1 là Thứ 2 → lấy CN tuần trước.
+
+Nếu A1 là Thứ 3 → CN → lấy CN tuần hiện tại.
+
+
+
+---
+
+2. Ngày Thứ 2 của tuần đó
+
+=B1-6
+
+(giả sử dateWeekend ở ô B1)
+
+
+---
+
+3. Các ngày trong tuần đó
+
+Thứ 2: =B1-6
+
+Thứ 3: =B1-5
+
+Thứ 4: =B1-4
+
+Thứ 5: =B1-3
+
+Thứ 6: =B1-2
+
+Thứ 7: =B1-1
+
+Chủ nhật: =B1
+
+
+👉 Bạn có thể kéo công thức xuống theo mẫu.
+
+
+---
+
+4. Thứ tự tuần trong tháng (dựa vào CN)
+
+=INT((DAY(B1)-1)/7)+1
+
+(ở đây B1 là dateWeekend)
+
+
+---
+
+5. Chủ nhật cùng tuần-thứ trong tháng năm trước
+
+=DATE(YEAR(B1)-1, MONTH(B1),1) 
++ (D1-1)*7 
++ (7-WEEKDAY(DATE(YEAR(B1)-1, MONTH(B1),1),2))
+
+B1 = dateWeekend
+
+D1 = số thứ tự tuần trong tháng (công thức ở bước 4)
+
+
+
+---
+
+6. Các ngày trong tuần năm trước
+
+Giả sử CN năm trước tính được ở E1:
+
+Thứ 2: =E1-6
+
+Thứ 3: =E1-5
+
+Thứ 4: =E1-4
+
+Thứ 5: =E1-3
+
+Thứ 6: =E1-2
+
+Thứ 7: =E1-1
+
+Chủ nhật: =E1
+
+
+
+---
+
+✅ Như vậy bạn có đầy đủ công thức Excel để lấy:
+
+CN tuần cần xét.
+
+Toàn bộ ngày trong tuần đó.
+
+Thứ tự tuần trong tháng.
+
+Tuần tương ứng năm trước.
+
+Toàn bộ ngày của tuần năm trước.
+
+
+
+---
+
+Bạn có muốn mình gom lại thành một bảng mẫu Excel với Today = A1 (công thức điền sẵn từng ô) để copy nguyên bảng ra xài luôn không?
+
