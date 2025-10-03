@@ -1,0 +1,88 @@
+Rồi 👍 mình sẽ viết cho bạn đoạn code UiPath (VB.NET trong Assign/Invoke Code) để xử lý hết các trường hợp khi số thứ tự tuần của tháng năm hiện tại không map được với năm trước.
+
+
+---
+
+🟦 Ý tưởng xử lý
+
+1. Tính dateWeekend (CN tuần đang xét).
+
+
+2. Tính thứ tự tuần trong tháng hiện tại → weekOrderCurrent.
+
+
+3. Lấy CN tuần tương ứng năm trước theo cùng weekOrderCurrent.
+
+
+4. Kiểm tra nếu CN đó vẫn còn trong cùng tháng năm trước:
+
+Nếu có → giữ nguyên.
+
+Nếu không (ví dụ năm nay có tuần 5 nhưng năm trước không có tuần 5) → giảm về tuần cuối cùng có thật của tháng năm trước (thường là tuần 4).
+
+
+
+
+
+---
+
+🟦 Code mẫu trong UiPath (VB.NET)
+
+Bạn có thể đặt đoạn này trong Assign (nhiều dòng) hoặc trong Invoke Code:
+
+' today là biến DateTime, ví dụ: DateTime.Now
+Dim today As DateTime = DateTime.Now
+
+' 1. Xác định dateWeekend
+Dim dateWeekend As DateTime
+If today.DayOfWeek = DayOfWeek.Monday Then
+    dateWeekend = today.AddDays(-1) ' CN tuần trước
+Else
+    dateWeekend = today.AddDays(7 - CInt(today.DayOfWeek)) ' CN tuần hiện tại
+End If
+
+' 2. Tính thứ tự tuần trong tháng năm hiện tại
+Dim weekOrderCurrent As Integer = CInt(Math.Floor((dateWeekend.Day - 1) / 7)) + 1
+
+' 3. Lấy CN của tuần tương ứng trong năm trước
+Dim firstDayPrevYearMonth As DateTime = New DateTime(dateWeekend.Year - 1, dateWeekend.Month, 1)
+Dim offset As Integer = (7 - CInt(firstDayPrevYearMonth.DayOfWeek) + 1)
+If offset = 7 Then offset = 0
+
+Dim dateWeekendPrevYear As DateTime = firstDayPrevYearMonth.AddDays((weekOrderCurrent - 1) * 7 + offset)
+
+' 4. Nếu CN này không cùng tháng (bị nhảy sang tháng sau) thì lùi về tuần cuối cùng của tháng
+If dateWeekendPrevYear.Month <> firstDayPrevYearMonth.Month Then
+    ' Lấy CN cuối cùng của tháng đó
+    Dim lastDayOfPrevYearMonth As DateTime = firstDayPrevYearMonth.AddMonths(1).AddDays(-1)
+    Dim dayDiff As Integer = CInt(DayOfWeek.Sunday) - CInt(lastDayOfPrevYearMonth.DayOfWeek)
+    If dayDiff < 0 Then dayDiff += 7
+    dateWeekendPrevYear = lastDayOfPrevYearMonth.AddDays(dayDiff)
+End If
+
+' 5. Lấy full tuần của năm trước (T2 -> CN)
+Dim startOfPrevWeek As DateTime = dateWeekendPrevYear.AddDays(-6)
+Dim weekDatesPrevYear As New List(Of DateTime)
+For i As Integer = 0 To 6
+    weekDatesPrevYear.Add(startOfPrevWeek.AddDays(i))
+Next
+
+
+---
+
+🟦 Kết quả
+
+dateWeekend → CN tuần xét năm nay.
+
+weekOrderCurrent → số thứ tự tuần trong tháng (năm nay).
+
+dateWeekendPrevYear → CN tuần map được năm trước (đã xử lý trường hợp lệch tuần).
+
+weekDatesPrevYear → danh sách ngày (T2 → CN) của tuần năm trước.
+
+
+
+---
+
+👉 Bạn có muốn mình viết thêm đoạn xuất ra danh sách ngày weekDatesPrevYear dạng chuỗi (yyyy-MM-dd) để dễ log/ghi file trong UiPath không?
+
