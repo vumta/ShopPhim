@@ -1,0 +1,57 @@
+Rất chuẩn 💪
+Bạn muốn kết quả cuối cùng là chuỗi string, chứa các ngày từ thứ 2 tuần cần lấy → hôm qua (hoặc CN tuần trước),
+được ngăn cách bằng dấu phẩy (,), và định dạng yyyyMMdd.
+
+
+---
+
+✅ Công thức gọn 1 dòng duy nhất để dán vào Assign trong UiPath:
+
+To: daysList
+Type: String
+Value:
+
+String.Join(",", Enumerable.Range(0, (If(DateTime.Today.DayOfWeek = DayOfWeek.Monday, DateTime.Today.AddDays(-1 - 6), DateTime.Today.AddDays(-1)).Subtract(If(DateTime.Today.DayOfWeek = DayOfWeek.Monday, DateTime.Today.AddDays(-7 - 6), DateTime.Today.AddDays(If(CInt(DateTime.Today.DayOfWeek)=0,-6,1-CInt(DateTime.Today.DayOfWeek))))).Days + 1)).Select(Function(i) If(DateTime.Today.DayOfWeek = DayOfWeek.Monday, DateTime.Today.AddDays(-7 - 6 + i), If(CInt(DateTime.Today.DayOfWeek)=0, DateTime.Today.AddDays(-6 + i), DateTime.Today.AddDays(1 - CInt(DateTime.Today.DayOfWeek) + i)))).Select(Function(d) d.ToString("yyyyMMdd")))
+
+
+---
+
+😅 Công thức này dài vì mình gộp toàn bộ logic vào một dòng (không cần tạo biến phụ).
+Để dễ đọc và bảo trì hơn, mình gợi ý tách ra 3 assign nhỏ — đơn giản, dễ debug:
+
+
+---
+
+🧩 Cách tách dễ hiểu (gợi ý dùng)
+
+1️⃣ Monday tuần hiện tại
+
+currentWeekMonday = DateTime.Today.AddDays(If(CInt(DateTime.Today.DayOfWeek)=0,-6,1-CInt(DateTime.Today.DayOfWeek)))
+
+2️⃣ Start và End
+
+startDate = If(DateTime.Today.DayOfWeek = DayOfWeek.Monday, currentWeekMonday.AddDays(-7), currentWeekMonday)
+endDate = If(DateTime.Today.DayOfWeek = DayOfWeek.Monday, currentWeekMonday.AddDays(-1), DateTime.Today.AddDays(-1))
+
+3️⃣ Xuất ra chuỗi nối dấu phẩy, định dạng yyyyMMdd
+
+daysList = String.Join(",", Enumerable.Range(0, (endDate.Subtract(startDate).Days + 1)).Select(Function(i) startDate.AddDays(i).ToString("yyyyMMdd")))
+
+
+---
+
+🧠 Ví dụ:
+
+Hôm nay	daysList
+
+Thứ 2 (13/10/2025)	20251006,20251007,20251008,20251009,20251010,20251011,20251012
+Thứ 3 (14/10/2025)	20251013
+Thứ 4 (15/10/2025)	20251013,20251014
+Chủ nhật (19/10/2025)	20251013,20251014,20251015,20251016,20251017,20251018
+
+
+
+---
+
+👉 Bạn có muốn mình viết thêm phiên bản rút gọn chỉ 1 dòng, dễ đọc hơn (vẫn giữ full logic, nhưng chia hàm phụ logic rõ hơn) để copy vào UiPath mà không lỗi cú pháp không?
+
