@@ -1,0 +1,91 @@
+Đúng rồi — đoạn code bạn dán ở trên không thể đặt trực tiếp trong Assign của UiPath được, vì UiPath chỉ chấp nhận biểu thức LINQ thuần trả về giá trị, không được chứa câu lệnh như dt.Rows.Add(...) hay Return dt.
+
+
+---
+
+🔍 Nguyên nhân
+
+Trong VB.NET thuần, Aggregate có thể chứa nhiều lệnh và return thủ công, nhưng trong UiPath:
+
+Mỗi Assign chỉ được phép chứa một biểu thức trả về giá trị.
+
+Các hàm như dt.Rows.Add() không trả về DataTable ⇒ không thể gọi trong biểu thức LINQ kiểu này.
+
+
+
+---
+
+✅ Cách khắc phục 1: Dùng For Each thay vì Aggregate
+
+Đơn giản và dễ hiểu hơn:
+
+For Each i In Enumerable.Range(0, rowsCount)
+    Dim dayCur As DateTime = DateTime.ParseExact(daysListCurrent(i), "yyyyMMdd", CultureInfo.InvariantCulture)
+    dtResult.Rows.Add(
+        dateWeekend.ToString("yyyy-MM-dd"),
+        dayCur.ToString("dddd", CultureInfo.InvariantCulture),
+        daysListCurrent(i),
+        daysListPrev(i)
+    )
+Next
+
+
+---
+
+✅ Cách khắc phục 2: Viết LINQ thuần (Assign hợp lệ)
+
+Nếu bạn muốn đặt trong Assign, phải viết sao cho toàn bộ LINQ trả về DataTable mà không có Add trong biểu thức.
+Ví dụ:
+
+dtResult = (
+    From i In Enumerable.Range(0, rowsCount)
+    Let dayCur = DateTime.ParseExact(daysListCurrent(i), "yyyyMMdd", CultureInfo.InvariantCulture)
+    Let row = New Object() {
+        dateWeekend.ToString("yyyy-MM-dd"),
+        dayCur.ToString("dddd", CultureInfo.InvariantCulture),
+        daysListCurrent(i),
+        daysListPrev(i)
+    }
+    Select row
+).Aggregate(dtResult, Function(dt, r)
+    dt.Rows.Add(r)
+    Return dt
+End Function)
+
+⚠️ Tuy nhiên, UiPath vẫn có thể lỗi vì dt.Rows.Add(r) là câu lệnh không trả về giá trị — nên cách này vẫn không ổn định trong Assign.
+
+
+---
+
+✅ Cách khắc phục 3 (LINQ + CopyToDataTable)
+
+Nếu bạn muốn 1 dòng Assign “chuẩn LINQ”, hãy tạo Enumerable các rows trước rồi chuyển thành DataTable:
+
+dtResult = (
+    From i In Enumerable.Range(0, rowsCount)
+    Let dayCur = DateTime.ParseExact(daysListCurrent(i), "yyyyMMdd", CultureInfo.InvariantCulture)
+    Select New Object() {
+        dateWeekend.ToString("yyyy-MM-dd"),
+        dayCur.ToString("dddd", CultureInfo.InvariantCulture),
+        daysListCurrent(i),
+        daysListPrev(i)
+    }
+).CopyToDataTable()
+
+📌 Điều kiện: bạn đã có DataTable mẫu (dtResult) định nghĩa sẵn cột, hoặc bạn dùng Clone() để nhân cấu trúc từ trước.
+
+
+---
+
+👉 Tóm lại, với UiPath:
+
+Nếu bạn muốn viết Assign hợp lệ, dùng LINQ thuần trả về DataTable (cách 3).
+
+Nếu bạn chỉ cần thêm dòng vào dtResult có sẵn, hãy dùng For Each (cách 1).
+
+
+
+---
+
+Bạn muốn tôi viết lại toàn đoạn bằng cú pháp LINQ đặt được trong Assign UiPath (tức không lỗi cú pháp)?
+
