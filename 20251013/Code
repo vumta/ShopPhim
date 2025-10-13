@@ -1,0 +1,89 @@
+Rất tốt — bạn muốn dạng LINQ expression để gán trực tiếp trong Assign (tức không cần tạo function riêng, mỗi bước chỉ là 1 biểu thức thuần).
+Dưới đây là phiên bản thuần LINQ + inline VB.NET, tối ưu để bạn copy vào UiPath Assign.
+
+
+---
+
+🧩 1️⃣ dateWeekend
+
+dateWeekend = If(Now.DayOfWeek = DayOfWeek.Monday,
+                 Now.AddDays(-1),
+                 Now.AddDays(7 - CInt(Now.DayOfWeek)))
+
+➡ CN tuần trước nếu hôm nay là Thứ 2, ngược lại CN tuần hiện tại.
+
+
+---
+
+🧩 2️⃣ weekDates
+
+weekDates = If(Now.DayOfWeek = DayOfWeek.Monday,
+               Enumerable.Range(0,7).
+                   Select(Function(i) dateWeekend.AddDays(-6 + i)).
+                   ToList(),
+               Enumerable.Range(0, CInt(Now.DayOfWeek) - 1).
+                   Select(Function(i) dateWeekend.AddDays(-6 + i)).
+                   ToList())
+
+➡ Tuần trước đủ 7 ngày nếu Thứ 2,
+hoặc tuần hiện tại từ Thứ 2 → hôm qua nếu ≥ Thứ 3.
+
+
+---
+
+🧩 3️⃣ weekNumCurrent
+
+weekNumCurrent = Globalization.CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(
+                    dateWeekend,
+                    Globalization.CalendarWeekRule.FirstFourDayWeek,
+                    DayOfWeek.Monday)
+
+➡ Thứ tự tuần trong năm hiện tại (ISO week, bắt đầu Thứ 2).
+
+
+---
+
+🧩 4️⃣ dateWeekendPrev
+
+dateWeekendPrev =
+    New Date(Now.Year - 1, 1, 1).
+        AddDays(
+            ((CInt(DayOfWeek.Monday) - CInt(New Date(Now.Year - 1, 1, 1).DayOfWeek) + 7) Mod 7) +  'offset đến Thứ 2 đầu tiên
+            ((weekNumCurrent - 1) * 7) + 6) 'Cộng (weekNum -1)*7 + 6 để ra Chủ nhật
+
+➡ Chủ nhật tương ứng của tuần weekNumCurrent trong năm trước.
+
+
+---
+
+🧩 5️⃣ weekDatesPrev
+
+weekDatesPrev = Enumerable.Range(0,7).
+                     Select(Function(i) dateWeekendPrev.AddDays(-6 + i)).
+                     ToList()
+
+➡ Dãy ngày (Thứ 2 → CN) của tuần tương ứng trong năm trước.
+
+
+---
+
+✅ Tổng kết
+
+Biến	Dạng	Ý nghĩa
+
+dateWeekend	Date	CN tuần hiện tại hoặc tuần trước
+weekDates	List(Of Date)	Dãy ngày của tuần hiện tại
+weekNumCurrent	Integer	Thứ tự tuần trong năm hiện tại
+dateWeekendPrev	Date	CN của tuần tương ứng năm trước
+weekDatesPrev	List(Of Date)	Dãy ngày của tuần năm trước
+
+
+
+---
+
+Bạn có muốn tôi viết thêm 1 Assign cuối cùng gộp toàn bộ thành JSON string kiểu:
+
+{"CurrentWeek":["2025-10-06","2025-10-07",...],"PrevYearWeek":["2024-10-07",...]}
+
+để bạn dễ xuất ra log trong UiPath không?
+
