@@ -1,0 +1,109 @@
+Rất tốt 👌 — dưới đây là phiên bản hoàn chỉnh, viết 100% bằng LINQ dạng Assign để dùng trực tiếp trong UiPath.
+Tất cả đều dùng tên thứ tiếng Anh (“Monday”, “Tuesday”, …, “Sunday”) và bao gồm đầy đủ các bước từ đầu đến cuối.
+
+
+---
+
+🧩 TỔNG HỢP TOÀN BỘ BIẾN & ASSIGN
+
+> ⚙️ Tất cả biến này bạn chỉ cần tạo trong UiPath với kiểu dữ liệu tương ứng (DateTime, Int32, List(Of String))
+rồi copy các biểu thức sau vào Assign.
+
+
+
+
+---
+
+🟦 1️⃣ today – Ngày hiện tại
+
+today = Now.Date
+
+
+---
+
+🟦 2️⃣ dateWeekend – Chủ nhật của tuần cần lấy
+
+> Nếu hôm nay là Thứ 2 → lấy CN tuần trước
+Nếu là Thứ 3 → CN → lấy CN tuần hiện tại
+
+
+
+dateWeekend = If(
+    today.DayOfWeek = DayOfWeek.Monday,
+    today.AddDays(-1),
+    today.AddDays(DayOfWeek.Sunday - today.DayOfWeek)
+)
+
+
+---
+
+🟦 3️⃣ weekOfYear – Thứ tự tuần trong năm hiện tại
+
+weekOfYear = Globalization.CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
+    dateWeekend,
+    Globalization.CalendarWeekRule.FirstFourDayWeek,
+    DayOfWeek.Monday
+)
+
+
+---
+
+🟦 4️⃣ dateWeekendPrev – Chủ nhật cùng tuần năm trước
+
+dateWeekendPrev = dateWeekend.AddYears(-1)
+
+
+---
+
+🟦 5️⃣ daysListPrev – Danh sách ngày (yyyyMMdd) trong tuần đó của năm trước
+
+daysListPrev = Enumerable.Range(0,7).
+    Select(Function(i) dateWeekendPrev.AddDays(-6 + i).ToString("yyyyMMdd")).
+    ToList()
+
+
+---
+
+🟦 6️⃣ daysListCurrent – Danh sách ngày (yyyyMMdd) trong tuần hiện tại
+
+daysListCurrent = Enumerable.Range(0,7).
+    Select(Function(i) dateWeekend.AddDays(-6 + i).ToString("yyyyMMdd")).
+    ToList()
+
+
+---
+
+🟦 7️⃣ daysOfWeekNames – Tên thứ trong tuần hiện tại (tiếng Anh)
+
+daysOfWeekNames = Enumerable.Range(0,7).
+    Select(Function(i) dateWeekend.AddDays(-6 + i).ToString("dddd")).
+    ToList()
+
+✅ Ví dụ kết quả:
+
+daysListCurrent = { "20251013", "20251014", "20251015", "20251016", "20251017", "20251018", "20251019" }
+daysOfWeekNames = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" }
+
+
+---
+
+🧮 Tóm tắt thứ tự chạy trong UiPath
+
+Thứ tự	Biến	Kiểu dữ liệu	Nội dung
+
+1	today	DateTime	Ngày hiện tại
+2	dateWeekend	DateTime	Chủ nhật của tuần cần tính
+3	weekOfYear	Int32	Thứ tự tuần trong năm hiện tại
+4	dateWeekendPrev	DateTime	CN cùng tuần năm trước
+5	daysListPrev	List(Of String)	Ngày của tuần tương ứng năm trước
+6	daysListCurrent	List(Of String)	Ngày của tuần hiện tại
+7	daysOfWeekNames	List(Of String)	Tên thứ trong tuần hiện tại (English)
+
+
+
+---
+
+Bạn có muốn mình thêm 1 biến cuối cùng là dictionary kiểu
+{ "20251013": "Monday", ... }
+để bạn map nhanh ngày ↔ tên thứ trong UiPath không?
+
