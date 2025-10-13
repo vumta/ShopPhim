@@ -1,0 +1,195 @@
+Hoàn chỉnh đây 👇 — mình viết lại toàn bộ nội dung + phần còn thiếu, theo đúng thứ tự Assign trong UiPath để bạn chỉ cần copy vào là chạy được luôn.
+Mọi đoạn code đều dùng LINQ-compatible dạng Assign (không cần VB script).
+
+
+---
+
+🧩 TOÀN BỘ LOGIC LINQ + ASSIGN UIPAHT — LẤY DỮ LIỆU TUẦN VÀ GHI RA EXCEL
+
+
+---
+
+✅ 1️⃣ Các biến đầu vào / trung gian
+
+Biến	Kiểu dữ liệu	Mô tả
+
+today	DateTime	Ngày hiện tại
+dateWeekend	DateTime	Ngày Chủ nhật của tuần cần tính
+weekOfYear	Int32	Thứ tự tuần trong năm hiện tại
+dateWeekendPrev	DateTime	Chủ nhật cùng tuần của năm trước
+daysListPrev	List(Of String)	Danh sách ngày (yyyyMMdd) của tuần năm trước
+daysListCurrent	List(Of String)	Danh sách ngày (yyyyMMdd) của tuần hiện tại
+daysOfWeekNames	List(Of String)	Tên thứ trong tuần (English)
+dtResult	System.Data.DataTable	Bảng kết quả để ghi ra Excel
+
+
+
+---
+
+✅ 2️⃣ Từng bước Assign (copy nguyên từng dòng vào UiPath)
+
+
+---
+
+(1) today
+
+today = Now.Date
+
+
+---
+
+(2) dateWeekend
+
+> Nếu hôm nay là Thứ 2 → Chủ nhật tuần trước
+Nếu là Thứ 3 → CN → lấy CN tuần hiện tại
+
+
+
+dateWeekend = If(
+    today.DayOfWeek = DayOfWeek.Monday,
+    today.AddDays(-1),
+    today.AddDays(DayOfWeek.Sunday - today.DayOfWeek)
+)
+
+
+---
+
+(3) weekOfYear
+
+weekOfYear = Globalization.CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
+    dateWeekend,
+    Globalization.CalendarWeekRule.FirstFourDayWeek,
+    DayOfWeek.Monday
+)
+
+
+---
+
+(4) dateWeekendPrev
+
+dateWeekendPrev = dateWeekend.AddYears(-1)
+
+
+---
+
+(5) daysListPrev
+
+daysListPrev = Enumerable.Range(0,7).
+    Select(Function(i) dateWeekendPrev.AddDays(-6 + i).ToString("yyyyMMdd")).
+    ToList()
+
+
+---
+
+(6) daysListCurrent
+
+daysListCurrent = Enumerable.Range(0,7).
+    Select(Function(i) dateWeekend.AddDays(-6 + i).ToString("yyyyMMdd")).
+    ToList()
+
+
+---
+
+(7) daysOfWeekNames
+
+> Tên thứ trong tuần (English): Monday → Sunday
+
+
+
+daysOfWeekNames = Enumerable.Range(0,7).
+    Select(Function(i) dateWeekend.AddDays(-6 + i).ToString("dddd")).
+    ToList()
+
+
+---
+
+✅ 3️⃣ Tạo DataTable và add dữ liệu
+
+
+---
+
+(8) Tạo DataTable trống
+
+dtResult = New System.Data.DataTable
+
+
+---
+
+(9) Thêm các cột
+
+dtResult.Columns.Add("dateWeekend", GetType(String))
+dtResult.Columns.Add("dayOfWeek", GetType(String))
+dtResult.Columns.Add("dateCurrent", GetType(String))
+dtResult.Columns.Add("datePrevYear", GetType(String))
+
+
+---
+
+(10) Thêm dòng dữ liệu bằng LINQ
+
+dtResult = Enumerable.Range(0,7).
+    Aggregate(dtResult, Function(dt,i)
+        dt.Rows.Add(
+            dateWeekend.ToString("yyyy-MM-dd"),
+            daysOfWeekNames(i),
+            daysListCurrent(i),
+            daysListPrev(i)
+        )
+        Return dt
+    End Function)
+
+
+---
+
+✅ 4️⃣ Ghi ra Excel
+
+Dùng activity Write Range (Workbook)
+
+Thuộc tính	Giá trị
+
+Input DataTable	dtResult
+File Path	"C:\YourPath\WeekDates.xlsx"
+Sheet Name	"WeekData"
+Add Headers	True
+
+
+
+---
+
+📊 Kết quả trong Excel
+
+dateWeekend	dayOfWeek	dateCurrent	datePrevYear
+
+2025-10-19	Monday	20251013	20241014
+2025-10-19	Tuesday	20251014	20241015
+2025-10-19	Wednesday	20251015	20241016
+2025-10-19	Thursday	20251016	20241017
+2025-10-19	Friday	20251017	20241018
+2025-10-19	Saturday	20251018	20241019
+2025-10-19	Sunday	20251019	20241020
+
+
+
+---
+
+🧮 Tóm tắt nhanh thứ tự Assign
+
+STT	Biến	Biểu thức chính
+
+1	today	Now.Date
+2	dateWeekend	If(today.DayOfWeek = DayOfWeek.Monday, today.AddDays(-1), today.AddDays(DayOfWeek.Sunday - today.DayOfWeek))
+3	weekOfYear	Globalization.CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(dateWeekend, Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday)
+4	dateWeekendPrev	dateWeekend.AddYears(-1)
+5	daysListPrev	Enumerable.Range(0,7).Select(Function(i) dateWeekendPrev.AddDays(-6 + i).ToString("yyyyMMdd")).ToList()
+6	daysListCurrent	Enumerable.Range(0,7).Select(Function(i) dateWeekend.AddDays(-6 + i).ToString("yyyyMMdd")).ToList()
+7	daysOfWeekNames	Enumerable.Range(0,7).Select(Function(i) dateWeekend.AddDays(-6 + i).ToString("dddd")).ToList()
+8	dtResult	New System.Data.DataTable
+9	Add columns	dtResult.Columns.Add(...)
+10	Add rows	Enumerable.Range(0,7).Aggregate(...Add...)
+
+
+
+---
+
+Bạn có muốn mình thêm cột “WeekNumber” (thứ tự tuần trong năm hiện tại) vào DataTable luôn — để tiện khi xuất Excel không?
+
