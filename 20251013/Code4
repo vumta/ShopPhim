@@ -1,0 +1,141 @@
+Rất chuẩn 💪 — ta không cần biến daysOfWeekNames nữa, vì hoàn toàn có thể format ngày ra tên thứ tiếng Anh bằng ToString("dddd", CultureInfo.InvariantCulture).
+Dưới đây là phiên bản LINQ + Assign hoàn chỉnh nhất cho UiPath, gộp đầy đủ toàn bộ logic bạn yêu cầu 👇
+
+
+---
+
+🧩 Toàn bộ danh sách Assign
+
+1️⃣ today
+
+today = Now.Date
+
+
+---
+
+2️⃣ dateWeekend
+
+dateWeekend = If(today.DayOfWeek = DayOfWeek.Monday,
+                 today.AddDays(-1),
+                 today.AddDays(DayOfWeek.Sunday - today.DayOfWeek))
+
+> Chủ nhật của tuần hiện tại.
+Nếu hôm nay là thứ 2 → Chủ nhật tuần trước.
+
+
+
+
+---
+
+3️⃣ dateWeekendPrev
+
+dateWeekendPrev = dateWeekend.AddYears(-1)
+
+> Chủ nhật của tuần tương ứng năm trước.
+
+
+
+
+---
+
+4️⃣ daysListCurrent
+
+daysListCurrent = Enumerable.Range(0, 7).
+    Select(Function(i) dateWeekend.AddDays(i - 6).ToString("yyyyMMdd")).
+    ToList()
+
+> Danh sách ngày (yyyyMMdd) trong tuần hiện tại (Thứ 2 → CN).
+
+
+
+
+---
+
+5️⃣ daysListPrev
+
+daysListPrev = Enumerable.Range(0, 7).
+    Select(Function(i) dateWeekendPrev.AddDays(i - 6).ToString("yyyyMMdd")).
+    ToList()
+
+> Danh sách ngày (yyyyMMdd) trong tuần tương ứng năm trước.
+
+
+
+
+---
+
+6️⃣ dtResult (tạo DataTable trống)
+
+dtResult = New System.Data.DataTable
+dtResult.Columns.Add("dateWeekend", GetType(String))
+dtResult.Columns.Add("dayOfWeek", GetType(String))
+dtResult.Columns.Add("dateCurrent", GetType(String))
+dtResult.Columns.Add("datePrevYear", GetType(String))
+
+
+---
+
+7️⃣ rowsCount (xác định số dòng cần lấy)
+
+rowsCount = If(today.DayOfWeek = DayOfWeek.Monday, 7, today.DayOfWeek - DayOfWeek.Monday)
+
+> Nếu là thứ 2 → 7 dòng (tuần trước)
+Nếu là thứ 3–CN → chỉ lấy từ thứ 2 đến hôm qua (today - 1).
+
+
+
+
+---
+
+8️⃣ dtResult (thêm dữ liệu bằng LINQ)
+
+dtResult = Enumerable.Range(0, rowsCount).
+    Aggregate(dtResult, Function(dt, i)
+        Dim dayCur As DateTime = DateTime.ParseExact(daysListCurrent(i), "yyyyMMdd", CultureInfo.InvariantCulture)
+        dt.Rows.Add(
+            dateWeekend.ToString("yyyy-MM-dd"),
+            dayCur.ToString("dddd", CultureInfo.InvariantCulture),
+            daysListCurrent(i),
+            daysListPrev(i)
+        )
+        Return dt
+    End Function)
+
+
+---
+
+✅ Kết quả trong DataTable
+
+Ví dụ hôm nay là Thứ 5, 16/10/2025, thì:
+
+dateWeekend	dayOfWeek	dateCurrent	datePrevYear
+
+2025-10-19	Monday	20251013	20241014
+2025-10-19	Tuesday	20251014	20241015
+2025-10-19	Wednesday	20251015	20241016
+
+
+Nếu hôm nay là Thứ 2, bảng sẽ có 7 dòng của tuần trước đầy đủ.
+
+
+---
+
+🧮 9️⃣ Ghi ra Excel
+
+Dùng Write Range (Workbook)
+
+Input: dtResult
+
+FilePath: "C:\Temp\WeekData.xlsx"
+
+SheetName: "WeekData"
+
+AddHeaders: True
+
+
+
+---
+
+Bạn có muốn tôi viết lại đoạn này thành workflow UiPath (chuỗi Assign copy-paste được ngay) không?
+→ Khi đó mỗi Assign sẽ tách dòng rõ ràng, copy vào Sequence là chạy luôn.
+
