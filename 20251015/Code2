@@ -1,0 +1,65 @@
+Hiểu rồi 👍
+Bạn đang nói tới kiểu làm tròn thông thường (round half up) — tức là giống hàm ROUND trong Excel.
+Cụ thể:
+
+3.4 → 3
+
+3.5 → 4
+
+3.6 → 4
+
+
+
+---
+
+✅ Cách viết trong UiPath (VB.NET)
+
+Math.Round(myDouble, 0, MidpointRounding.AwayFromZero).ToString()
+
+Giải thích:
+
+myDouble: biến kiểu Double (ví dụ: 3.5).
+
+0: số chữ số thập phân cần giữ (0 nghĩa là làm tròn đến số nguyên).
+
+MidpointRounding.AwayFromZero: quy tắc làm tròn “nếu >= .5 thì lên”, đúng như Excel.
+
+.ToString(): chuyển kết quả thành chuỗi.
+
+
+
+---
+
+💡 Ví dụ thực tế trong UiPath:
+
+Assign:
+
+resultString = Math.Round(3.5, 0, MidpointRounding.AwayFromZero).ToString()
+
+Kết quả: "4"
+
+Assign khác:
+
+resultString = Math.Round(3.4, 0, MidpointRounding.AwayFromZero).ToString()
+
+Kết quả: "3"
+
+
+---
+
+⚙️ Nếu bạn muốn làm tròn đến n chữ số thập phân
+
+Giống Excel ROUND(A1, 2):
+
+Math.Round(myDouble, 2, MidpointRounding.AwayFromZero).ToString()
+
+Ví dụ:
+
+Math.Round(3.145, 2, MidpointRounding.AwayFromZero).ToString()   '=> "3.15"
+Math.Round(3.144, 2, MidpointRounding.AwayFromZero).ToString()   '=> "3.14"
+
+
+---
+
+Bạn có muốn mình viết luôn phiên bản LinQ hoặc biểu thức gọn (để dùng ngay trong Assign của UiPath) không?
+
