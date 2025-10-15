@@ -1,0 +1,54 @@
+Rất hay 👌
+Nếu bạn muốn làm tròn kiểu Excel và hiển thị dấu “,” phân tách hàng nghìn, thì chỉ cần kết hợp với ToString("N0") hoặc ToString("N2") tuỳ số chữ số thập phân bạn muốn hiển thị.
+
+
+---
+
+✅ Làm tròn kiểu Excel + có dấu “,” (đến số nguyên)
+
+Math.Round(myDouble, 0, MidpointRounding.AwayFromZero).ToString("N0")
+
+Ví dụ:
+
+Giá trị	Kết quả
+
+3144.5	"3,145"
+3144.4	"3,144"
+1234567.6	"1,234,568"
+
+
+
+---
+
+✅ Làm tròn kiểu Excel + có dấu “,” (đến 2 chữ số thập phân)
+
+Math.Round(myDouble, 2, MidpointRounding.AwayFromZero).ToString("N2")
+
+Ví dụ:
+
+Giá trị	Kết quả
+
+3144.456	"3,144.46"
+3144.451	"3,144.45"
+1234567.6	"1,234,567.60"
+
+
+
+---
+
+💡 Gợi ý nhanh cho Assign trong UiPath:
+
+Làm tròn đến số nguyên:
+
+resultString = Math.Round(CDbl(myValue), 0, MidpointRounding.AwayFromZero).ToString("N0")
+
+Làm tròn đến 2 chữ số thập phân:
+
+resultString = Math.Round(CDbl(myValue), 2, MidpointRounding.AwayFromZero).ToString("N2")
+
+
+
+---
+
+Bạn muốn mình giúp luôn expression để format không có số thập phân nếu là số nguyên, nhưng vẫn có dấu , khi cần không? (ví dụ: 1000.5 → “1,001”, 1000 → “1,000”)
+
