@@ -1,0 +1,74 @@
+Trong UiPath, để làm tròn lên (round up) một giá trị kiểu Double và chuyển sang chuỗi (String), bạn có thể làm theo một trong các cách dưới đây — tuỳ theo yêu cầu định dạng.
+
+
+---
+
+🧮 1. Làm tròn lên đến số nguyên
+
+👉 Ví dụ: 3.2 → 4
+
+Math.Ceiling(myDouble).ToString()
+
+Giải thích:
+
+Math.Ceiling() sẽ làm tròn lên đến số nguyên gần nhất.
+
+.ToString() chuyển thành chuỗi.
+
+
+Ví dụ thực tế:
+
+Assign -> resultString = Math.Ceiling(3.2).ToString()    'Kết quả: "4"
+
+
+---
+
+🧮 2. Làm tròn lên đến n chữ số thập phân
+
+UiPath (VB.NET) không có Ceiling với số chữ số thập phân trực tiếp, nhưng bạn có thể xử lý thủ công như sau:
+
+👉 Ví dụ: 3.141 → 3.15 (làm tròn lên 2 chữ số)
+
+(Math.Ceiling(myDouble * 100) / 100).ToString()
+
+Giải thích:
+
+Nhân với 10^n, làm tròn lên, rồi chia lại để giữ n chữ số.
+
+Ví dụ với n=2: 100.
+
+
+Ví dụ thực tế:
+
+Assign -> resultString = (Math.Ceiling(3.141 * 100) / 100).ToString()   'Kết quả: "3.15"
+
+
+---
+
+🧾 3. Định dạng chuỗi sau khi làm tròn
+
+Nếu bạn muốn luôn hiển thị đúng 2 chữ số thập phân, có thể format:
+
+(Math.Ceiling(myDouble * 100) / 100).ToString("0.00")
+
+Ví dụ:
+
+Assign -> resultString = (Math.Ceiling(3.1 * 100) / 100).ToString("0.00")   'Kết quả: "3.10"
+
+
+---
+
+✅ Tổng hợp:
+
+Mục đích	Cách viết	Kết quả (với 3.141)
+
+Làm tròn lên số nguyên	Math.Ceiling(3.141).ToString()	"4"
+Làm tròn lên 2 chữ số thập phân	(Math.Ceiling(3.141*100)/100).ToString()	"3.15"
+Hiển thị 2 số sau dấu phẩy	(Math.Ceiling(3.141*100)/100).ToString("0.00")	"3.15"
+
+
+
+---
+
+Bạn có muốn mình giúp viết expression đầy đủ cho activity Assign trong UiPath (để copy dán trực tiếp) không?
+
