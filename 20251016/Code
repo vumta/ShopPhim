@@ -1,0 +1,108 @@
+Rất hay — vấn đề này là do Windows SmartScreen / Zone Identifier (Alternate Data Stream - ADS) gắn “dấu an toàn” cho file tải về từ Internet hoặc SharePoint.
+=> Khi file có Zone.Identifier thì Windows buộc Excel hiển thị cảnh báo “Enable Editing / Unlock”.
+
+
+---
+
+🎯 Mục tiêu của bạn:
+
+Khi UiPath tải file Excel từ SharePoint về → dùng code (VBA hoặc VB.NET) để tự động “Unlock” file, không cần click chuột phải → Properties → Unblock.
+
+
+---
+
+✅ Cách 1: Dùng VB.NET trong UiPath (Khuyên dùng)
+
+Bạn có thể xoá Alternate Data Stream Zone.Identifier của file bằng VB.NET activity trong UiPath:
+
+🔹 Code VB.NET:
+
+Dim filePath As String = "C:\Users\Public\Downloads\Report.xlsm"
+
+If IO.File.Exists(filePath & ":Zone.Identifier") Then
+    IO.File.Delete(filePath & ":Zone.Identifier")
+End If
+
+🔹 Cách dùng trong UiPath:
+
+1. Dùng activity Assign để gán biến filePath là đường dẫn file tải về.
+
+
+2. Dùng activity Invoke Code
+
+Ngôn ngữ: VB.NET
+
+Code: đoạn trên
+
+Input argument: filePath
+
+
+
+3. Sau khi chạy → file được “unblock”, Excel sẽ không còn cảnh báo Enable Editing / Security Warning.
+
+
+
+
+---
+
+✅ Cách 2: Dùng PowerShell trong UiPath (nếu muốn ngắn gọn)
+
+Cũng có thể gọi lệnh PowerShell trực tiếp:
+
+Unblock-File -Path "C:\Users\Public\Downloads\Report.xlsm"
+
+Trong UiPath:
+
+Dùng Invoke PowerShell activity
+
+CommandText: Unblock-File -Path '" + filePath + "'
+
+Đặt IsScript = True
+
+
+
+---
+
+✅ Cách 3: Dùng VBA (nếu bạn chỉ có quyền trong Excel)
+
+VBA không thể trực tiếp xoá stream ADS, nhưng có thể dùng “Shell” để gọi PowerShell từ trong Excel:
+
+Sub UnblockThisFile()
+    Dim f As String
+    f = ThisWorkbook.FullName
+    Shell "powershell -command ""Unblock-File -Path '" & f & "'""", vbHide
+End Sub
+
+👉 Tuy nhiên, cách này chỉ chạy được sau khi file đã mở và người dùng đã bấm Enable Content ít nhất 1 lần, nên không hiệu quả để “mở khóa trước khi mở file”.
+
+
+---
+
+✅ Cách kiểm tra file đã bị block hay chưa:
+
+Bạn có thể kiểm tra bằng code:
+
+If IO.File.Exists(filePath & ":Zone.Identifier") Then
+    Console.WriteLine("File is blocked.")
+Else
+    Console.WriteLine("File is unblocked.")
+End If
+
+
+---
+
+✅ Tóm tắt:
+
+Mục đích	Cách	Ưu điểm
+
+Unblock trước khi mở Excel	VB.NET trong UiPath (xoá Zone.Identifier)	Hiệu quả, gọn
+Unblock nhiều file 1 lượt	Duyệt folder và xoá stream	Dễ batch
+Trong Excel VBA	Không khả thi 100%, chỉ gọi PowerShell	Chỉ dùng khi không có UiPath
+
+
+
+---
+
+Bạn có muốn mình viết giúp một đoạn code VB.NET hoàn chỉnh trong UiPath có thể unblock toàn bộ file trong 1 folder SharePoint download (vd: C:\Temp\Download) luôn không?
+→ Khi đó UiPath có thể chạy batch tự động sau khi tải về.
+
