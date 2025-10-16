@@ -1,0 +1,118 @@
+Tốt lắm 👍 Vậy mình sẽ viết cho bạn phiên bản hoàn chỉnh chạy trong UiPath, có thể unblock toàn bộ file trong 1 folder (kể cả tên file có khoảng trắng hoặc ký tự đặc biệt).
+Toàn bộ script này bạn chỉ cần copy-dán vào Invoke PowerShell là chạy được ngay.
+
+
+---
+
+✅ Mục tiêu
+
+Duyệt qua toàn bộ file trong 1 folder (vd. C:\Temp\Download)
+
+Kiểm tra từng file có bị block (Zone.Identifier) hay không
+
+Nếu bị block → tự động “Unblock”
+
+Ghi log trạng thái từng file
+
+
+
+---
+
+🧠 PowerShell Script hoàn chỉnh
+
+CommandText (toàn bộ dán vào UiPath Invoke PowerShell):
+
+param([string]$folderPath)
+
+if (-not (Test-Path $folderPath)) {
+    Write-Host "❌ Folder not found: $folderPath"
+    exit
+}
+
+Write-Host "🔍 Scanning folder: $folderPath"
+$files = Get-ChildItem -Path $folderPath -File -Recurse
+
+if ($files.Count -eq 0) {
+    Write-Host "⚠️ No files found in folder."
+    exit
+}
+
+foreach ($file in $files) {
+    $zonePath = "$($file.FullName):Zone.Identifier"
+
+    if (Test-Path $zonePath) {
+        Write-Host "🚫 Blocked → $($file.Name)"
+        try {
+            Unblock-File -LiteralPath $file.FullName
+            if (-not (Test-Path $zonePath)) {
+                Write-Host "✅ Unblocked → $($file.Name)"
+            } else {
+                Write-Host "⚠️ Still blocked → $($file.Name)"
+            }
+        } catch {
+            Write-Host "❌ Error unblocking file: $($file.Name) | $_"
+        }
+    } else {
+        Write-Host "✅ Already unblocked → $($file.Name)"
+    }
+}
+
+Write-Host "🎯 Done scanning folder."
+
+
+---
+
+⚙️ Cấu hình trong UiPath
+
+1. Dùng activity Assign
+
+folderPath = "C:\Temp\Download"
+
+(hoặc thư mục SharePoint bạn tải file về)
+
+
+2. Dùng activity Invoke PowerShell
+
+IsScript = True
+
+CommandText = (toàn bộ script ở trên)
+
+Parameters = { folderPath }
+
+WriteOutputToLog = True
+
+(Tùy chọn) Output = result (String) → để đọc nội dung log nếu cần
+
+
+
+
+
+---
+
+🧾 Kết quả Log ví dụ
+
+Khi chạy, log của UiPath sẽ hiển thị như:
+
+🔍 Scanning folder: C:\Temp\Download
+🚫 Blocked → Report Q1.xlsm
+✅ Unblocked → Report Q1.xlsm
+✅ Already unblocked → Template.xlsx
+🚫 Blocked → Monthly Report.xlsm
+✅ Unblocked → Monthly Report.xlsm
+🎯 Done scanning folder.
+
+
+---
+
+🧰 Tùy chọn thêm (nếu bạn muốn)
+
+Nếu bạn chỉ muốn “unblock file Excel” (bỏ qua file .txt, .zip, .pdf, …), thêm dòng lọc:
+
+$files = Get-ChildItem -Path $folderPath -File -Recurse | Where-Object { $_.Extension -match "xlsm|xlsx|xls" }
+
+
+---
+
+Bạn có muốn mình viết luôn phiên bản workflow .xaml mẫu (chạy trực tiếp trong UiPath) để bạn import vào project không?
+→ Mình có thể xuất đoạn đó ra file .xaml gồm Assign + Invoke PowerShell sẵn.
+
