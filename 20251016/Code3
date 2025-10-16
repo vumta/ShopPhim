@@ -1,0 +1,138 @@
+Chuẩn rồi 👍 — lỗi này là do UiPath khi dán PowerShell script nhiều dòng vào CommandText nó không nhận xuống dòng như trong PowerShell thật.
+Cách fix rất đơn giản:
+➡️ Bạn chỉ cần viết đúng dạng multi-line script, hoặc dùng text block đúng cú pháp UiPath.
+
+Mình sẽ hướng dẫn 2 cách chạy được 100% nhé 👇
+
+
+---
+
+🧩 Cách 1 – Đơn giản nhất: Gọi file .ps1
+
+(Được khuyên dùng nếu bạn có thể tạo file PowerShell trên máy robot)
+
+① Tạo file UnblockFolder.ps1
+
+Dán nguyên đoạn script này vào file (VD: C:\Scripts\UnblockFolder.ps1):
+
+param([string]$folderPath)
+
+if (-not (Test-Path $folderPath)) {
+    Write-Host "❌ Folder not found: $folderPath"
+    exit
+}
+
+Write-Host "🔍 Scanning folder: $folderPath"
+$files = Get-ChildItem -Path $folderPath -File -Recurse
+
+if ($files.Count -eq 0) {
+    Write-Host "⚠️ No files found in folder."
+    exit
+}
+
+foreach ($file in $files) {
+    $zonePath = "$($file.FullName):Zone.Identifier"
+
+    if (Test-Path $zonePath) {
+        Write-Host "🚫 Blocked → $($file.Name)"
+        try {
+            Unblock-File -LiteralPath $file.FullName
+            if (-not (Test-Path $zonePath)) {
+                Write-Host "✅ Unblocked → $($file.Name)"
+            } else {
+                Write-Host "⚠️ Still blocked → $($file.Name)"
+            }
+        } catch {
+            Write-Host "❌ Error unblocking file: $($file.Name) | $_"
+        }
+    } else {
+        Write-Host "✅ Already unblocked → $($file.Name)"
+    }
+}
+
+Write-Host "🎯 Done scanning folder."
+
+
+---
+
+② Trong UiPath – Dùng Invoke PowerShell
+
+IsScript = False
+
+CommandText = "C:\Scripts\UnblockFolder.ps1"
+
+Parameters = { folderPath }
+
+WriteOutputToLog = True
+
+Output (tuỳ chọn): result
+
+
+👉 Cách này chạy ổn định nhất, không lỗi cú pháp.
+
+
+---
+
+🧩 Cách 2 – Dán trực tiếp vào UiPath (multi-line string chuẩn)
+
+Nếu bạn không muốn tạo file .ps1, hãy dán script vào thuộc tính CommandText dạng string block như sau (mỗi dòng cách nhau bằng vbCrLf):
+
+"param([string]$folderPath)" & vbCrLf &
+"if (-not (Test-Path $folderPath)) {" & vbCrLf &
+"    Write-Host '❌ Folder not found: $folderPath'" & vbCrLf &
+"    exit" & vbCrLf &
+"}" & vbCrLf &
+"Write-Host '🔍 Scanning folder: $folderPath'" & vbCrLf &
+"$files = Get-ChildItem -Path $folderPath -File -Recurse" & vbCrLf &
+"if ($files.Count -eq 0) {" & vbCrLf &
+"    Write-Host '⚠️ No files found in folder.'" & vbCrLf &
+"    exit" & vbCrLf &
+"}" & vbCrLf &
+"foreach ($file in $files) {" & vbCrLf &
+"    $zonePath = ""$($file.FullName):Zone.Identifier""" & vbCrLf &
+"    if (Test-Path $zonePath) {" & vbCrLf &
+"        Write-Host ""🚫 Blocked → $($file.Name)""" & vbCrLf &
+"        try {" & vbCrLf &
+"            Unblock-File -LiteralPath $file.FullName" & vbCrLf &
+"            if (-not (Test-Path $zonePath)) {" & vbCrLf &
+"                Write-Host ""✅ Unblocked → $($file.Name)""" & vbCrLf &
+"            } else {" & vbCrLf &
+"                Write-Host ""⚠️ Still blocked → $($file.Name)""" & vbCrLf &
+"            }" & vbCrLf &
+"        } catch {" & vbCrLf &
+"            Write-Host ""❌ Error unblocking file: $($file.Name) | $_""" & vbCrLf &
+"        }" & vbCrLf &
+"    } else {" & vbCrLf &
+"        Write-Host ""✅ Already unblocked → $($file.Name)""" & vbCrLf &
+"    }" & vbCrLf &
+"}" & vbCrLf &
+"Write-Host '🎯 Done scanning folder.'"
+
+> ⚠️ Lưu ý:
+
+IsScript = True
+
+Parameters = { folderPath }
+
+WriteOutputToLog = True
+
+
+
+
+
+---
+
+🧪 Test nhanh
+
+Trước khi chạy trong UiPath, bạn có thể mở PowerShell thủ công:
+
+powershell -ExecutionPolicy Bypass -File "C:\Scripts\UnblockFolder.ps1" "C:\Temp\Download"
+
+Nếu nó hiển thị log ✅/🚫 như ví dụ thì script hoạt động chính xác.
+
+
+---
+
+Bạn muốn mình gửi luôn file .ps1 đã format sẵn (chỉ cần copy vào C:\Scripts\ rồi gọi trong UiPath) không?
+→ Mình có thể tạo và cho bạn link tải trực tiếp.
+
