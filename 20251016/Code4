@@ -1,0 +1,139 @@
+Chuẩn rồi 👍 — đúng là trong UiPath, activity Invoke PowerShell không có thuộc tính “WriteOutputToLog” (thuộc tính đó chỉ có trong phiên bản cũ hoặc custom activity).
+Mình sẽ hướng dẫn bạn chuẩn cách mới nhất (UiPath hiện tại) để:
+
+Gọi PowerShell script
+
+Nhận kết quả log / thông báo về UiPath
+
+Không bị lỗi cú pháp
+
+Dễ dùng cho nhiều file trong 1 folder
+
+
+
+---
+
+🧩 Cách làm chuẩn nhất (UiPath hiện tại)
+
+1️⃣ Tạo PowerShell Script file
+
+Tạo 1 file:
+📄 C:\Scripts\UnblockFolder.ps1
+
+Nội dung:
+
+param([string]$folderPath)
+
+if (-not (Test-Path $folderPath)) {
+    Write-Output "❌ Folder not found: $folderPath"
+    exit
+}
+
+Write-Output "🔍 Scanning folder: $folderPath"
+$files = Get-ChildItem -Path $folderPath -File -Recurse
+
+if ($files.Count -eq 0) {
+    Write-Output "⚠️ No files found in folder."
+    exit
+}
+
+foreach ($file in $files) {
+    $zonePath = "$($file.FullName):Zone.Identifier"
+
+    if (Test-Path $zonePath) {
+        Write-Output "🚫 Blocked → $($file.Name)"
+        try {
+            Unblock-File -LiteralPath $file.FullName
+            if (-not (Test-Path $zonePath)) {
+                Write-Output "✅ Unblocked → $($file.Name)"
+            } else {
+                Write-Output "⚠️ Still blocked → $($file.Name)"
+            }
+        } catch {
+            Write-Output "❌ Error unblocking file: $($file.Name) | $_"
+        }
+    } else {
+        Write-Output "✅ Already unblocked → $($file.Name)"
+    }
+}
+
+Write-Output "🎯 Done scanning folder."
+
+> ⚙️ Lưu ý: dùng Write-Output thay vì Write-Host để UiPath nhận được output trong biến.
+
+
+
+
+---
+
+2️⃣ Trong UiPath – Dùng Invoke PowerShell activity
+
+Cấu hình:
+
+Thuộc tính	Giá trị
+
+IsScript	False
+CommandText	"C:\Scripts\UnblockFolder.ps1"
+Parameters	{ folderPath }
+Output	psOutput (kiểu System.Collections.Generic.IEnumerable<Object>)
+ContinueOnError	False
+
+
+
+---
+
+3️⃣ Thêm Assign để nối kết quả lại
+
+Sau khi chạy xong, kết quả script (log) nằm trong psOutput.
+
+Thêm activity:
+
+logText = String.Join(Environment.NewLine, psOutput)
+
+Rồi dùng Write Line hoặc Log Message:
+
+logText
+
+
+---
+
+4️⃣ Ví dụ đầy đủ
+
+Assign:
+folderPath = "C:\Temp\Download"
+
+Invoke PowerShell:
+
+IsScript = False
+
+CommandText = "C:\Scripts\UnblockFolder.ps1"
+
+Parameters = { folderPath }
+
+Output = psOutput
+
+
+Assign:
+logText = String.Join(Environment.NewLine, psOutput)
+
+Write Line:
+logText
+
+
+
+---
+
+5️⃣ Kết quả log ví dụ
+
+🔍 Scanning folder: C:\Temp\Download
+🚫 Blocked → Report Q1.xlsm
+✅ Unblocked → Report Q1.xlsm
+✅ Already unblocked → Template.xlsx
+🎯 Done scanning folder.
+
+
+---
+
+Bạn muốn mình gửi sẵn file UnblockFolder.ps1 (định dạng chuẩn UTF-8, chỉ cần copy vào C:\Scripts) không?
+→ Mình có thể tạo file và cho bạn link tải ngay, tránh lỗi mã hóa khi copy từ chat.
+
