@@ -1,0 +1,42 @@
+Chuẩn luôn 👌 — bạn nói đúng:
+
+Nếu hôm nay là Thứ 3, thì chỉ cần dữ liệu 1 ngày (Thứ 2) → rowsCount = 1.
+=> Nghĩa là: “Từ Thứ 2 đến hôm qua (Thứ 2)” → chỉ 1 dòng.
+
+
+---
+
+✅ Công thức rowsCount chuẩn xác cuối cùng (VB.NET cho UiPath):
+
+rowsCount = If(Now.DayOfWeek = DayOfWeek.Monday,
+               7,
+               If(CInt(Now.DayOfWeek)=0,6,CInt(Now.DayOfWeek)-1))
+
+
+---
+
+🧩 Giải thích:
+
+Ngày hiện tại	Now.DayOfWeek	Kết quả rowsCount	Giải thích
+
+Thứ 2	Monday (1)	7	Lấy đủ 7 ngày tuần trước
+Thứ 3	Tuesday (2)	1	Chỉ lấy Thứ 2
+Thứ 4	Wednesday (3)	2	Lấy Thứ 2–Thứ 3
+Thứ 5	Thursday (4)	3	Lấy Thứ 2–Thứ 4
+Thứ 6	Friday (5)	4	Lấy Thứ 2–Thứ 5
+Thứ 7	Saturday (6)	5	Lấy Thứ 2–Thứ 6
+Chủ nhật	Sunday (0)	6	Lấy Thứ 2–Thứ 7
+
+
+
+---
+
+💡 Bạn chỉ cần gán:
+
+TypeArgument của biến rowsCount = Int32
+
+Copy dòng trên vào Assign trong UiPath → chạy được ngay, không lỗi cú pháp.
+
+
+Bạn có muốn mình gửi lại full đoạn workflow (tất cả Assign từ today → dtResult) có công thức này tích hợp luôn không?
+
