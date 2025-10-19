@@ -1,0 +1,119 @@
+Rất hay 👏 — ta sẽ chuyển toàn bộ logic Excel bạn nêu (3 bước) thành chuỗi Assign LINQ trong UiPath (copy-paste chạy được ngay).
+Mục tiêu:
+
+Nhập đầu vào dateWeekend (kiểu DateTime, là Chủ nhật của tuần hiện tại).
+
+Tính thứ tự tuần (weekNumCurrent),
+
+Lấy tuần tương ứng năm trước (weekNumPrev = weekNumCurrent),
+
+Tính ra tất cả 7 ngày của tuần đó (thứ 2 → CN) trong năm trước (List of DateTime).
+
+
+
+---
+
+🧩 Chuỗi Assign hoàn chỉnh (UiPath LINQ version)
+
+1️⃣ today (tuỳ bạn, có thể bỏ nếu đã có)
+
+today = Now.Date
+
+2️⃣ dateWeekend — chủ nhật của tuần hiện tại
+
+(ví dụ: nếu hôm nay là Thứ 4 → CN tuần này)
+
+dateWeekend = today.AddDays(DayOfWeek.Sunday - today.DayOfWeek)
+
+
+---
+
+3️⃣ weekNumCurrent — thứ tự tuần trong năm hiện tại (theo công thức Excel)
+
+weekNumCurrent = CInt(Math.Floor((dateWeekend - New DateTime(dateWeekend.Year,1,1) + TimeSpan.FromDays(DatePart(DateInterval.Weekday, New DateTime(dateWeekend.Year,1,1), FirstDayOfWeek.Monday) - 1)).TotalDays / 7)) + 1
+
+> 📘 Giống công thức Excel:
+
+=INT((A1 - DATE(YEAR(A1),1,1) + WEEKDAY(DATE(YEAR(A1),1,1),2)) / 7) + 1
+
+
+
+
+---
+
+4️⃣ weekNumPrev — tuần tương ứng của năm trước
+
+weekNumPrev = weekNumCurrent
+
+
+---
+
+5️⃣ firstDayPrevYear — ngày 01/01 của năm trước
+
+firstDayPrevYear = New DateTime(dateWeekend.Year - 1, 1, 1)
+
+
+---
+
+6️⃣ weekendPrevYear — Chủ nhật của tuần tương ứng năm trước
+
+(theo công thức Excel:
+=DATE(YEAR(A1)-1,1,1) + (B1-1)*7 + (7 - WEEKDAY(DATE(YEAR(A1)-1,1,1),2)))
+
+weekendPrevYear = firstDayPrevYear.AddDays((weekNumPrev - 1) * 7 + (7 - CInt(firstDayPrevYear.DayOfWeek = DayOfWeek.Sunday)*7 - (CInt(firstDayPrevYear.DayOfWeek) - 1)))
+
+❗ Nhưng công thức Excel WEEKDAY(...,2) quy ước Thứ 2=1, CN=7.
+Trong .NET, DayOfWeek.Monday=1, Sunday=0, nên phải hiệu chỉnh:
+Cách rõ ràng hơn và an toàn hơn (đọc dễ):
+
+weekendPrevYear = firstDayPrevYear.AddDays((weekNumPrev - 1) * 7 + (7 - If(firstDayPrevYear.DayOfWeek = DayOfWeek.Sunday, 7, CInt(firstDayPrevYear.DayOfWeek))))
+
+
+---
+
+7️⃣ weekDatesPrevYear — danh sách 7 ngày (Thứ 2 → CN) của tuần đó
+
+weekDatesPrevYear = Enumerable.Range(0,7).Select(Function(i) weekendPrevYear.AddDays(i - 6)).ToList()
+
+
+---
+
+8️⃣ weekDatesPrevYearStr — format ra chuỗi yyyyMMdd
+
+weekDatesPrevYearStr = weekDatesPrevYear.Select(Function(d) d.ToString("yyyyMMdd")).ToList()
+
+
+---
+
+✅ Kết quả:
+
+Biến	Kiểu	Ý nghĩa
+
+weekNumCurrent	Int32	Số thứ tự tuần của dateWeekend trong năm hiện tại
+weekNumPrev	Int32	Tuần tương ứng của năm trước (bằng nhau)
+weekendPrevYear	DateTime	Chủ nhật của tuần đó trong năm trước
+weekDatesPrevYear	List(Of DateTime)	Danh sách ngày (Thứ 2 → CN) của tuần đó năm trước
+weekDatesPrevYearStr	List(Of String)	Danh sách ngày dạng "yyyyMMdd" để bạn append vào DataTable, ghi Excel, v.v.
+
+
+
+---
+
+🧮 Ví dụ:
+
+Giả sử:
+
+today = 2025-10-13 (Thứ 2)
+dateWeekend = 2025-10-19
+
+→ weekNumCurrent = 42
+→ weekNumPrev = 42
+→ weekendPrevYear = 2024-10-13
+→ weekDatesPrevYearStr = ["20241007","20241008","20241009","20241010","20241011","20241012","20241013"]
+
+
+---
+
+Bạn có muốn mình bổ sung thêm Assign để đưa dữ liệu tuần này + tuần năm trước vào cùng một DataTable (giống logic trước đó) để dùng luôn trong UiPath không?
+Khi đó bạn chỉ cần copy toàn bộ Assign + 1 Write Range là chạy.
+
