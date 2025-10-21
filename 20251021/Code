@@ -1,0 +1,60 @@
+Rất tốt 👌 — Dưới đây là 3 biến thể mà bạn có thể copy–paste trực tiếp vào UiPath (dạng VB.NET cho Assign activity).
+
+
+---
+
+🟦 Biến thể 1 – Lấy danh sách dòng thỏa điều kiện
+
+Assign:
+
+filteredRows = (From row In yourDataTable.AsEnumerable()
+                Where row("type").ToString.ToLower = "file" AndAlso
+                      (row("name").ToString.ToLower = "weekly report" Or row("name").ToString.ToLower = "monthly report")
+                Select row).ToList()
+
+👉 filteredRows là List(Of DataRow)
+Bạn có thể dùng:
+
+filteredRows.Count
+filteredRows(0)("name").ToString
+
+
+---
+
+🟦 Biến thể 2 – Lấy danh sách giá trị “name”
+
+Assign:
+
+namesList = (From row In yourDataTable.AsEnumerable()
+             Where row("type").ToString.ToLower = "file" AndAlso
+                   (row("name").ToString.ToLower = "weekly report" Or row("name").ToString.ToLower = "monthly report")
+             Select row("name").ToString).ToList()
+
+👉 namesList là List(Of String)
+Có thể dùng:
+
+String.Join(",", namesList)
+
+
+---
+
+🟦 Biến thể 3 – Lấy giá trị “name” của dòng đầu tiên thỏa điều kiện
+
+Assign:
+
+targetRow = (From row In yourDataTable.AsEnumerable()
+             Where row("type").ToString.ToLower = "file" AndAlso
+                   (row("name").ToString.ToLower = "weekly report" Or row("name").ToString.ToLower = "monthly report")
+             Select row).FirstOrDefault()
+
+Rồi thêm một Assign khác:
+
+nameValue = If(targetRow IsNot Nothing, targetRow("name").ToString, String.Empty)
+
+👉 nameValue là String (sẽ rỗng nếu không có dòng nào thỏa điều kiện).
+
+
+---
+
+Bạn muốn mình viết lại phiên bản cho UiPath Modern (C# expressions) luôn không? (nếu bạn đang dùng project dạng “Modern experience”).
+
