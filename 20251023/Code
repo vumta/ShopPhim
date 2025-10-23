@@ -1,0 +1,86 @@
+Trong UiPath REFramework, khi bạn muốn rethrow (ném lại) một lỗi Business Exception để framework xử lý đúng logic (ví dụ: đánh dấu transaction là Business Exception, không retry lại), bạn cần làm đúng cách — nếu không, REFramework sẽ hiểu nhầm thành System Exception.
+
+
+---
+
+🎯 Mục tiêu:
+
+Bạn có một đoạn code trong Process.xaml hoặc workflow con, và bạn muốn ném BusinessRuleException để REFramework bắt ở SetTransactionStatus.xaml.
+
+
+---
+
+✅ 1. Cách chuẩn để “rethrow” Business Exception
+
+Trong UiPath, bạn không dùng Rethrow activity trực tiếp để đổi loại exception.
+Thay vào đó, bạn tạo mới BusinessRuleException và Throw nó lên cấp cao hơn.
+
+🔹 Ví dụ:
+
+Throw New BusinessRuleException("Invalid data format in Excel input.")
+
+Khi dòng này chạy, REFramework (ở trong SetTransactionStatus.xaml) sẽ nhận dạng được exception.GetType().ToString là System.BusinessRuleException → Tự động gán TransactionResult = BusinessException.
+
+
+---
+
+✅ 2. Nếu bạn đang ở trong một Try-Catch, và muốn “rethrow” lại lỗi gốc nhưng đổi thành Business Exception:
+
+🔹 Cách làm:
+
+Try
+    ' Some logic here
+Catch ex As Exception
+    Throw New BusinessRuleException("Business validation failed: " & ex.Message)
+End Try
+
+📌 Không nên dùng:
+
+Rethrow
+
+→ Vì Rethrow chỉ ném lại cùng loại exception cũ (thường là System Exception), REFramework sẽ hiểu nhầm là lỗi hệ thống → Retry transaction.
+
+
+---
+
+✅ 3. Nếu bạn đang trong workflow con (ví dụ: “Process Transaction”) và muốn báo lỗi Business lên cha:
+
+Bạn có thể tạo BusinessRuleException ở workflow con, và Throw nó trực tiếp — REFramework tự động bắt lại ở Process.xaml → SetTransactionStatus.xaml.
+
+Ví dụ trong workflow con:
+
+If Not IsValid(dataRow) Then
+    Throw New BusinessRuleException("Validation failed: Missing customer ID.")
+End If
+
+
+---
+
+✅ 4. Nếu bạn muốn convert lại lỗi System → Business trong Catch của Process.xaml:
+
+Trong Catch của Process.xaml, bạn có thể làm:
+
+Catch ex As Exception
+    If ex.Message.Contains("validation failed") Then
+        Throw New BusinessRuleException(ex.Message)
+    Else
+        Rethrow
+    End If
+End Catch
+
+
+---
+
+✅ 5. Tổng kết hành vi REFramework
+
+Loại Exception	Hành vi REFramework	Retry Transaction
+
+BusinessRuleException	Ghi log “Business Exception” và chuyển sang transaction tiếp theo	❌ Không retry
+System.Exception	Ghi log “System Exception” và retry transaction nếu còn lượt	✅ Có retry
+Rethrow	Giữ nguyên loại exception gốc	Tuỳ loại gốc
+
+
+
+---
+
+Bạn có muốn mình chỉ bạn nơi chính xác nên đặt Throw New BusinessRuleException(...) trong REFramework (ví dụ: trong Process.xaml hay GetTransactionData.xaml) để xử lý chuẩn theo từng layer không?
