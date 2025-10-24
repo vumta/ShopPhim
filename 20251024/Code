@@ -1,0 +1,72 @@
+OK — để mình hướng dẫn bạn cách làm trong UiPath nhé 👇
+
+
+---
+
+🎯 Mục tiêu
+
+Bạn có DataTable dt (đọc từ Excel có cột A → AJ).
+Mỗi dòng có:
+
+Cột A = tên file
+
+Các cột từ B đến AJ = các giá trị khác (có thể có “NG”).
+
+
+👉 Bạn muốn lọc ra tất cả dòng có ít nhất một ô chứa “NG” từ cột B → AJ,
+và lấy tên file (giá trị ở cột A) tương ứng.
+
+
+---
+
+🧠 Cách làm bằng Assign + LINQ
+
+Giả sử biến DataTable là dt.
+
+Thêm 1 biến mới kiểu List(Of String) tên là FileNames.
+
+Gán bằng câu Assign sau:
+
+FileNames = (From r In dt.AsEnumerable()
+             Where r.ItemArray.Skip(1).Any(Function(c) c.ToString.Trim.ToUpper = "NG")
+             Select r(0).ToString).ToList()
+
+
+---
+
+🔍 Giải thích
+
+r.ItemArray → mảng toàn bộ giá trị của dòng.
+
+.Skip(1) → bỏ qua cột đầu tiên (A).
+
+.Any(Function(c) …) → kiểm tra nếu bất kỳ cột nào có giá trị = "NG".
+
+Select r(0) → lấy giá trị ở cột A (tên file).
+
+.ToList() → trả về danh sách List(Of String).
+
+
+
+---
+
+✅ Kết quả
+
+Biến FileNames sẽ chứa danh sách tên file (từ cột A) có ít nhất một cột B–AJ = “NG”.
+Ví dụ:
+
+{"Report1.xlsx", "Report3.xlsx", "Report7.xlsx"}
+
+
+---
+
+Nếu bạn muốn lọc ra DataTable thay vì chỉ tên file, thì dùng:
+
+FilteredDT = dt.AsEnumerable().
+    Where(Function(r) r.ItemArray.Skip(1).Any(Function(c) c.ToString.Trim.ToUpper = "NG")).
+    CopyToDataTable()
+
+
+---
+
+Bạn muốn mình viết lại code trên cho Assign trong UiPath (copy/paste trực tiếp) hay dạng Invoke Code VB.NET để dễ test hơn?
