@@ -1,0 +1,202 @@
+Ngon — với case bạn mô tả, mình sẽ giải thích ngắn gọn rồi đưa kiến nghị thiết kế cụ thể (kèm mẫu luồng activity) để bạn có thể triển khai ngay trong UiPath.
+
+Tóm tắt case (theo thứ tự bạn nêu)
+
+1. Mở file Excel.
+
+
+2. Bấm nút Run trong workbook để chạy Power Query.
+
+
+3. Đọc ô E11: nếu OK → qua bước tiếp; nếu NG → sang sheet kế lấy danh sách file bị lỗi.
+
+
+4. Xóa các file có status NG.
+
+
+5. Quay lại bước 1 (tức lặp lại toàn bộ quy trình) cho tới khi không còn NG hoặc đạt giới hạn retry.
+
+
+
+
+---
+
+Có nên dùng Retry Scope không?
+
+Không nên chỉ dùng mỗi Retry Scope để lặp toàn bộ case.
+
+Retry Scope tốt khi bạn muốn thử lại một hoạt động đơn lẻ (ví dụ: Click một nút hay chờ 1 element xuất hiện).
+
+Nhưng ở đây bạn cần lặp toàn bộ flow nhiều bước (mở file, chạy query, kiểm tra E11, xóa file, đóng file, lặp lại). Việc bao cả chuỗi bước bằng Retry Scope sẽ khó quản lý (độ phức tạp, rollback state, resource leak).
+
+Kết luận: Dùng vòng lặp (Do While / While / For) để lặp toàn bộ workflow; bên trong vòng lặp có thể dùng Retry Scope cho hành động dễ fail (ví dụ: Click Run, hoặc đọc ô E11 nếu hay bị timeout).
+
+
+
+---
+
+Kiến nghị thiết kế (mạnh mẽ) — pattern chuẩn nên dùng
+
+Sử dụng Do While (hoặc While) + Try Catch + Retry Scope (chỉ cho action dễ fail). Thêm logging và limit retry.
+
+Các biến (gợi ý)
+
+maxAttempts (Int32) = 5  — tối đa quay lại
+
+attempt (Int32) = 0 — counter
+
+retryInterval (TimeSpan) = TimeSpan.FromSeconds(5)
+
+filesToDelete (List<String>) — list file từ sheet lỗi
+
+
+Flow activity (mô tả từng bước)
+
+1. Assign attempt = 0
+
+
+2. Do While attempt < maxAttempts
+
+Try
+
+1. Excel Application Scope (path workbook)
+
+(Optional) Use Excel File / Workbook Open (depends package)
+
+
+
+2. Retry Scope (NumberOfRetries = 3, RetryInterval = 00:00:05)
+
+Action: Click nút Run (hoặc Invoke VBA nếu click không ổn định)
+
+Condition: Element Exists / Read Cell E11 có giá trị khác rỗng (hoặc kiểm tra trạng thái đã cập nhật)
+
+
+
+3. Read Cell E11 → status (string).
+
+Nếu status = "OK":
+
+Log "Status OK — tiến hành bước tiếp / thoát vòng lặp"
+
+(Nếu mục đích là dừng hoàn toàn) Break (thoát Do While) hoặc set attempt = maxAttempts
+
+
+Nếu status = "NG":
+
+Read sheet lỗi (ví dụ sheet "Errors") → load danh sách file vào filesToDelete
+
+For Each filePath in filesToDelete
+
+If File.Exists(filePath) → Delete (Use System.IO.File.Delete hoặc activity Delete)
+
+
+(Optional) Log các file bị xóa, gửi report
+
+
+
+
+4. Close workbook (đảm bảo lưu/không lưu theo yêu cầu)
+
+
+
+Catch System.Exception ex:
+
+Log lỗi ex.Message
+
+(Optional) nếu lỗi do Excel lock, kill process Excel (cẩn thận) hoặc thêm Delay rồi tiếp tục
+
+
+Finally:
+
+attempt = attempt + 1
+
+Delay (ví dụ 5s) — tránh vòng lặp quá nhanh
+
+
+
+
+3. Loop (khi attempt >= maxAttempts, xử lý fallback/alert)
+
+
+
+
+---
+
+Một số tips & detail implement
+
+Click Run không ổn định? → Dùng Invoke VBA (macro trong workbook) để trigger Power Query: gọi macro Application.Run "NameOfMacro" an toàn hơn click GUI. (Nếu bạn có quyền sửa workbook).
+
+Đọc ô E11: dùng Read Cell activity trong Excel Application Scope; nếu Power Query mất thời gian, chờ/Retry Scope để đợi giá trị cập nhật.
+
+Xóa file: dùng activity Delete hoặc Invoke Code với System.IO.File.Delete(path). Trước khi xóa kiểm tra File.Exists và file không bị lock.
+
+File lock / Excel còn giữ handle: đảm bảo Close Workbook và Kill Process("excel") chỉ khi cần (cẩn trọng).
+
+Logging: log mỗi attempt, số file xóa, lỗi cụ thể — dễ debug.
+
+MaxAttempts: 3–5 thông thường. Nếu process còn NG sau maxAttempts, cảnh báo người dùng hoặc stop workflow.
+
+Idempotency: đảm bảo nếu workflow dừng, lặp lại sẽ không gây duplicate hoặc mất dữ liệu (ví dụ xóa file đã xóa).
+
+
+
+---
+
+Khi nào dùng REFramework / Queue?
+
+Nếu bạn chạy nhiều file/workbook, cần reliability, retry theo transaction → dùng REFramework + Orchestrator Queue (mỗi file là một transaction).
+
+Với case đơn file lặp nhiều lần, DoWhile đơn giản là đủ.
+
+
+
+---
+
+Mẫu pseudo-XAML / logic ngắn (dành cho dev copy)
+
+Assign attempt = 0
+Do While attempt < maxAttempts
+    Try
+        Excel Application Scope (workbook.xlsx)
+            Retry Scope (3 tries, interval 5s)
+                Action: Click "Run" or Invoke Macro
+                Condition: Read Cell E11 -> not empty
+            Read Cell E11 -> status
+            If status = "OK" Then
+                Log "Status OK" ; Break loop
+            Else
+                Read Range "ErrorSheet" -> dtErrors
+                For Each row in dtErrors
+                    filePath = row("FilePath").ToString
+                    If File.Exists(filePath) Then Delete filePath
+                End For
+            End If
+        End Excel Scope
+    Catch ex
+        Log "Attempt {attempt} failed: " + ex.Message
+    Finally
+        attempt = attempt + 1
+        Delay 00:00:05
+    End Try
+Loop
+If attempt >= maxAttempts And status <> "OK" Then
+    Log Warning / Send Email Alert
+End If
+
+
+---
+
+Kết luận ngắn gọn
+
+Đừng bao toàn bộ quá trình bằng một Retry Scope.
+
+Hãy dùng Do While / While (hoặc For) để lặp toàn bộ workflow, kết hợp Retry Scope bên trong cho các hoạt động dễ fail (ví dụ click Run hoặc chờ E11 thay đổi).
+
+Đặt maxAttempts, logging, xử lý file lock, và (nếu có) dùng Invoke VBA để trigger Power Query nếu click GUI không ổn định.
+
+
+
+---
+
+Muốn mình viết chi tiết thành XAML mẫu (cấu trúc hoạt động ready-to-import) hay một đoạn Invoke VBA để trigger Power Query luôn không? Mình có thể làm sẵn cho bạn luôn.
