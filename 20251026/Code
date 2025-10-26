@@ -1,0 +1,149 @@
+Có — vấn đề bạn gặp rất thường gặp: khi mở file bằng tay Excel hiện Security Warning (Enable Content / Enable Editing / Enable Connections) nên macro mới chạy; còn khi chạy từ UiPath (thường bằng Excel COM / Excel Application Scope / Invoke VBA) thì Excel không tự bật content nên macro không chạy — hoặc file mở trong môi trường user khác (robot) chưa tin cậy nên vẫn bị chặn.
+
+Dưới đây là các cách thực tế, an toàn để fix — tôi xếp theo mức khuyến nghị (an toàn & phù hợp cho robot unattended → nhanh để debug):
+
+
+---
+
+1) Cách được khuyến nghị cho robot chạy tự động (Unattended)
+
+Thêm folder chứa file vào Trusted Locations của Excel trên máy / profile mà robot dùng.
+
+1. Mở Excel bằng tài khoản user mà robot dùng (nếu robot chạy under specific Windows user / service account, đăng nhập bằng account đó).
+
+
+2. File -> Options -> Trust Center -> Trust Center Settings -> Trusted Locations -> Add new location -> chọn thư mục chứa file → tick "Subfolders of this location are also trusted" nếu cần.
+
+
+3. Lưu và thử chạy UiPath lại.
+
+
+
+Tại sao hiệu quả: file trong Trusted Location sẽ không hiển thị cảnh báo Enable Content/Connections.
+
+
+---
+
+2) Nếu file chứa External Data Connections / Queries (Power Query)
+
+Bạn cần cho phép External Content / Workbook Links trong Trust Center:
+
+1. Excel -> Options -> Trust Center -> Trust Center Settings -> External Content
+
+Bật Enable all Data Connections (hoặc chọn cẩn trọng hơn theo policy công ty).
+
+Bật Enable automatic update for workbook links nếu file có liên kết workbook.
+
+
+
+2. Ngoài ra kiểm tra Protected View (Trust Center -> Protected View): tùy policy, bạn có thể bỏ tick những mục gây Protected View (ví dụ files from internet) — lưu ý: làm giảm an ninh.
+
+
+
+Quan trọng: phải thiết lập trên user profile mà UiPath robot chạy.
+
+
+---
+
+3) Nếu bạn dùng Invoke VBA hoặc thao tác VBA qua COM
+
+Ngoài Trusted Locations, cần cho phép VBA access:
+
+1. Excel -> Options -> Trust Center -> Trust Center Settings -> Macro Settings
+
+Bật Enable all macros (hoặc “Disable all macros except digitally signed macros” nếu có chữ ký).
+
+Tick Trust access to the VBA project object model (bắt buộc nếu bạn muốn code bên ngoài thao tác với project VBA).
+
+
+
+2. Lưu và restart Excel / thử chạy.
+
+
+
+
+---
+
+4) Workaround UI Automation (nếu bạn không thể thay Trust Center)
+
+Nếu không thay đổi cấu hình được (ví dụ policy cty), bạn có thể mô phỏng thao tác người dùng:
+
+Trong UiPath: mở file bằng Start Process hoặc Excel Application Scope với Visible = True.
+
+Dùng Click / Click Image / Click Text hoặc Send Hotkey để bấm nút Enable Content trên yellow security bar.
+
+Sau đó gọi macro (Invoke VBA hoặc Send Hotkey Alt+F8 / bấm nút Run).
+
+
+Ưu/nhược: hoạt động nếu máy có phiên desktop tương tác; không bền cho unattended nếu không có desktop session.
+
+
+---
+
+5) Đảm bảo robot chạy dưới đúng user và profile
+
+Rất nhiều lỗi do robot chạy dưới tài khoản khác (service account) mà Trust Center chưa thiết lập:
+
+Xác nhận tài khoản Windows mà process Excel chạy (UiPath chạy robot as: Attended user / Unattended Robot service account).
+
+Thiết lập Trust Center cho chính tài khoản đó (đăng nhập interactive hoặc thay registry cho HKCU của tài khoản).
+
+
+
+---
+
+6) Lựa chọn registry (chỉ dùng nếu bạn hiểu và được phép thay đổi)
+
+Nếu bạn muốn áp setting tự động cho nhiều máy, IT có thể push policy via GPO hoặc chỉnh registry cho user. Ví dụ (Office 2016/2019/365) các giá trị nằm dưới:
+
+HKEY_CURRENT_USER\Software\Microsoft\Office\<version>\Excel\Security
+
+AccessVBOM = 1  (cho phép truy cập VBA project)
+
+VBAWarnings (giá trị điều khiển cảnh báo macro)
+
+
+
+> Cảnh báo: chỉnh registry có thể gây rủi ro an ninh — tốt nhất làm qua IT/GPO và test kỹ.
+
+
+
+
+---
+
+7) Kiểm tra cách bạn mở file trong UiPath
+
+Nếu dùng Excel Application Scope (activity của UiPath.Excel.Activities) thì Excel mở theo COM/Excel Interop; Trust Center vẫn áp dụng.
+
+Nếu dùng Workbook activities (không cần Excel), macro không chạy — phải sử dụng Excel COM + Invoke VBA để chạy macro.
+
+
+
+---
+
+Tóm tắt nhanh — checklist để bạn làm theo ngay
+
+1. (Tốt nhất) Thêm thư mục file vào Trusted Locations cho user robot.
+
+
+2. Mở Excel bằng account robot → Trust Center → External Content: Enable data connections.
+
+
+3. Trust Center → Macro Settings → bật Trust access to the VBA project object model nếu dùng Invoke VBA.
+
+
+4. Nếu không được phép thay setting, bật Visible = True và dùng UI Automation để click Enable Content rồi chạy macro.
+
+
+5. Nếu triển khai cho nhiều máy, làm bằng GPO/registry qua team IT.
+
+
+
+
+---
+
+Nếu bạn muốn, tôi có thể:
+
+Viết cho bạn chuỗi bước UiPath cụ thể (activities + properties) để mở file, click “Enable Content” bằng UI automation và chạy macro.
+
+Hoặc cung cấp hướng dẫn chi tiết (với ảnh chụp màn hình) để cấu hình Trusted Locations & Macro Settings — bạn muốn phương án nào?
