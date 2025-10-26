@@ -1,0 +1,201 @@
+Được — vấn đề bạn mô tả rất phổ biến: khi UiPath “click” vào nút hình trong Excel thì Excel vào chế độ sửa (edit/Design) thay vì gọi hành động gán cho nút. Thường nguyên nhân và cách giải gồm 2 hướng chính: không dùng UI click (đi thẳng gọi macro / refresh query bằng COM/VBA) — đây là cách ổn định nhất cho robot; hoặc nếu bắt buộc phải click bằng UI thì phải click theo cách đúng (không vào edit) và tắt design mode / dùng đúng loại click. Dưới đây là hướng dẫn chi tiết + các lựa chọn bạn có thể áp dụng ngay.
+
+
+---
+
+A. Cách tốt nhất (ổn định): Không click UI — gọi macro / refresh Power Query trực tiếp từ UiPath
+
+Ưu điểm: nhanh, ổn định, không phụ thuộc GUI, chạy tốt ở unattended.
+
+1. Nếu có macro gán cho nút (ví dụ MyButtonMacro)
+
+Tạo macro nhỏ trong module VBA:
+
+Sub MyButtonMacro()
+    ' nội dung hiện tại của macro gắn với nút
+    ' hoặc gọi refresh
+    ThisWorkbook.RefreshAll
+End Sub
+
+Trong UiPath dùng activity Invoke VBA:
+
+Activity: Invoke VBA
+
+Properties: WorkbookPath → đường dẫn file Excel
+
+VBAFilePath → 1 file .bas chứa MyButtonMacro (hoặc bạn có thể embed mã trong file .bas rồi đưa vào)
+
+EntryMethodName → "MyButtonMacro"
+
+(Invoke VBA sẽ mở workbook dưới COM và chạy macro)
+
+
+
+Hoặc dùng activity Invoke Method / Invoke Code trên object Excel để gọi Application.Run("MyButtonMacro") nếu bạn đã có Excel COM object. Nhưng Invoke VBA thường đơn giản và an toàn.
+
+
+2. Nếu mục tiêu là refresh Power Query (không cần macro):
+
+Bạn có thể dùng VBA gọi refresh trực tiếp, ví dụ:
+
+Sub RefreshThisQuery()
+    ThisWorkbook.RefreshAll
+End Sub
+
+Hoặc refresh từng query/connection:
+
+Sub RefreshSpecific()
+    ThisWorkbook.Connections("Query - MyQueryName").Refresh
+End Sub
+
+Sau đó dùng Invoke VBA để gọi RefreshThisQuery/RefreshSpecific.
+
+
+
+3. Nếu nút là một Shape/FormControl với OnAction
+Bạn cũng có thể đọc macro đã gán rồi chạy:
+
+Sub RunButtonAssignedMacro()
+    Dim m As String
+    m = ThisWorkbook.Worksheets("Sheet1").Shapes("Button 1").OnAction
+    Application.Run m
+End Sub
+
+Gọi RunButtonAssignedMacro từ UiPath bằng Invoke VBA.
+
+
+
+
+---
+
+B. Nếu bạn vẫn muốn dùng UI Click — nguyên nhân & cách sửa
+
+Nguyên nhân phổ biến khi “click” vào nút lại vào edit:
+
+Nút là ActiveX control hoặc đang ở Design Mode (khi bật Design Mode, nút chuyển sang chế độ sửa).
+
+Phương pháp click UiPath dùng nhấp double-click hoặc click vào đúng điểm cho phép edit thay vì kích hoạt.
+
+Click dùng SimulateClick hoặc SendWindowMessages có thể gây hành vi khác nhau.
+
+
+Cách khắc phục:
+
+1. Xác định loại nút
+
+Form Control (Developer -> Insert -> Form Controls): khi click sẽ gọi macro (OnAction). Thường dễ trigger hơn.
+
+ActiveX Control (Developer -> Insert -> ActiveX Controls): khi click đôi khi đưa vào edit khi đang ở Design Mode.
+
+
+
+2. Tắt Design Mode nếu là ActiveX
+
+Mở Excel -> Developer -> Design Mode (tắt).
+
+Nếu robot mở file, bạn có thể tắt design mode bằng VBA trước khi click:
+
+Sub TurnOffDesignMode()
+    Application.CommandBars.ExecuteMso "DesignMode" ' bật/tắt tùy trạng thái
+End Sub
+
+(Gọi macro này qua Invoke VBA trước khi click UI.)
+
+
+
+3. Dùng Click với đúng các thiết lập
+
+Trong UiPath Click activity: thử SimulateClick = True hoặc SendWindowMessages = True. Thử cả hai — đôi khi SimulateClick=False và ClickType=CLICK_SINGLE work better.
+
+Đặt Click vào vị trí chính giữa của nút (Anchor base + Click vào image rõ nét).
+
+Nếu nút là hình / shape, đôi khi cần một single click (không double) hoặc SendHotkey(Enter) sau khi select shape.
+
+
+
+4. Select shape rồi Enter
+
+UiPath: Click chọn shape (một lần) → Send Hotkey Enter. Với một số shape/controls, chọn xong nhấn Enter sẽ kích hoạt action.
+
+
+
+5. Dùng SendHotkey Alt+F8 / gọi macro bằng keyboard
+
+Bạn có thể Send Hotkey Alt+F8, gõ tên macro rồi Enter — không phụ thuộc kiểu control.
+
+
+
+
+
+---
+
+C. Nếu nút thực chất gọi Power Query (Refresh) — cách trực tiếp (khuyên dùng)
+
+Power Query thường được trigger bằng RefreshAll. Cách tốt nhất chạy từ UiPath:
+
+Invoke VBA + macro:
+
+Sub RefreshPQ()
+    ThisWorkbook.RefreshAll
+    ' hoặc chờ hoàn thành:
+    Application.CalculateUntilAsyncQueriesDone
+End Sub
+
+Gọi RefreshPQ từ UiPath. Nếu cần chờ hoàn thành, thêm loop kiểm tra BackgroundQuery hoặc dùng Application.CalculateUntilAsyncQueriesDone (Office 2016+).
+
+
+
+---
+
+D. Ví dụ chuỗi steps cụ thể (UiPath) — phương án ổn định (Invoke VBA)
+
+1. Excel Application Scope (WorkbookPath = "C:...\myfile.xlsx") — hoặc dùng Invoke VBA trực tiếp.
+
+
+2. Invoke VBA activity:
+
+VBAFilePath = "C:\temp\run_refresh.bas" (file .bas chứa Sub RefreshPQ() như trên)
+
+EntryMethodName = "RefreshPQ"
+
+
+
+3. (Optional) Wait / Delay or check file/connection status until finished.
+
+
+
+
+---
+
+E. Kiểm tra & debug
+
+Mở file thủ công, bấm nút — xem macro nào chạy (Alt+F11 -> module). Ghi tên macro xuống.
+
+Test macro đó chạy độc lập (Alt+F8 -> chạy) — nếu không chạy khi file mở bởi robot, check Trust Center (macro disabled).
+
+Nếu click bằng UiPath vào nút vẫn vào edit: thử chọn nút bằng Click rồi SendHotkey Enter hoặc dùng SendHotkey Alt+F8 như workaround.
+
+
+
+---
+
+F. Tóm tắt khuyến nghị (the order tôi khuyên)
+
+1. Best: Chạy macro / refresh trực tiếp bằng Invoke VBA (ThisWorkbook.RefreshAll hoặc gọi macro đã gán) — ổn định cho robot.
+
+
+2. Nếu không thể sửa file: tắt Design Mode & đảm bảo nút là Form Control; hoặc dùng UI Click nhưng Click → SendHotkey Enter.
+
+
+3. Nếu vẫn muốn “nhấn” đúng nút: chọn shape bằng Click (center) → SendHotkey Enter hoặc gọi Application.Run cho macro gán cho shape.
+
+
+
+
+---
+
+Nếu bạn muốn, tôi sẽ:
+
+Viết sẵn 1 file .bas (mã VBA) để bạn dùng với Invoke VBA cho 3 trường hợp: RefreshAll, RunAssignedMacroFromShape("Sheet1","Button 1"), và TurnOffDesignMode.
+
+Hoặc đưa cho bạn chuỗi activities UiPath cụ thể (screenshot / pseudo-workflow) để bạn copy vào project — bạn chọn phương án nào tôi làm liền cho bạn.
