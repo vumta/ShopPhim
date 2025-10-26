@@ -1,0 +1,49 @@
+Rất tốt 👍 — khi dấu ngoặc vuông là full-width Nhật (tức là ［ và ］ thay vì [ và ]), thì regex trong UiPath cần đổi một chút để nhận đúng ký tự Unicode đó.
+
+
+---
+
+✅ Code chính xác cho trường hợp ngoặc vuông full-width Nhật
+
+Dùng Assign activity:
+
+buName = System.Text.RegularExpressions.Regex.Match(FileName, "［(.*?)］").Groups(1).Value
+
+
+---
+
+🔍 Giải thích
+
+［ và ］ là full-width brackets (U+FF3B và U+FF3D), khác với [ và ].
+
+(.*?) vẫn dùng để lấy toàn bộ ký tự bên trong, kể cả tiếng Nhật, ký hiệu, khoảng trắng...
+
+.Groups(1).Value lấy nội dung trong ngoặc.
+
+
+
+---
+
+🧩 Ví dụ
+
+Input:
+
+FileName = "［営業本部］SCM_Report_2025.xlsx"
+
+Output:
+
+営業本部
+
+
+---
+
+⚙️ Nếu bạn cần áp dụng cho danh sách file
+
+For Each fileName In fileList
+    buName = System.Text.RegularExpressions.Regex.Match(System.IO.Path.GetFileNameWithoutExtension(fileName), "［(.*?)］").Groups(1).Value
+Next
+
+
+---
+
+Bạn có thể gửi mình 1 ví dụ thật (copy nguyên tên file) để mình kiểm tra xem regex trên có cần tinh chỉnh (ví dụ có chứa khoảng trắng hoặc ký tự đặc biệt khác) không nhé?
