@@ -1,0 +1,63 @@
+Rất hay — mình hiểu yêu cầu của bạn như sau 👇
+
+Bạn có file name dạng như ví dụ này:
+
+[ＡＢＣ営業部]SCM_Report_2025.xlsx
+[東京本社営業課]SCM_Detail.xlsx
+[物流管理課]SCM_Weekly_Report.xlsx
+
+👉 Bạn muốn lấy phần chữ trong dấu ngoặc vuông [ ],
+tức là kết quả mong muốn là:
+
+ＡＢＣ営業部
+東京本社営業課
+物流管理課
+
+
+---
+
+✅ Cách làm trong UiPath (dùng Regex)
+
+Bạn dùng Assign activity:
+
+Input:
+
+System.Text.RegularExpressions.Regex.Match(FileName, "\[(.*?)\]").Groups(1).Value
+
+Giải thích:
+
+\[ và \] để khớp chính xác dấu ngoặc vuông.
+
+(.*?) là nhóm lấy mọi ký tự giữa hai ngoặc, không quan trọng là tiếng Nhật hay ký tự Unicode khác.
+
+.Groups(1).Value lấy giá trị bên trong nhóm đầu tiên — chính là phần chữ trong ngoặc.
+
+
+
+---
+
+⚙️ Ví dụ cụ thể trong UiPath:
+
+Assign:
+
+fileName = "[東京本社営業課]SCM_Report_2025.xlsx"
+buName = System.Text.RegularExpressions.Regex.Match(fileName, "\[(.*?)\]").Groups(1).Value
+
+Kết quả buName:
+
+東京本社営業課
+
+
+---
+
+💡 Nếu bạn đang lặp qua nhiều file:
+
+Dùng For Each fileName In fileList, sau đó:
+
+buName = System.Text.RegularExpressions.Regex.Match(System.IO.Path.GetFileNameWithoutExtension(fileName), "\[(.*?)\]").Groups(1).Value
+
+
+---
+
+Bạn có thể gửi mình 1–2 ví dụ file name thật (ẩn thông tin nhạy cảm nếu có), mình sẽ kiểm tra regex chính xác 100% cho trường hợp của bạn (vì đôi khi ngoặc vuông là ký tự full-width Nhật [［...］] khác [ ... ] tiếng Anh).
+Bạn muốn mình kiểm tra luôn không?
