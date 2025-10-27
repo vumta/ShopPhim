@@ -1,0 +1,235 @@
+OK — mình sẽ giúp bạn debug và cho một phiên bản PowerShell (cách 2 — COM/Excel) đã được bổ sung rất nhiều kiểm tra, logging và xử lý lỗi thường gặp. Sao chép toàn bộ script dưới đây vào file create-folders-from-xlsx-debug.ps1 rồi chạy. Script sẽ in log chi tiết ra console và lưu vào create-folders-log.txt (UTF8) để dễ thấy lỗi.
+
+Trước khi chạy, vài điều cần kiểm tra (nhiều bạn quên mấy cái này):
+
+1. Máy Windows, Excel đã cài (COM approach cần Excel client).
+
+
+2. Mở PowerShell với quyền bình thường đủ (nếu tạo folder ở C:\ có thể cần Admin).
+
+
+3. Nếu policy chặn script: chạy Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned trong cửa sổ PowerShell (chỉ cho phiên này).
+
+
+4. Đường dẫn file .xlsx đúng, sheet name đúng.
+
+
+5. Nếu Excel 32-bit/64-bit thường không ảnh hưởng, nhưng đảm bảo Office không bị treo hay dialog modal đang mở.
+
+
+
+
+---
+
+Script debug (COM, đọc .xlsx)
+
+# create-folders-from-xlsx-debug.ps1
+param(
+    [string]$ExcelPath = ".\folders.xlsx",
+    [string]$SheetName = "Sheet1",
+    [switch]$HasHeader = $true,
+    [switch]$SanitizeNames,
+    [string]$LogFile = ".\create-folders-log.txt"
+)
+
+# append log function (UTF8)
+function Log {
+    param($msg)
+    $time = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $line = "$time`t$msg"
+    $line
+    $line | Out-File -FilePath $LogFile -Append -Encoding UTF8
+}
+
+# sanitize invalid windows chars
+function Remove-InvalidWindowsChars([string]$name) {
+    if ($null -eq $name) { return $name }
+    $invalid = [System.IO.Path]::GetInvalidFileNameChars() + [System.IO.Path]::GetInvalidPathChars()
+    $out = $name
+    foreach ($c in $invalid | Select-Object -Unique) {
+        $out = $out -replace [regex]::Escape($c), '-'
+    }
+    return $out.Trim()
+}
+
+# clear old log
+if (Test-Path $LogFile) { Remove-Item $LogFile -Force }
+Log "Script started. ExcelPath=$ExcelPath, SheetName=$SheetName, HasHeader=$HasHeader, SanitizeNames=$SanitizeNames"
+
+# resolve excel path
+try {
+    $fullExcelPath = (Resolve-Path $ExcelPath -ErrorAction Stop).Path
+    Log "Resolved Excel path: $fullExcelPath"
+} catch {
+    Log "ERROR: Cannot resolve ExcelPath '$ExcelPath'. $_"
+    throw "Cannot resolve ExcelPath: $ExcelPath"
+}
+
+# create Excel COM object
+$excel = $null
+$wb = $null
+$ws = $null
+try {
+    $excel = New-Object -ComObject Excel.Application
+    $excel.DisplayAlerts = $false
+    $excel.Visible = $false
+    Log "Excel COM created (PID may be different)."
+} catch {
+    Log "ERROR: Failed to create Excel COM object. Is Excel installed? $_"
+    throw "Excel COM creation failed."
+}
+
+try {
+    $wb = $excel.Workbooks.Open($fullExcelPath)
+    Log "Workbook opened: $fullExcelPath"
+} catch {
+    Log "ERROR: Failed to open workbook. $_"
+    # cleanup
+    if ($excel) { $excel.Quit(); [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null }
+    throw "Failed to open workbook: $fullExcelPath"
+}
+
+try {
+    # try get worksheet by name, else index 1
+    try {
+        $ws = $wb.Worksheets.Item($SheetName)
+        Log "Worksheet found by name: $SheetName"
+    } catch {
+        $ws = $wb.Worksheets.Item(1)
+        Log "Worksheet '$SheetName' not found; using first worksheet instead."
+    }
+
+    $used = $ws.UsedRange
+    $rowCount = $used.Rows.Count
+    $colCount = $used.Columns.Count
+    Log "UsedRange rows=$rowCount, cols=$colCount"
+
+    $startRow = 1
+    if ($HasHeader) { $startRow = 2 }
+
+    # read header first cell to detect 'Path'
+    $firstCellHeader = $ws.Cells.Item(1,1).Value2
+    Log "Header(1,1) raw value: '$firstCellHeader'"
+
+    for ($r = $startRow; $r -le $rowCount; $r++) {
+        # read entire row values quickly using Range
+        $rowRange = $ws.Range($ws.Cells.Item($r,1), $ws.Cells.Item($r,$colCount))
+        $vals = $rowRange.Value2
+
+        # normalize to array of strings
+        $parts = @()
+        if ($vals -is [object[,]]) {
+            # when multiple cols returned
+            for ($c=1; $c -le $colCount; $c++) {
+                $v = $vals[1,$c]
+                if ($null -ne $v -and ($v -as [string]).Trim().Length -gt 0) { $parts += [string]$v }
+            }
+        } else {
+            # single cell in row
+            if ($null -ne $vals -and ($vals -as [string]).Trim().Length -gt 0) { $parts += [string]$vals }
+        }
+
+        if ($parts.Count -eq 0) { Log "Row $r: empty, skip"; continue }
+
+        if ($firstCellHeader -and $firstCellHeader -eq 'Path') {
+            $target = $parts[0]
+        } else {
+            # build path; if first part looks like drive root keep it
+            if ($parts[0] -match '^[A-Za-z]:\\') {
+                $target = $parts[0]
+                for ($i=1; $i -lt $parts.Count; $i++) { $target = Join-Path -Path $target -ChildPath $parts[$i] }
+            } else {
+                try {
+                    $target = [System.IO.Path]::Combine($parts)
+                } catch {
+                    # fallback join with backslash
+                    $target = ($parts -join '\')
+                }
+            }
+        }
+
+        if ($SanitizeNames) {
+            $segments = $target -split '\\'
+            for ($i=0; $i -lt $segments.Count; $i++) {
+                $segments[$i] = Remove-InvalidWindowsChars $segments[$i]
+            }
+            $target = ($segments -join '\')
+        }
+
+        Log "Row $r -> target: $target"
+
+        try {
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            Log "Created: $target"
+        } catch {
+            Log "ERROR creating '$target': $($_.Exception.Message)"
+        }
+    }
+} finally {
+    # cleanup COM objects in finally to reduce orphan Excel processes
+    try {
+        if ($wb) { $wb.Close($false); [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wb) | Out-Null }
+        if ($ws) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($ws) | Out-Null }
+    } catch { }
+    if ($excel) {
+        try { $excel.Quit() } catch { }
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+    }
+    [GC]::Collect(); [GC]::WaitForPendingFinalizers()
+    Log "Cleanup done. Script finished."
+}
+
+
+---
+
+Cách chạy (nhanh)
+
+1. Lưu file script ở C:\temp\create-folders-from-xlsx-debug.ps1.
+
+
+2. Mở PowerShell (Win+X -> Windows PowerShell). Nếu bị chặn policy, chạy:
+
+
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+
+3. Chạy:
+
+
+
+cd C:\temp
+.\create-folders-from-xlsx-debug.ps1 -ExcelPath "C:\temp\folders.xlsx" -SheetName "Sheet1" -HasHeader -SanitizeNames
+
+4. Mở file C:\temp\create-folders-log.txt xem log chi tiết (UTF8).
+
+
+
+
+---
+
+Những lỗi phổ biến & cách fix (kèm log message tìm nhanh)
+
+Failed to create Excel COM object → Excel không cài hoặc user profile bị giới hạn. Kiểm tra Excel mở được không.
+
+Cannot resolve ExcelPath → đường dẫn sai; đổi thành đường dẫn tuyệt đối.
+
+Workbook opened nhưng UsedRange rows=0 → sheet rỗng hoặc sheet bị bảo vệ/unshared view; kiểm tra sheet name.
+
+ERROR creating '...': Access is denied → thiếu quyền; chạy PowerShell as Administrator hoặc đổi folder đích.
+
+Nếu thấy process Excel vẫn chạy sau script → thường do COM object chưa release; script trên cố gắng release. Nếu vẫn vậy, kill process Excel trước khi chạy: Get-Process excel | Stop-Process -Force (cẩn thận nếu bạn đang dùng Excel).
+
+
+
+---
+
+Nếu script vẫn không chạy, mình đã chuẩn bị 2 thứ bạn có thể copy/paste ngay:
+
+1. Nội dung log (mở create-folders-log.txt) — dán vào đây và mình sẽ chẩn đoán.
+
+
+2. Hoặc copy 5 dòng đầu của file Excel (ví dụ) để mình kiểm tra format.
+
+
+
+Bạn muốn: (A) mình đọc log giúp (dán log ở đây), hay (B) mình sửa script để dùng module ImportExcel (không cần Excel cài) — nếu thích mình sẽ đưa version ImportExcel luôn.
