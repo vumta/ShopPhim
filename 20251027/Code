@@ -1,0 +1,121 @@
+Rất hay — chi tiết title “File Open” là manh mối quan trọng 🔍
+
+Nếu popup mà Excel mở ra có tiêu đề “File Open”, thì khả năng macro của bạn không dùng GetSaveAsFilename hay FileDialog(msoFileDialogSaveAs), mà đang gọi một trong các hàm sau:
+
+
+---
+
+🧩 1. Macro gọi Application.GetOpenFilename
+
+Đây là trường hợp phổ biến nhất khi bạn thấy “File Open” trên title bar.
+
+Ví dụ code:
+
+Dim filePath As Variant
+filePath = Application.GetOpenFilename("CSV Files (*.csv), *.csv", , "File Open")
+If filePath = False Then Exit Sub
+
+🟠 GetOpenFilename chỉ mở hộp thoại chọn file, chứ không lưu file.
+Nó dùng khi macro muốn người dùng chọn file đầu vào, không phải chọn nơi lưu.
+
+
+---
+
+🧩 2. Nếu macro thực sự export CSV thì có thể logic là:
+
+Mở SaveAs dialog, nhưng do lập trình sai, đang gọi nhầm GetOpenFilename → popup “File Open”.
+
+Hoặc dùng Application.FileDialog(msoFileDialogFilePicker) thay vì msoFileDialogSaveAs.
+
+
+Ví dụ gây lỗi:
+
+Dim fd As FileDialog
+Set fd = Application.FileDialog(msoFileDialogFilePicker)  '❌
+
+→ sẽ ra “File Open” dialog.
+
+Còn đúng để chọn nơi lưu phải là:
+
+Set fd = Application.FileDialog(msoFileDialogSaveAs)  '✅
+
+
+---
+
+🧩 3. Xác định đúng dòng gây popup
+
+Bạn có thể tìm trong macro các dòng:
+
+Application.GetOpenFilename
+Application.GetSaveAsFilename
+Application.FileDialog(
+
+Hoặc:
+
+Dialogs(xlDialogSaveAs).Show
+Dialogs(xlDialogOpen).Show
+
+👉 Nếu là GetOpenFilename hay xlDialogOpen, thì popup chính là “File Open”.
+
+
+---
+
+✅ Cách khắc phục để chạy trong UiPath
+
+Vì UiPath không thể nhập đường dẫn vào hộp thoại “File Open” do đây là UI modal blocking, nên bạn cần sửa macro:
+
+Loại bỏ lệnh GetOpenFilename hoặc FileDialog(msoFileDialogFilePicker),
+
+Thay bằng việc truyền đường dẫn file trực tiếp (bằng parameter hoặc từ một ô trong sheet).
+
+
+
+---
+
+📘 Ví dụ sửa macro gốc (từ GetOpenFilename → nhận đường dẫn)
+
+Giả sử macro bạn đang có:
+
+Sub ExportSheet()
+    Dim filePath As Variant
+    filePath = Application.GetOpenFilename("CSV Files (*.csv), *.csv", , "File Open")
+    If filePath = False Then Exit Sub
+
+    ThisWorkbook.Sheets("Data").Copy
+    ActiveWorkbook.SaveAs Filename:=filePath, FileFormat:=6
+    ActiveWorkbook.Close False
+End Sub
+
+→ Thì bạn sửa thành:
+
+Sub ExportSheetDirect(ByVal outPath As String)
+    If Trim(outPath) = "" Then Exit Sub
+    ThisWorkbook.Sheets("Data").Copy
+    ActiveWorkbook.SaveAs Filename:=outPath, FileFormat:=6
+    ActiveWorkbook.Close False
+End Sub
+
+
+---
+
+📌 Tổng kết nhanh
+
+Tên lệnh trong macro	Popup hiển thị	Mục đích	Ghi chú
+
+Application.GetOpenFilename	“File Open”	Chọn file đầu vào	Không lưu file, chỉ lấy đường dẫn
+Application.GetSaveAsFilename	“Save As”	Chọn file đầu ra	Không tự lưu, cần SaveAs sau đó
+Application.FileDialog(msoFileDialogFilePicker)	“File Open”	Chọn file đầu vào	Có thể đổi thành SaveAs
+Application.FileDialog(msoFileDialogSaveAs)	“Save As”	Chọn nơi lưu	Thường dùng để export
+
+
+
+---
+
+👉 Nếu bạn dán đoạn VBA hiện tại của bạn vào đây, mình có thể:
+
+Xác định chính xác dòng nào mở “File Open”
+
+Viết lại giúp bạn 1 phiên bản không cần popup, sẵn sàng để gọi từ UiPath (truyền đường dẫn trực tiếp).
+
+
+Bạn có thể gửi đoạn macro export hiện tại cho mình xem không?
