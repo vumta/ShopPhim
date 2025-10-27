@@ -1,0 +1,238 @@
+Ok — mình đã cập nhật và giải thích nguyên nhân thường gặp + mã VBA sửa lỗi để export/Save As ít bị lỗi hơn khi gọi từ UiPath.
+
+
+---
+
+1) Những nguyên nhân thường gặp khi SaveAs bị lỗi khi chạy từ UiPath
+
+Tên file chứa ký tự không hợp lệ cho Windows: \ / : * ? " < > | — nếu tên sheet có ký tự này sẽ gây lỗi SaveAs.
+
+Tên file quá dài (path + filename vượt quá giới hạn hệ thống).
+
+Output folder không tồn tại hoặc không có quyền ghi.
+
+File đã tồn tại và đang mở (khóa bởi một tiến trình khác).
+
+FileFormat không tương thích với phiên bản Excel (ví dụ xlCSVUTF8 không có trong một vài version cũ).
+
+Macro dùng ThisWorkbook nhầm ngữ cảnh (khi module được nạp khác workbook); khi chạy từ UiPath, workbook hiện hành có thể khác.
+
+Protected View / security prompt: khi mở file có prompt (Protected View) UiPath không tự bấm, gây dừng macro.
+
+Đường dẫn chứa Unicode/space đặc biệt khiến SaveAs fail trong một vài môi trường.
+
+
+
+---
+
+2) Mã VBA đã cải tiến — xử lý tên file, fallback định dạng, không hiện MsgBox (thích hợp chạy trong UiPath), và ghi log kết quả vào file text (OutputFolder\ExportLog.txt)
+
+Lưu thành file .bas (ví dụ ExportSheetAsFile_improved.bas) rồi dùng UiPath Invoke VBA gọi ExportSheetAsFile với 3 parameter: SheetName, OutputFolder, FileFormat (xlsx|csv).
+
+Attribute VB_Name = "ExportSheetAsFile_Improved"
+Option Explicit
+
+' Numeric constants to avoid missing named constants in some Excel versions
+Private Const XL_OPENXML_WORKBOOK As Long = 51
+Private Const XL_CSV As Long = 6
+Private Const XL_CSVUTF8 As Long = 62
+
+Public Sub ExportSheetAsFile(SheetName As String, OutputFolder As String, Optional FileFormat As String = "xlsx")
+    On Error GoTo ErrHandler
+
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWb As Workbook
+    Dim safeName As String
+    Dim FilePath As String
+    Dim logPath As String
+    Dim fNum As Integer
+    Dim tryFormat As Long
+
+    ' Ensure output folder ends without double separators
+    If Right(OutputFolder, 1) = Application.PathSeparator Then
+        OutputFolder = Left(OutputFolder, Len(OutputFolder) - 1)
+    End If
+
+    logPath = OutputFolder & Application.PathSeparator & "ExportLog.txt"
+
+    ' Check folder exists
+    If Dir(OutputFolder, vbDirectory) = "" Then
+        Call WriteLog(logPath, "ERROR: Output folder not found: " & OutputFolder)
+        Exit Sub
+    End If
+
+    ' Use the workbook currently active in Excel Application (the one UiPath opened)
+    Set wb = Application.ActiveWorkbook
+    If wb Is Nothing Then
+        Call WriteLog(logPath, "ERROR: No active workbook.")
+        Exit Sub
+    End If
+
+    ' Find sheet
+    On Error Resume Next
+    Set ws = wb.Worksheets(SheetName)
+    On Error GoTo ErrHandler
+    If ws Is Nothing Then
+        Call WriteLog(logPath, "ERROR: Sheet not found: " & SheetName)
+        Exit Sub
+    End If
+
+    ' Make a safe filename from sheet name
+    safeName = MakeSafeFileName(SheetName)
+    If Len(safeName) = 0 Then
+        safeName = "SheetExport"
+    End If
+
+    FilePath = OutputFolder & Application.PathSeparator & safeName
+
+    ' Copy sheet to a new workbook
+    ws.Copy ' this creates a new workbook with the copied sheet as ActiveWorkbook
+    Set newWb = Application.ActiveWorkbook
+
+    Application.DisplayAlerts = False
+
+    ' Decide format numeric constant
+    Select Case LCase(FileFormat)
+        Case "csv"
+            tryFormat = XL_CSVUTF8
+            FilePath = FilePath & ".csv"
+            ' try UTF8 first; if fails fallback to plain CSV
+            On Error Resume Next
+            newWb.SaveAs Filename:=FilePath, FileFormat:=tryFormat
+            If Err.Number <> 0 Then
+                Err.Clear
+                tryFormat = XL_CSV
+                newWb.SaveAs Filename:=FilePath, FileFormat:=tryFormat
+            End If
+            On Error GoTo ErrHandler
+        Case Else
+            tryFormat = XL_OPENXML_WORKBOOK
+            FilePath = FilePath & ".xlsx"
+            newWb.SaveAs Filename:=FilePath, FileFormat:=tryFormat
+    End Select
+
+    Application.DisplayAlerts = True
+
+    ' Close the new workbook
+    newWb.Close SaveChanges:=False
+
+    Call WriteLog(logPath, "SUCCESS: Exported sheet '" & SheetName & "' -> " & FilePath)
+    Exit Sub
+
+ErrHandler:
+    Application.DisplayAlerts = True
+    If Not newWb Is Nothing Then
+        On Error Resume Next
+        newWb.Close SaveChanges:=False
+        On Error GoTo 0
+    End If
+    Call WriteLog(logPath, "ERROR: (" & Err.Number & ") " & Err.Description & " when exporting sheet '" & SheetName & "'.")
+End Sub
+
+' Helper: replace invalid filename chars
+Private Function MakeSafeFileName(s As String) As String
+    Dim invalidChars As Variant
+    Dim i As Long
+    invalidChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    MakeSafeFileName = s
+    For i = LBound(invalidChars) To UBound(invalidChars)
+        MakeSafeFileName = Replace(MakeSafeFileName, invalidChars(i), "_")
+    Next i
+    ' Trim trailing/leading spaces and limit length
+    MakeSafeFileName = Trim(MakeSafeFileName)
+    If Len(MakeSafeFileName) > 120 Then MakeSafeFileName = Left(MakeSafeFileName, 120)
+End Function
+
+' Helper: append message to log file
+Private Sub WriteLog(logPath As String, msg As String)
+    Dim fNum As Integer
+    fNum = FreeFile
+    On Error Resume Next
+    Open logPath For Append As #fNum
+    If Err.Number = 0 Then
+        Print #fNum, Now & " - " & msg
+        Close #fNum
+    Else
+        ' If cannot write log file, attempt to write to Immediate window (for debugging)
+        On Error GoTo 0
+        Debug.Print Now & " - " & msg
+    End If
+End Sub
+
+
+---
+
+3) Vì sao code này tốt hơn
+
+Sanitize tên file: loại bỏ ký tự bất hợp lệ và giới hạn độ dài tên file.
+
+Fallback CSV: nếu xlCSVUTF8 không có (một số Excel cũ), sẽ dùng xlCSV.
+
+Không dùng MsgBox: chạy trong background (UiPath) không bị dừng bằng hộp thoại.
+
+Ghi log vào ExportLog.txt: bạn có thể mở file log để biết success/error khi chạy từ robot.
+
+Sử dụng Application.ActiveWorkbook để đảm bảo macro thao tác với workbook đang được mở bởi UiPath.
+
+
+
+---
+
+4) Cách gọi từ UiPath (bổ sung)
+
+Excel Application Scope: mở đúng file nguồn (không mở ở chế độ Protected View).
+
+Invoke VBA:
+
+CodeFilePath: C:\path\ExportSheetAsFile_improved.bas
+
+EntryMethodName: ExportSheetAsFile
+
+Parameters (In/String):
+
+1. "TênSheetCầnXuất"
+
+
+2. "C:\Exports" (thư mục tồn tại)
+
+
+3. "xlsx" hoặc "csv"
+
+
+
+
+
+Lưu ý: không nên để UiPath mở file bằng chế độ read-only nếu bạn muốn ghi log vào cùng máy; kiểm tra quyền folder.
+
+
+---
+
+5) Nếu vẫn lỗi — những bước để mình giúp tiếp nhanh
+
+Vui lòng cho mình 1 trong các thông tin dưới (một dòng là đủ):
+
+1. Toàn bộ thông báo lỗi (error message) bạn thấy khi chạy (copy/paste).
+
+
+2. Nội dung file ExportLog.txt (nếu đã xuất log).
+
+
+3. Ví dụ tên sheet bạn đang xuất (để mình kiểm tra ký tự đặc biệt).
+
+
+4. Bạn đang dùng phiên bản Excel nào (ví dụ Excel 2016/2019/365) và hệ điều hành (Windows 10/11).
+
+
+
+Nếu muốn, mình sẽ:
+
+chỉnh code để trả về kết quả vào 1 ô trong workbook (ví dụ ThisWorkbook.Sheets(1).Range("Z1") = ...) thay vì file log; hoặc
+
+tạo file .bas sẵn để bạn tải (mình có thể dán sẵn nội dung để bạn copy).
+
+
+
+---
+
+Nếu bạn chụp ảnh màn hình hoặc copy lỗi vào đây, mình sẽ phân tích và sửa ngay.
