@@ -1,0 +1,231 @@
+Dưới đây là hướng dẫn nhanh — rõ — chạy được luôn để bạn tạo nhiều folder và subfolder, kể cả tên chứa ký tự đặc biệt/Unicode, bằng Excel + PowerShell. Mình đưa 2 cách: (A) xuất CSV (đơn giản, khuyến nghị) và (B) đọc trực tiếp file .xlsx qua COM (không cần xuất). Có thêm hàm sanitize để tự động thay thế ký tự không hợp lệ trên Windows (\ / : * ? " < > |) nếu cần.
+
+1) Chuẩn bị Excel
+
+Option 1 — Dùng 1 cột chứa full path
+
+Sheet ví dụ (Sheet1): cột A header = Path
+
+
+Path
+C:\Projects\Đề án A\Tài liệu\Phiên bản 1
+C:\Projects\Đề án A\Tài liệu\📁 Kế hoạch
+C:\Projects\Đề án B\データ\レポート
+
+Option 2 — Dùng nhiều cột (Parent, Sub1, Sub2...)
+
+Sheet:
+
+
+Parent, Sub1, Sub2
+C:\Projects, Đề án A, Tài liệu
+C:\Projects, Đề án A, 📁 Kế hoạch
+C:\Projects, Đề án B, データ
+
+Lưu ý khi xuất CSV: khi dùng Option 1/2 nếu xuất dùng CSV, chọn "CSV UTF-8 (Comma delimited) (*.csv)" để giữ Unicode (emoji, tiếng Việt, tiếng Nhật...).
+
+
+---
+
+2) PowerShell — Cách A: đọc từ CSV UTF-8 (khuyến nghị)
+
+Lưu file Excel sang folders.csv (CSV UTF-8). Dưới đây script xử lý cả 2 kiểu CSV (full-path hoặc nhiều cột):
+
+# create-folders-from-csv.ps1
+param(
+    [string]$CsvPath = ".\folders.csv",
+    [switch]$SanitizeNames  # dùng để thay ký tự không hợp lệ
+)
+
+function Remove-InvalidWindowsChars([string]$name) {
+    if ($null -eq $name) { return $name }
+    $invalid = [System.IO.Path]::GetInvalidFileNameChars() + [System.IO.Path]::GetInvalidPathChars()
+    $out = $name
+    foreach ($c in $invalid | Select-Object -Unique) {
+        $out = $out -replace [regex]::Escape($c), '-'   # thay bằng dấu '-'
+    }
+    # trim whitespace ends
+    return $out.Trim()
+}
+
+# Read CSV with UTF8
+$rows = Import-Csv -Path $CsvPath -Encoding UTF8
+
+foreach ($row in $rows) {
+    if ($row.PSObject.Properties.Name -contains 'Path') {
+        # CSV có cột "Path" chứa full path
+        $target = $row.Path
+    } else {
+        # Nhiều cột: nối các cột không rỗng
+        $parts = @()
+        foreach ($p in $row.PSObject.Properties) {
+            $val = $p.Value
+            if (![string]::IsNullOrWhiteSpace($val)) {
+                if ($SanitizeNames) { $val = Remove-InvalidWindowsChars $val }
+                $parts += $val
+            }
+        }
+        # Nếu phần đầu chứa drive (vd C:\) thì dùng Join-Path đặc biệt
+        if ($parts.Count -gt 0 -and $parts[0] -match '^[A-Za-z]:\\') {
+            $root = $parts[0]
+            $rest = $parts[1..($parts.Count-1)]
+            $target = $root
+            foreach ($r in $rest) { $target = Join-Path -Path $target -ChildPath $r }
+        } else {
+            # nối relative path
+            $target = [System.IO.Path]::Combine($parts)
+        }
+    }
+
+    if ($SanitizeNames) {
+        # nếu full path thì sanitize từng segment
+        $segments = $target -split '\\'
+        for ($i=0; $i -lt $segments.Count; $i++) {
+            $segments[$i] = Remove-InvalidWindowsChars $segments[$i]
+        }
+        # đối với path bắt đầu bằng drive (ex: C:) giữ lại dấu \
+        if ($target -match '^[A-Za-z]:') {
+            $target = ($segments -join '\')
+        } else {
+            $target = ($segments -join '\')
+        }
+    }
+
+    if (![string]::IsNullOrWhiteSpace($target)) {
+        try {
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            Write-Host "Created: $target"
+        } catch {
+            Write-Warning "Failed to create $target — $($_.Exception.Message)"
+        }
+    }
+}
+
+Chạy: mở PowerShell (Run as Administrator nếu cần), rồi:
+
+# ví dụ:
+.\create-folders-from-csv.ps1 -CsvPath "C:\path\to\folders.csv" -SanitizeNames
+
+
+---
+
+3) PowerShell — Cách B: đọc trực tiếp .xlsx qua Excel COM (không cần xuất CSV)
+
+Nếu bạn không muốn xuất CSV, dùng COM để đọc .xlsx (Windows only, Excel phải cài):
+
+# create-folders-from-xlsx.ps1
+param(
+    [string]$ExcelPath = ".\folders.xlsx",
+    [string]$SheetName = "Sheet1",
+    [switch]$HasHeader = $true,
+    [switch]$SanitizeNames
+)
+
+function Remove-InvalidWindowsChars([string]$name) {
+    if ($null -eq $name) { return $name }
+    $invalid = [System.IO.Path]::GetInvalidFileNameChars() + [System.IO.Path]::GetInvalidPathChars()
+    $out = $name
+    foreach ($c in $invalid | Select-Object -Unique) {
+        $out = $out -replace [regex]::Escape($c), '-'
+    }
+    return $out.Trim()
+}
+
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$wb = $excel.Workbooks.Open((Resolve-Path $ExcelPath).Path)
+$ws = $wb.Worksheets.Item($SheetName)
+
+# get used range
+$used = $ws.UsedRange
+$rowCount = $used.Rows.Count
+$colCount = $used.Columns.Count
+
+# determine start row
+$startRow = 1
+if ($HasHeader) { $startRow = 2 }
+
+for ($r = $startRow; $r -le $rowCount; $r++) {
+    # if first column is 'Path', treat as full path
+    $firstCell = $ws.Cells.Item(1,1).Text
+    $cells = @()
+    for ($c = 1; $c -le $colCount; $c++) {
+        $val = $ws.Cells.Item($r, $c).Text
+        if (![string]::IsNullOrWhiteSpace($val)) { $cells += $val }
+    }
+    if ($cells.Count -eq 0) { continue }
+    if ($firstCell -eq 'Path') {
+        $target = $cells[0]
+    } else {
+        # join parts
+        if ($cells[0] -match '^[A-Za-z]:\\') {
+            $target = $cells[0]
+            for ($i = 1; $i -lt $cells.Count; $i++) { $target = Join-Path -Path $target -ChildPath $cells[$i] }
+        } else {
+            $target = [System.IO.Path]::Combine($cells)
+        }
+    }
+
+    if ($SanitizeNames) {
+        $segments = $target -split '\\'
+        for ($i=0; $i -lt $segments.Count; $i++) { $segments[$i] = Remove-InvalidWindowsChars $segments[$i] }
+        $target = ($segments -join '\')
+    }
+
+    try {
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        Write-Host "Created: $target"
+    } catch {
+        Write-Warning "Failed to create $target — $($_.Exception.Message)"
+    }
+}
+
+# cleanup
+$wb.Close($false)
+$excel.Quit()
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($ws) | Out-Null
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($wb) | Out-Null
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+[GC]::Collect(); [GC]::WaitForPendingFinalizers()
+
+Chạy:
+
+.\create-folders-from-xlsx.ps1 -ExcelPath "C:\path\to\folders.xlsx" -SheetName "Sheet1" -SanitizeNames
+
+
+---
+
+4) Vấn đề ký tự đặc biệt / Unicode
+
+Windows hỗ trợ Unicode trong tên thư mục (tiếng Việt, Nhật, emoji...), miễn là không dùng các ký tự cấm: \ / : * ? " < > | và tên không được kết thúc bằng dấu chấm hoặc khoảng trắng cuối.
+
+Nếu file Excel có emoji/kanji/full-width punctuation, CSV UTF-8 + Import-Csv -Encoding UTF8 hoặc COM Excel sẽ giữ nguyên.
+
+Nếu bạn muốn tự động thay thế ký tự cấm bằng - hoặc _, bật -SanitizeNames trong script để tránh lỗi.
+
+
+
+---
+
+5) Mẹo & troubleshooting
+
+Nếu chạy script và không thấy tạo thư mục: kiểm tra quyền (chạy PowerShell as Admin nếu tạo ở C:\), kiểm tra đường dẫn đúng.
+
+Nếu gặp lỗi encoding (ký tự bị lỗi): chắc chắn xuất CSV dưới dạng CSV UTF-8.
+
+Nếu Excel đang mở file .xlsx, COM script vẫn có thể mở; nhưng để an toàn, đóng file trước khi chạy script.
+
+Muốn log kết quả ra file: thêm | Out-File -FilePath ".\create-log.txt" -Append -Encoding UTF8 hoặc dùng Start-Transcript.
+
+
+
+---
+
+Nếu bạn muốn, mình có thể:
+
+Tạo sẵn file create-folders-from-csv.ps1 hoặc create-folders-from-xlsx.ps1 với nội dung chuẩn để bạn download.
+
+Hoặc — nếu bạn dán vài dòng ví dụ từ Excel ở đây — mình sẽ chỉnh script sao cho phù hợp chính xác với cấu trúc của bạn.
+
+
+Bạn muốn mình tạo file .ps1 cho bạn hay cần chỉnh theo định dạng Excel của bạn (full-path hay nhiều cột)?
