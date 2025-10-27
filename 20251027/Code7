@@ -1,0 +1,153 @@
+Tốt — mình sẽ đưa 3 cách bạn có thể dùng trong UiPath để gọi đúng câu lệnh
+Application.Run "'YourWorkbookName.xlsm'!Wrapper_RunExport.RunExport_NoDialog"
+kèm mã ready-to-use và hướng dẫn từng bước. Chọn cách phù hợp với môi trường của bạn:
+
+
+---
+
+Cách A — (Đơn giản nhất) Dùng Execute Macro trong Excel Application Scope
+
+Khi nào dùng: Wrapper_RunExport.RunExport_NoDialog đã nằm trong workbook bạn mở (hoặc workbook đó được mở trong cùng Excel instance).
+
+Workflow (UiPath) — bước-by-step
+
+1. Excel Application Scope
+
+File: đường dẫn tới workbook chứa Wrapper_RunExport (ví dụ C:\Path\YourWorkbookName.xlsm).
+
+Property: Visible = True (debug) hoặc False.
+
+
+
+2. Bên trong Excel Application Scope:
+
+Write Cell (nếu wrapper đọc path từ A1): Sheet = "Sheet1", Cell = "A1", Value = "C:\Temp\Output.xlsm" (hoặc đường dẫn bạn muốn).
+
+Execute Macro activity:
+
+MacroName = Wrapper_RunExport.RunExport_NoDialog
+(Nếu module đặt trực tiếp trong ThisWorkbook, chỉ cần RunExport_NoDialog cũng được; Wrapper_RunExport.RunExport_NoDialog an toàn nếu có tên module.)
+
+
+Delay 500-2000 ms (tùy cần).
+
+If File.Exists("C:\Temp\Output.xlsm") Then ... kiểm tra kết quả.
+
+
+
+
+Lưu ý: Execute Macro chạy macro trong workbook đang mở trong scope — rất trực tiếp, không cần file .vba ngoài.
+
+
+---
+
+Cách B — (dùng file .vba) Dùng Invoke VBA để gọi Application.Run
+
+Khi nào dùng: bạn muốn giữ logic gọi ở 1 file .vba riêng hoặc workbook wrapper nằm ở file khác; hoặc muốn dùng Invoke VBA (thường cho UiPath Enterprise).
+
+1) Tạo file Caller.vba (lưu thành Caller.vba) với nội dung:
+
+' Caller.vba
+Option Explicit
+
+Public Sub CallWrapper_RunExport()
+    On Error GoTo ErrHandler
+    ' Thay YourWorkbookName.xlsm bằng tên file thực tế (kể cả phần mở rộng)
+    Application.Run "'YourWorkbookName.xlsm'!Wrapper_RunExport.RunExport_NoDialog"
+    Exit Sub
+ErrHandler:
+    MsgBox "CallWrapper_RunExport Error: " & Err.Number & " - " & Err.Description
+End Sub
+
+2) UiPath workflow
+
+Excel Application Scope (mở workbook host nếu cần).
+
+Write Cell Sheet1!A1 = đường dẫn lưu (nếu wrapper đọc A1).
+
+Invoke VBA activity:
+
+CodeFilePath = đường dẫn tới Caller.vba (ví dụ C:\Tools\Caller.vba)
+
+EntryMethod = CallWrapper_RunExport
+
+ExcelInstance = (tham chiếu Excel trong scope nếu phiên bản yêu cầu)
+
+
+Delay / Check file existence như trên.
+
+
+Ưu: Caller.vba chạy 1 dòng Application.Run — đơn giản, dễ bảo trì.
+Quan trọng: workbook YourWorkbookName.xlsm phải được mở trong cùng Excel instance mà Invoke VBA đang dùng.
+
+
+---
+
+Cách C — (COM, cho trường hợp advanced) Gọi Application.Run qua COM Object (Invoke Code)
+
+Khi nào dùng: bạn cần control trực tiếp Excel Application COM từ UiPath (không dùng Execute Macro/Invoke VBA). Cần kiến thức VB.NET trong Invoke Code.
+
+Ví dụ (VB.NET trong Invoke Code) — trong UiPath, đặt Language = VB, thêm tham số excelApp (type Object) nếu bạn lấy nó từ Excel Scope. Một cách đơn giản là lấy Excel process bằng Microsoft.Office.Interop.Excel.Application nhưng thường UiPath không expose trực tiếp. Dưới đây là template nếu bạn có excelApp:
+
+' Trong Invoke Code (VB) — tham số: excelApp (InArgument, System.Object)
+Dim xlApp As Object = excelApp
+' Chạy macro trong workbook đã mở
+xlApp.Run("'YourWorkbookName.xlsm'!Wrapper_RunExport.RunExport_NoDialog")
+
+Cách lấy excelApp: bạn có thể dùng Workbook output từ Excel Application Scope (tùy phiên bản UiPath) hoặc dùng COM create: CreateObject("Excel.Application") — cẩn thận nhiều instance Excel gây nhầm. Vì phức tạp hơn, chỉ dùng khi bạn hiểu COM.
+
+
+---
+
+Những lưu ý quan trọng (đừng bỏ qua)
+
+1. Workbook phải đang mở trong cùng Excel instance mà UiPath sử dụng. Nếu không, Application.Run sẽ báo không tìm macro/file.
+
+
+2. Macro security: bật macros & Trust access to the VBA project object model nếu bạn chèn module programmatically.
+
+Excel → File → Options → Trust Center → Trust Center Settings → Macro Settings → tick Trust access to the VBA project object model.
+
+
+
+3. Nếu wrapper đọc path từ ô (A1), Ghi ô A1 trước khi gọi macro. UiPath Write Cell phải nằm trước Execute Macro / Invoke VBA.
+
+
+4. Nếu macro hiện popup modal trước khi wrapper gọi được — tránh race: wrapper phải được gọi sau khi workbook sẵn sàng để macro chạy không bật modal nữa. (Giải pháp: tách SaveAs ra như bạn đã làm.)
+
+
+5. Nếu workbook name có khoảng trắng, định dạng "'Your Workbook Name.xlsm'!Module.Sub" — dấu ' bọc tên file là cần thiết.
+
+
+
+
+---
+
+Ví dụ flow mẫu bạn có thể copy vào UiPath (Execute Macro version)
+
+1. Excel Application Scope (File = "C:\Path\YourWorkbookName.xlsm", Visible=True)
+
+Write Cell: Sheet="Sheet1", Cell="A1", Value="C:\Temp\Output.xlsm"
+
+Delay 200
+
+Execute Macro: MacroName = "Wrapper_RunExport.RunExport_NoDialog"
+
+Delay 500
+
+If (System.IO.File.Exists("C:\Temp\Output.xlsm")) → Then log "OK" Else log "Fail"
+
+
+
+
+
+---
+
+Nếu bạn muốn, mình sẽ:
+
+Viết sẵn file Caller.vba với chính tên workbook của bạn (hãy cho mình YourWorkbookName.xlsm nếu bạn muốn mình thay trực tiếp). (Mình sẽ không hỏi lại nếu bạn muốn mình tạo; mình có thể dùng tên mẫu YourWorkbookName.xlsm và bạn thay khi copy.)
+
+Hoặc cung cấp một workflow UiPath XML mẫu (sequence) với activities chuẩn — bạn có muốn file workflow mẫu không?
+
+
+Bạn muốn mình gửi nội dung Caller.vba hoàn chỉnh (với tên workbook bạn đang dùng) hay bạn sẽ dùng Execute Macro trực tiếp?
