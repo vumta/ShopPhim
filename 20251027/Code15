@@ -1,0 +1,174 @@
+Rất chuẩn 👌
+Mình sẽ update lại để mỗi lần chạy macro sẽ tạo 1 file log riêng, nằm trong thư mục C:\RPA\Logs\ (hoặc C:\RPA\ nếu bạn không có subfolder Logs).
+
+Mỗi file log sẽ có tên dạng:
+
+ExportSheetAsFile_YYYYMMDD_HHMMSS.log
+
+→ ví dụ: ExportSheetAsFile_20251027_195832.log
+
+
+---
+
+🔧 Code VBA hoàn chỉnh cập nhật:
+
+Attribute VB_Name = "ExportSheetAsFile"
+Option Explicit
+
+' Numeric constants
+Private Const XL_OPENXML_WORKBOOK As Long = 51
+Private Const XL_OPENXML_WORKBOOK_MACROENABLED As Long = 52
+Private Const XL_CSV_UTF8 As Long = 62
+
+Public Sub ExportSheetAsFile(OutputFolder As String, Optional FileFormat As String = "xlsx")
+    On Error GoTo ErrHandler
+
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWb As Workbook
+    Dim FilePath As String
+    Dim safeName As String
+    Dim ext As String
+    Dim attemptedFmt As Long
+    Dim logPath As String
+    Dim SheetNames As Variant
+    Dim i As Long
+    Dim logFolder As String
+    
+    ' --- tạo file log riêng cho mỗi lần chạy ---
+    logFolder = "C:\RPA"
+    logPath = logFolder & Application.PathSeparator & _
+              "ExportSheetAsFile_" & Format(Now, "yyyymmdd_HHMMSS") & ".log"
+
+    ' Danh sách sheet cố định (update tại đây)
+    SheetNames = Array("Sheet1", "Sheet2", "Sheet3")
+
+    Set wb = ThisWorkbook
+
+    For i = LBound(SheetNames) To UBound(SheetNames)
+        On Error Resume Next
+        Set ws = wb.Sheets(SheetNames(i))
+        On Error GoTo ErrHandler
+
+        If ws Is Nothing Then
+            AppendLog logPath, "❌ Sheet not found: " & SheetNames(i)
+        Else
+            safeName = MakeSafeFileName(ws.Name)
+            If Len(safeName) = 0 Then safeName = "SheetExport"
+            If Len(safeName) > 150 Then safeName = Left(safeName, 150)
+
+            ws.Copy
+            Set newWb = ActiveWorkbook
+            newWb.Activate
+            DoEvents
+
+            Select Case LCase(FileFormat)
+                Case "csv"
+                    ext = ".csv"
+                    attemptedFmt = XL_CSV_UTF8
+                Case "xlsm"
+                    ext = ".xlsm"
+                    attemptedFmt = XL_OPENXML_WORKBOOK_MACROENABLED
+                Case Else
+                    ext = ".xlsx"
+                    attemptedFmt = XL_OPENXML_WORKBOOK
+            End Select
+
+            FilePath = OutputFolder & Application.PathSeparator & safeName & ext
+
+            ' Xóa file cũ nếu có
+            On Error Resume Next
+            Kill FilePath
+            On Error GoTo ErrHandler
+
+            Application.DisplayAlerts = False
+            Application.EnableEvents = False
+
+            On Error GoTo SaveError
+            newWb.SaveAs Filename:=FilePath, FileFormat:=attemptedFmt
+            GoTo SaveOK
+
+SaveError:
+            AppendLog logPath, "⚠️ SaveAs failed for " & FilePath & " Err=" & Err.Number & " Desc=" & Err.Description
+            If attemptedFmt = XL_OPENXML_WORKBOOK Then
+                FilePath = OutputFolder & Application.PathSeparator & safeName & ".xlsm"
+                On Error GoTo ErrHandler
+                newWb.SaveAs Filename:=FilePath, FileFormat:=XL_OPENXML_WORKBOOK_MACROENABLED
+            Else
+                Err.Raise Err.Number, , Err.Description
+            End If
+
+SaveOK:
+            newWb.Close SaveChanges:=False
+            Application.DisplayAlerts = True
+            Application.EnableEvents = True
+
+            AppendLog logPath, "✅ Exported sheet " & ws.Name & " to " & FilePath
+        End If
+
+        Set ws = Nothing
+        Set newWb = Nothing
+    Next i
+
+    AppendLog logPath, "🎯 Export completed successfully."
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    AppendLog logPath, "💥 ERR: " & Err.Number & " - " & Err.Description
+    If Not newWb Is Nothing Then newWb.Close SaveChanges:=False
+End Sub
+
+'--- Make safe file name ---
+Private Function MakeSafeFileName(nameIn As String) As String
+    Dim i As Long, ch As String
+    Dim out As String
+    out = Trim(nameIn)
+    For i = 1 To Len(out)
+        ch = Mid$(out, i, 1)
+        Select Case ch
+            Case "/", "\", ":", "*", "?", """", "<", ">", "|"
+                out = Replace(out, ch, "_")
+        End Select
+    Next i
+    Dim j As Long, cCode As Long, cleaned As String
+    cleaned = ""
+    For j = 1 To Len(out)
+        cCode = AscW(Mid$(out, j, 1))
+        If cCode >= 32 Then cleaned = cleaned & Mid$(out, j, 1)
+    Next j
+    MakeSafeFileName = cleaned
+End Function
+
+'--- Append log ---
+Private Sub AppendLog(path As String, msg As String)
+    On Error Resume Next
+    Dim fso As Object, ts As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set ts = fso.OpenTextFile(path, 8, True)
+    ts.WriteLine Format(Now, "yyyy-mm-dd HH:NN:SS") & " - " & msg
+    ts.Close
+End Sub
+
+
+---
+
+✅ Tóm tắt thay đổi:
+
+Log được ghi tại: C:\RPA\ExportSheetAsFile_YYYYMMDD_HHMMSS.log
+
+Không xóa file log cũ.
+
+Không hiện bất kỳ MsgBox nào.
+
+Có emoji nhỏ để dễ đọc log.
+
+Hỗ trợ chạy mảng nhiều sheet.
+
+
+
+---
+
+Bạn có muốn mình thêm dòng log tổng kết cuối cùng (ví dụ “3/3 sheet exported successfully”) để UiPath dễ parse trạng thái không?
