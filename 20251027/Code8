@@ -1,0 +1,151 @@
+Đúng — nguyên nhân và cách sửa rõ ràng như sau.
+
+Nguyên nhân
+
+Khi bạn copy code từ module trong ExportMacro.xlsm vào một file .vba rồi chạy nó bằng Invoke VBA trong UiPath, mã đó chạy trong workbook “host” (workbook mà UiPath/InvokeVBA chèn/đính code vào hoặc workbook đang mở trong Excel Scope), không phải workbook gốc nơi bạn lấy code ban đầu.
+Vì vậy ThisWorkbook trong context của .vba sẽ trỏ tới workbook chứa module đang chạy (host), chứ không phải ExportMacro.xlsm. Nếu host không tồn tại sheet/ô bạn gõ, hoặc bạn kỳ vọng ThisWorkbook là workbook gốc, sẽ xảy ra lỗi hoặc hành vi không mong muốn — bạn thấy thông báo kiểu “ThisWorkbook không tồn tại” hoặc tham chiếu sai.
+
+
+---
+
+Các giải pháp (thực tế — chọn cách phù hợp)
+
+1) (Khuyến nghị) Gọi macro trực tiếp trong workbook gốc bằng Application.Run từ file .vba (Caller)
+
+Thay vì copy toàn bộ logic sang .vba, để nguyên macro xử lý trong ExportMacro.xlsm và dùng Caller.vba chỉ gọi:
+
+Public Sub CallOriginal()
+    ' Gọi macro trong ExportMacro.xlsm (workbook phải đang mở)
+    Application.Run "'ExportMacro.xlsm'!Module1.RunExport", "C:\Temp\Output.csv"
+End Sub
+
+Ưu: đơn giản, không thay đổi ThisWorkbook ở macro gốc. Trong UiPath bạn chỉ invoke CallOriginal.
+
+
+---
+
+2) (Nếu muốn chạy code từ file .vba) Thay ThisWorkbook bằng tham chiếu tới workbook mục tiêu
+
+Thay mọi ThisWorkbook trong mã bằng Set wb = Workbooks("ExportMacro.xlsm") hoặc Set wb = Workbooks.Open(path) tùy tình huống. Ví dụ wrapper sửa:
+
+Public Sub RunExport_NoDialog_Target()
+    Dim wb As Workbook
+    Dim savePath As String
+    savePath = "C:\Temp\Output.xlsm" ' hoặc đọc từ ThisWorkbook.Worksheets(1).Range("A1") tùy bạn
+
+    ' Tham chiếu workbook đích bằng tên (phải chính xác có phần mở rộng)
+    On Error Resume Next
+    Set wb = Application.Workbooks("ExportMacro.xlsm")
+    On Error GoTo 0
+
+    If wb Is Nothing Then
+        ' nếu chưa mở, mở từ đường dẫn cố định
+        Set wb = Application.Workbooks.Open("C:\Folder\ExportMacro.xlsm")
+    End If
+
+    If wb Is Nothing Then
+        MsgBox "Không thể mở workbook ExportMacro.xlsm"
+        Exit Sub
+    End If
+
+    Application.DisplayAlerts = False
+    wb.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+    Application.DisplayAlerts = True
+
+    MsgBox "Saved: " & savePath
+End Sub
+
+Lưu ý: thay "ExportMacro.xlsm" và "C:\Folder\ExportMacro.xlsm" bằng tên/đường dẫn thực tế.
+
+
+---
+
+3) (Nếu wrapper đọc path từ ô A1) Chỉ rõ workbook chứa A1
+
+Nếu bạn đang đọc đường dẫn từ ô A1 nhưng host workbook không phải là nơi bạn lưu, hãy đọc từ workbook cụ thể:
+
+Dim hostWB As Workbook
+Set hostWB = Application.Workbooks("HostWorkbookName.xlsm") ' workbook nơi UiPath ghi A1
+savePath = hostWB.Worksheets("Sheet1").Range("A1").Value
+
+
+---
+
+4) (UiPath best practice) Mở đúng workbook trong Excel Application Scope và dùng Execute Macro
+
+Cách dễ nhất khi làm với UiPath:
+
+Trong Excel Application Scope, mở ExportMacro.xlsm (file chứa macro gốc).
+
+Write Cell vào Sheet1!A1 (nếu macro đọc A1).
+
+Dùng Execute Macro activity với MacroName = "Wrapper_RunExport.RunExport_NoDialog" hoặc "RunExport_NoDialog" nếu macro nằm trong workbook.
+→ Khi chạy theo cách này, ThisWorkbook trong macro sẽ chính là ExportMacro.xlsm nên không còn lỗi.
+
+
+
+---
+
+Ví dụ cụ thể — 2 kịch bản bạn có thể copy dùng ngay
+
+A) Caller.vba chỉ gọi macro trong workbook gốc (ứng dụng dễ nhất):
+
+Public Sub CallOriginal()
+    ' Đảm bảo ExportMacro.xlsm đang mở trong cùng Excel instance
+    Application.Run "'ExportMacro.xlsm'!Module1.RunExport", "C:\Temp\Output.csv"
+End Sub
+
+Trong UiPath: Invoke VBA → CodeFilePath=Caller.vba, EntryMethod=CallOriginal (và đảm bảo Excel Application Scope đã mở ExportMacro.xlsm trước).
+
+B) Nếu bạn bắt buộc chạy logic từ .vba và muốn save mà không popup (đã sửa tham chiếu):
+
+Public Sub RunExport_NoDialog_FromCaller()
+    Dim targetPath As String
+    Dim wb As Workbook
+
+    ' Lấy đường dẫn muốn lưu từ chính thư mục host hoặc hardcode
+    targetPath = "C:\Temp\Output.xlsm"
+
+    ' Tham chiếu tới workbook đích bằng tên (hoặc mở)
+    On Error Resume Next
+    Set wb = Application.Workbooks("ExportMacro.xlsm")
+    On Error GoTo 0
+
+    If wb Is Nothing Then
+        Set wb = Application.Workbooks.Open("C:\Folder\ExportMacro.xlsm")
+    End If
+
+    If wb Is Nothing Then
+        MsgBox "Không mở được ExportMacro.xlsm", vbExclamation
+        Exit Sub
+    End If
+
+    Application.DisplayAlerts = False
+    wb.SaveAs Filename:=targetPath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+    Application.DisplayAlerts = True
+    MsgBox "Đã lưu: " & targetPath
+End Sub
+
+
+---
+
+Tóm tắt & lời khuyên nhanh
+
+Nếu bạn có thể, KHÔNG dịch toàn bộ code ra .vba — thay vào đó để macro gốc xử lý và gọi nó bằng Application.Run từ Caller.vba (đơn giản và ổn định).
+
+Nếu phải chạy code trong .vba, không dùng ThisWorkbook nếu workbook thực thi khác; thay bằng Workbooks("TênFile.xlsm") hoặc Workbooks.Open(path).
+
+Trong UiPath, tốt nhất mở chính file .xlsm trong Excel Application Scope và dùng Execute Macro — lúc đó ThisWorkbook chính xác.
+
+
+
+---
+
+Nếu bạn muốn, mình sẽ làm tiếp:
+
+Viết sẵn Caller.vba đúng theo tình huống của bạn (hãy cho mình 2 giá trị: tên workbook gốc và đường dẫn file gốc nếu chưa mở) — mình sẽ điền placeholders bạn dễ thay.
+
+Hoặc cung cấp workflow UiPath mẫu (các activity) để bạn copy.
+
+
+Bạn muốn mình tạo Caller.vba theo mẫu A (gọi Application.Run) hay mẫu B (mã chạy trực tiếp và tự open workbook)? Mình sẽ dán code hoàn chỉnh với placeholders bạn chỉ việc thay tên/đường dẫn.
