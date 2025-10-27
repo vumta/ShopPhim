@@ -1,0 +1,128 @@
+Câu hỏi của bạn rất hay 👍 — và đây là điểm rất quan trọng khi làm việc với Parallel trong UiPath, đặc biệt khi kết hợp với macro mở popup.
+Câu trả lời ngắn là: ⚠️ Không thể “break” ra khỏi Parallel trực tiếp theo kiểu lập trình như Break trong For Each.
+Tuy nhiên, bạn vẫn có thể thoát hoặc dừng logic còn lại của nhánh song song bằng một trong các cách an toàn và kiểm soát được — dưới đây là giải thích chi tiết.
+
+
+---
+
+🧩 Tình huống của bạn
+
+Một nhánh Parallel đang chạy macro → macro mở popup SaveAs.
+
+Nhánh thứ hai Parallel điền path vào popup và nhấn OK.
+
+Sau khi nhấn OK, bạn muốn ngừng toàn bộ Parallel luôn (không cần chờ macro tiếp tục chạy thêm, hoặc tránh lỗi 9C86).
+
+
+
+---
+
+🚫 1. UiPath không có “Break” trực tiếp cho Parallel
+
+Trong Parallel, các Branch đều chạy độc lập và không có cơ chế “thoát toàn khối” ngay khi một branch hoàn thành.
+→ Khi một branch kết thúc, UiPath vẫn giữ Parallel chạy cho đến khi tất cả branch khác cũng kết thúc hoặc bị lỗi.
+
+Vì vậy, nếu bạn nhấn OK trong popup mà nhánh macro vẫn đang chạy, UiPath sẽ không tự dừng branch đó → dễ sinh lỗi (vì macro tiếp tục chạy trong khi dialog đã bị can thiệp).
+
+
+---
+
+✅ 2. Cách thoát Parallel đúng cách
+
+Cách 1 — Dùng biến “Stop Flag” chung
+
+Tạo một biến Boolean, ví dụ stopFlag = False.
+
+Trong nhánh điền path + nhấn OK:
+
+Type Into (File path)
+Click (OK)
+Assign stopFlag = True
+
+Trong nhánh chạy macro, bao quanh các bước với Do While stopFlag = False.
+Ví dụ:
+
+Do While stopFlag = False
+    Delay 100ms
+Loop
+
+→ Khi nhánh nhập popup set stopFlag = True, nhánh macro thoát khỏi vòng lặp => kết thúc song song an toàn.
+
+
+Điều này mô phỏng hành vi “Break Parallel”.
+
+
+---
+
+Cách 2 — Dùng Parallel + Pick kết hợp
+
+Thay vì Parallel, dùng Pick hoạt động theo nguyên tắc “chạy nhánh nào hoàn thành trước thì dừng tất cả các nhánh khác”.
+
+Cấu trúc:
+
+Pick
+ ├─ PickBranch 1: Trigger = Macro mở popup
+ │                Action = Type path + Click OK
+ │
+ └─ PickBranch 2: Trigger = Timeout  (Delay 30s chẳng hạn)
+                  Action = Throw new BusinessRuleException("Timeout")
+
+→ Khi nhánh đầu tiên “nhấn OK” hoàn tất, Pick sẽ tự động thoát toàn bộ và không chờ nhánh khác.
+
+✅ Đây là giải pháp an toàn nhất để mô phỏng “break ra khỏi song song”.
+
+
+---
+
+Cách 3 — Dùng Cancel Activity hoặc Throw để thoát cưỡng bức
+
+Nếu muốn cưỡng bức dừng ngay lập tức:
+
+Trong nhánh “nhấn OK”, sau khi click:
+
+Throw New System.Exception("Stop Parallel")
+
+Bọc Parallel trong Try Catch → khi Throw xảy ra, toàn bộ Parallel sẽ bị ngắt.
+
+
+Nhưng ⚠️ cách này thường không khuyến khích khi Excel đang chạy macro vì có thể làm Excel mất trạng thái / COM crash.
+
+
+---
+
+🧭 Gợi ý thực tế cho case của bạn
+
+Mục tiêu	Cách nên dùng
+
+Muốn dừng Parallel sau khi nhấn OK	👉 Dùng Pick hoặc StopFlag
+Muốn xử lý an toàn không crash Excel	👉 Dùng Pick
+Muốn “thoát cứng” kiểu break thật	👉 Throw + Try Catch (chỉ nếu Excel không cần giữ trạng thái)
+
+
+
+---
+
+💡 Kết luận
+
+> 🔹 Không thể dùng “Break” để thoát trực tiếp Parallel.
+🔹 Có thể mô phỏng hành vi break bằng:
+
+Biến cờ (flag) → các nhánh kiểm tra và tự thoát.
+
+Pick → tự động dừng các nhánh khác khi một nhánh hoàn thành.
+
+Throw → thoát cưỡng bức (chỉ khi cần dừng toàn flow).
+
+
+
+
+
+---
+
+Nếu bạn cho mình biết rõ hơn flow cụ thể (ví dụ:
+
+Nhánh 1: “Run macro trong Excel Application Scope”
+
+Nhánh 2: “Chờ popup, gõ path, nhấn OK”),
+thì mình có thể vẽ lại cho bạn một workflow mẫu bằng Pick hoặc flag logic để bạn copy vào UiPath chạy luôn.
+Bạn muốn mình minh họa theo hướng nào — Pick hay flag Boolean?
