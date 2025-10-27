@@ -1,0 +1,228 @@
+Tuyệt — mình sẽ cung cấp cho bạn một file .vba sẵn sàng (text module) dùng với activity Invoke VBA trong UiPath, kèm hướng dẫn step-by-step để:
+
+Ghi đường dẫn file cần export vào một ô (UiPath)
+
+Gọi Application.Run "'ExportMacro.xlsm'!Module1.RunExport", "C:\Temp\Output.csv" từ file .vba
+
+Đảm bảo workbook chứa macro được mở (nếu chưa mở thì code sẽ mở giúp)
+
+
+Mình sẽ đưa: (1) nội dung file Caller.vba bạn lưu, (2) ví dụ Module1.RunExport trong ExportMacro.xlsm, (3) hướng dẫn từng bước trong UiPath.
+
+
+---
+
+1) File Caller.vba (lưu dưới dạng plain text với đuôi .vba)
+
+Copy toàn bộ nội dung bên dưới vào 1 file text và lưu là Caller.vba.
+
+' Caller.vba
+' Entry method: Invoke_RunExport
+' - Đọc exportPath từ ô A1 của workbook đang được Excel Application Scope mở
+' - Nếu workbook chứa macro ("ExportMacro.xlsm") chưa mở thì mở nó
+' - Gọi Application.Run "'ExportMacro.xlsm'!Module1.RunExport", exportPath
+
+Option Explicit
+
+Public Sub Invoke_RunExport()
+    On Error GoTo ErrHandler
+
+    Dim targetWbName As String
+    Dim targetWbPath As String
+    Dim wb As Workbook
+    Dim macroName As String
+    Dim exportPath As String
+
+    ' TÊN file .xlsm chứa macro (chỉnh theo tên file thực tế của bạn)
+    targetWbName = "ExportMacro.xlsm"
+    ' Nếu bạn muốn mở từ đường dẫn cụ thể, chỉnh targetWbPath hoặc để trống để mở từ hiện tại folder
+    targetWbPath = "C:\Users\Public\ExportMacro.xlsm" ' <-- sửa đường dẫn nếu cần
+
+    ' Lấy exportPath mà UiPath đã ghi vào ô A1 (Sheet1)
+    On Error Resume Next
+    exportPath = Trim(CStr(ThisWorkbook.Worksheets(1).Range("A1").Value))
+    On Error GoTo ErrHandler
+
+    If Len(exportPath) = 0 Then
+        ' Nếu không có giá trị ở A1, dùng mặc định
+        exportPath = "C:\Temp\Output.csv"
+    End If
+
+    ' Kiểm tra xem workbook chứa macro đã mở chưa
+    On Error Resume Next
+    Set wb = Workbooks(targetWbName)
+    On Error GoTo ErrHandler
+
+    If wb Is Nothing Then
+        ' Nếu targetWbPath tồn tại, mở từ path, nếu không sẽ gây lỗi - bạn có thể handle thêm
+        If Len(Dir(targetWbPath)) > 0 Then
+            Set wb = Workbooks.Open(Filename:=targetWbPath)
+        Else
+            ' Nếu không có đường dẫn cụ thể, thử tìm trong same folder (không bắt buộc)
+            Err.Raise vbObjectError + 513, "Invoke_RunExport", "Không tìm thấy " & targetWbName & ". Hãy chắc chắn file đã mở hoặc chỉnh targetWbPath."
+        End If
+    End If
+
+    ' Tên macro đầy đủ (thêm dấu ' nếu tên file có khoảng trắng)
+    macroName = "'" & wb.Name & "'!Module1.RunExport"
+
+    ' Gọi macro trong workbook target, truyền exportPath
+    Application.Run macroName, exportPath
+
+    ' (Tùy chọn) Đóng workbook chứa macro nếu bạn muốn
+    ' wb.Close SaveChanges:=False
+
+    Exit Sub
+
+ErrHandler:
+    MsgBox "Caller.vba Error: " & Err.Number & " - " & Err.Description, vbExclamation, "Invoke_RunExport"
+End Sub
+
+
+---
+
+2) Ví dụ module trong ExportMacro.xlsm (Module1)
+
+Đây là ví dụ Sub mà Caller.vba sẽ gọi. Copy vào Module1 của ExportMacro.xlsm.
+
+' Module1 in ExportMacro.xlsm
+Option Explicit
+
+Public Sub RunExport(ByVal savePath As String)
+    On Error GoTo ErrHandler
+
+    ' --- ví dụ: lưu workbook hiện tại thành CSV ---
+    Application.DisplayAlerts = False
+    ThisWorkbook.SaveAs Filename:=savePath, FileFormat:=xlCSV
+    Application.DisplayAlerts = True
+
+    MsgBox "Đã lưu tới: " & savePath
+
+    Exit Sub
+ErrHandler:
+    Application.DisplayAlerts = True
+    MsgBox "RunExport Error: " & Err.Number & " - " & Err.Description
+End Sub
+
+> Lưu ý: RunExport ở đây là ví dụ. Bạn thay nội dung bằng logic export thực tế của bạn.
+
+
+
+
+---
+
+3) Hướng dẫn step-by-step trong UiPath
+
+Mục tiêu: Mở Excel, ghi đường dẫn muốn export vào ô A1, gọi Caller.vba bằng Invoke VBA.
+
+1. Prepare files
+
+Đặt ExportMacro.xlsm (chứa Module1.RunExport) ở nơi cố định (ví dụ C:\Users\Public\ExportMacro.xlsm).
+
+Lưu Caller.vba ở 1 nơi (ví dụ C:\Users\Public\Caller.vba).
+
+
+
+2. UiPath — Workflow (các activity chính)
+
+a. Excel Application Scope
+
+File: đường dẫn tới workbook mà bạn muốn dùng làm host cho Invoke VBA — có 2 lựa chọn:
+
+Mở chính ExportMacro.xlsm (nếu bạn muốn code chạy trong cùng workbook).
+
+Hoặc mở 1 workbook “host” khác (ví dụ CallerHost.xlsx) — Invoke VBA sẽ chèn/ chạy code trong workbook này nhưng Caller.vba sẽ mở ExportMacro.xlsm nếu chưa mở (theo code ở trên).
+
+
+Chú ý: chọn Visible = True khi debug để quan sát popup/flow.
+
+
+b. (Tùy chọn nhưng khuyên dùng) Write Cell
+
+Vị trí: Sheet1!A1
+
+Value: đường dẫn muốn export, ví dụ "C:\Temp\Output.csv"
+
+(Caller.vba sẽ đọc ô A1 để lấy exportPath)
+
+
+c. Invoke VBA (activity)
+
+Input
+
+ExcelInstance: output của Excel Application Scope (nếu UiPath version yêu cầu).
+
+CodeFilePath: "C:\Users\Public\Caller.vba" (hoặc copy code trực tiếp vào Code box)
+
+EntryMethod: Invoke_RunExport
+
+
+Output
+
+Không cần (Caller.vba show MsgBox và/hoặc thao tác lưu file)
+
+
+(Nếu Invoke VBA có field InputParameters trong phiên bản của bạn, không bắt buộc vì Caller.vba đọc từ ô A1.)
+
+
+d. Delay hoặc Read Cell (tùy)
+
+Sau Invoke VBA có thể Delay vài giây để macro hoàn tất hoặc Read Cell để kiểm tra kết quả (ví dụ đọc ô chứa flag hoặc tên file).
+
+
+e. (Tùy chọn) Close Workbook hoặc Kill Process nếu muốn cleanup.
+
+
+3. Run & Test
+
+Chạy workflow. Flow sẽ:
+
+Mở workbook trong Excel Application Scope
+
+Ghi đường dẫn export vào A1
+
+Invoke VBA loads và chạy Invoke_RunExport trong Caller.vba
+
+Caller.vba mở ExportMacro.xlsm nếu cần, gọi Application.Run "'ExportMacro.xlsm'!Module1.RunExport", exportPath
+
+RunExport lưu file CSV vào đường dẫn
+
+
+
+
+4. Debugging / Troubleshooting
+
+Nếu UiPath báo lỗi không tìm Invoke_RunExport:
+
+Đảm bảo CodeFilePath đúng và EntryMethod chính xác (Invoke_RunExport).
+
+
+Nếu ExportMacro.xlsm không tìm thấy:
+
+Kiểm tra targetWbPath trong Caller.vba đúng đường dẫn hoặc mở ExportMacro.xlsm trước bằng Excel Application Scope.
+
+
+Nếu macros bị chặn:
+
+Mở Excel → File → Options → Trust Center → Trust Center Settings → Macro Settings: chọn allow macros (hoặc đặt folder vào Trusted Locations).
+
+
+Để tránh nhiều instance Excel: trong Excel Application Scope để Visible=True và không dùng activity khác mở Excel bằng COM ngoài scope.
+
+
+
+
+
+---
+
+4) Gợi ý nâng cao
+
+Nếu bạn muốn truyền exportPath trực tiếp từ UiPath vào Invoke VBA (không qua ô A1), bạn có thể sửa Caller.vba để nhận tham số (ví dụ Public Sub Invoke_RunExport_Param(ByVal p As String)) và trong UiPath truyền tham số nếu phiên bản Invoke VBA hỗ trợ Parameters — nếu muốn mình sẽ viết mẫu nhận param.
+
+Nếu bạn muốn Invoke VBA trả về giá trị cho UiPath: trong Caller.vba ghi kết quả vào ô (ví dụ B1) rồi UiPath Read Cell để lấy giá trị.
+
+
+
+---
+
+Nếu bạn muốn mình tạo sẵn file Caller.vba và ExportMacro.xlsm mẫu rồi đóng gói thành 1 file dễ tải, mình có thể tạo sẵn nội dung để bạn copy — hoặc mình sẽ viết phiên bản Invoke_RunExport_Param(ByVal exportPath As String) để UiPath pass trực tiếp đường dẫn. Bạn muốn mình làm theo phương án nào tiếp theo?
