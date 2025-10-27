@@ -1,0 +1,116 @@
+Dưới đây là hướng dẫn từng bước + mã VBA đầy đủ để bạn có thể dùng với UiPath Invoke VBA.
+Flow này sẽ copy 1 sheet bất kỳ trong Excel, lưu sheet đó thành 1 file riêng (.xlsx hoặc .csv), với tên file = tên sheet.
+
+
+---
+
+🧩 1. Code VBA hoàn chỉnh (lưu ra file .bas)
+
+> Ví dụ file: ExportSheetAsFile.bas
+
+
+
+Attribute VB_Name = "ExportSheetAsFile"
+
+Public Sub ExportSheetAsFile(SheetName As String, OutputFolder As String, Optional FileFormat As String = "xlsx")
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWb As Workbook
+    Dim FilePath As String
+    
+    ' Kiểm tra folder tồn tại
+    If Dir(OutputFolder, vbDirectory) = "" Then
+        MsgBox "Thư mục không tồn tại: " & OutputFolder, vbExclamation
+        Exit Sub
+    End If
+    
+    ' Lấy workbook hiện tại
+    Set wb = ThisWorkbook
+    
+    ' Kiểm tra sheet có tồn tại không
+    On Error Resume Next
+    Set ws = wb.Sheets(SheetName)
+    On Error GoTo 0
+    
+    If ws Is Nothing Then
+        MsgBox "Không tìm thấy sheet: " & SheetName, vbCritical
+        Exit Sub
+    End If
+    
+    ' Tạo đường dẫn lưu
+    FilePath = OutputFolder & Application.PathSeparator & SheetName
+    
+    ' Copy sheet ra file mới
+    ws.Copy
+    Set newWb = ActiveWorkbook
+    
+    ' Lưu file theo định dạng
+    Select Case LCase(FileFormat)
+        Case "csv"
+            FilePath = FilePath & ".csv"
+            Application.DisplayAlerts = False
+            newWb.SaveAs Filename:=FilePath, FileFormat:=xlCSVUTF8
+            Application.DisplayAlerts = True
+        Case Else
+            FilePath = FilePath & ".xlsx"
+            Application.DisplayAlerts = False
+            newWb.SaveAs Filename:=FilePath, FileFormat:=xlOpenXMLWorkbook
+            Application.DisplayAlerts = True
+    End Select
+    
+    ' Đóng file mới
+    newWb.Close SaveChanges:=False
+    
+    MsgBox "Đã xuất sheet '" & SheetName & "' ra file: " & FilePath, vbInformation
+End Sub
+
+
+---
+
+🧾 2. Hướng dẫn dùng trong UiPath
+
+Step 1:
+Lưu đoạn code trên vào file ExportSheetAsFile.bas.
+
+Step 2:
+Trong UiPath, tạo flow như sau:
+
+Dùng Excel Application Scope → chọn file Excel cần chạy macro.
+
+Thêm activity Invoke VBA:
+
+Code file path: đường dẫn tới file .bas
+
+Entry method name: ExportSheetAsFile
+
+Parameters:
+
+Direction	Type	Value
+
+In	String	"TênSheetCầnXuất"
+In	String	"C:\OutputFolder"
+In	String	"xlsx" (hoặc "csv")
+
+
+
+
+
+---
+
+💡 Ví dụ gọi trong UiPath
+
+Nếu bạn muốn xuất sheet "Report_2025" thành file "C:\Exports\Report_2025.xlsx", thì:
+
+Code file path: C:\Macro\ExportSheetAsFile.bas
+
+Entry method name: ExportSheetAsFile
+
+Parameters:
+"Report_2025", "C:\Exports", "xlsx"
+
+
+
+---
+
+Bạn có muốn mình tạo sẵn file .bas để bạn tải về (hoặc copy paste nguyên nội dung chuẩn định dạng .bas) không?
+Nếu có, mình sẽ xuất file sẵn để bạn import trực tiếp vào UiPath.
