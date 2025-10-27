@@ -1,0 +1,121 @@
+Hi — rõ vấn đề rồi: bạn đang chạy macro song song (Parallel) với thao tác UI để điền path vào hộp Save/Save As mà macro tự mở — kết quả là sau khi bạn nhấn OK, macro bị “giật” ra khỏi luồng thực thi (modal dialog bị can thiệp/race) và phát sinh lỗi (một mã lỗi nội bộ kiểu 9C86 do trạng thái Excel/COM không mong đợi). Giải pháp là không để UI automation và macro tranh nhau control của Excel — mình liệt kê các cách sửa, theo thứ tự từ tốt nhất / an toàn nhất đến tạm chấp nhận:
+
+1) (Tốt nhất) Không mở dialog — truyền path cho macro rồi lưu từ trong macro
+
+Nếu có thể sửa macro, thêm tham số path và cho macro tự save mà không cần popup. Ví dụ VBA:
+
+' Trong module VBA (ThisWorkbook hoặc Module1)
+Public Sub MyMacroAndSave(Optional ByVal savePath As String = "")
+    On Error GoTo ErrHandler
+
+    ' --- các công việc macro của bạn ---
+    ' ... (xử lý, export, tạo file CSV, ...)
+    ' -----------------------------------
+
+    If Len(Trim(savePath)) > 0 Then
+        Application.DisplayAlerts = False
+        ThisWorkbook.SaveAs Filename:=savePath, FileFormat:=xlCSV
+        Application.DisplayAlerts = True
+    Else
+        ' Nếu không có path, có thể vẫn show dialog (chỉ nếu cần)
+        Application.Dialogs(xlDialogSaveAs).Show
+    End If
+
+    Exit Sub
+ErrHandler:
+    Application.DisplayAlerts = True
+    MsgBox "Lỗi trong macro: " & Err.Number & " - " & Err.Description
+End Sub
+
+Trong UiPath (hoặc automation của bạn) — gọi macro này với tham số đường dẫn thay vì để macro mở SaveAs:
+
+Dùng Excel Application Scope + Invoke VBA (hoặc Execute Macro với approach tương đương) để gọi MyMacroAndSave và truyền đường dẫn file.
+
+Vì macro tự lưu, không cần thao tác UI => không còn race.
+
+
+2) Nếu không sửa được macro: chạy macro đồng bộ (không dùng Parallel) và automa hóa dialog sau khi macro đã mở — đảm bảo chờ dialog sẵn sàng
+
+Nguyên tắc: không chạy song song. Trong UiPath (hoặc công cụ tương tự) làm theo:
+
+1. Sequence (không Parallel).
+
+
+2. Trigger macro (Activity: Execute Macro / Invoke VBA / Gọi COM Application.Run("MacroName")) — đợi macro trả về control (Activity này thường chặn cho đến khi macro kết thúc, nhưng nếu macro tạo dialog modal thì control sẽ nằm trong Excel và activity có thể trả về sớm; vì vậy cần chờ dialog).
+
+
+3. Dùng Element Exists / On Element Appear hoặc Find Window với selector của SaveAs dialog (title thường là “Save As” hoặc “File name” field) — loop chờ tới khi dialog xuất hiện.
+
+
+4. Attach Window vào SaveAs dialog → Type Into vào field File name trường hợp cần, hoặc Set Text nếu có.
+
+Không dùng SimulateType nếu dialog modal/Native — thử bật/ tắt SendWindowMessages hoặc chọn ClickBeforeTyping.
+
+
+
+5. Send Hotkey Enter hoặc click OK button trong dialog.
+
+
+6. Chờ macro tiếp tục và kết thúc — On Element Vanish hoặc Element Exists để kiểm tra macro đã hoàn tất.
+
+
+
+Gợi ý selector/chi tiết:
+
+Element Exists kiểm tra textbox với aaname='File name:' hay title cửa sổ.
+
+Nếu gặp difficulty với selectors, dùng SendHotkey + tab để di chuyển tới File name rồi Type Into.
+
+
+3) Nếu vẫn cần chạy song song (không khuyến nghị) — cực kỳ dễ lỗi
+
+Nếu bạn bắt buộc phải dùng Parallel, cần đảm bảo lock/ mutex để chỉ 1 luồng thao tác UI với Excel tại một lúc. Nhưng modal dialog Excel rất dễ gây deadlock và race; mình KHÔNG khuyến nghị.
+
+
+4) Tinh chỉnh macro để tránh lỗi khi dialog bị đóng
+
+Nếu không thể thay đổi cách mở dialog, ít nhất thêm error handling trong macro để nhận diện khi dialog bị thao tác từ ngoài:
+
+Sub MyMacro()
+    On Error GoTo ErrHandler
+    ' ... xử lý ...
+    Application.EnableEvents = False
+    ' mở dialog
+    Application.Dialogs(xlDialogSaveAs).Show
+    Application.EnableEvents = True
+    Exit Sub
+ErrHandler:
+    Application.EnableEvents = True
+    MsgBox "Macro bị lỗi: " & Err.Number & " - " & Err.Description
+End Sub
+
+Nguyên nhân cụ thể của  lỗi 9C86
+
+Mã 9C86 trông như mã nội bộ/định dạng tool (không phải Err.Number tiêu chuẩn 0..65535). Thường là do:
+
+Macro bị interrupt bởi UI automation → Excel COM trả về trạng thái không hợp lệ.
+
+Dialog bị focus/close từ automation trước khi macro kịp tiếp tục → macro nhận exception.
+
+Nhiều process/instance Excel cùng tranh control (ví dụ chạy hai Excel instance).
+
+
+Checklist khắc phục nhanh bạn có thể làm ngay
+
+⛔ Bỏ Parallel — chuyển thành Sequence.
+
+✅ Sửa macro cho nhận path (nếu được) và dùng ThisWorkbook.SaveAs trong macro.
+
+✅ Hoặc: chờ dialog xuất hiện (Element Exists), Attach Window rồi Type Into + Enter.
+
+✅ Bật Application.DisplayAlerts = False trong macro nếu muốn tránh dialog confirm.
+
+✅ Thêm error handler trong macro để log lỗi (vì thông báo UI thường bị mất khi chạy từ automation).
+
+🔎 Kiểm tra xem có nhiều instance Excel chạy hay không (Task Manager) — chỉ dùng 1 instance.
+
+
+
+---
+
+Nếu bạn muốn mình viết đoạn VBA hoàn chỉnh (nhận path => thực hiện export + save) hoặc mô tả chi tiết workflow UiPath (danh sách activities, selectors mẫu, hình ảnh minh họa), mình sẽ soạn luôn sẵn cho bạn. Bạn muốn: (A) code VBA để macro tự save, hay (B) hướng dẫn UiPath step-by-step để tự fill dialog? Chọn 1 mình gửi luôn mã/flow.
