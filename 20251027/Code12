@@ -1,0 +1,281 @@
+Cảm ơn — mình đã hiểu rõ tình trạng: khi dùng ws.Copy mà không thao tác đúng workbook/object thì SaveAs gọi trên workbook mới sẽ báo lỗi 1004 (thường vì macro thao tác trên ActiveWorkbook sai ngữ cảnh). Dưới đây là mã VBA sửa triệt để — chắc chắn tham chiếu tới workbook mới bằng object newWb (không phụ thuộc ActiveWorkbook), xóa sheets mặc định, sanitize tên file, retry SaveAs, fallback SaveCopyAs, ghi log, và không hiện MsgBox (phù hợp chạy qua UiPath).
+
+Bạn dán vào file .bas (ví dụ ExportSheet_Fix_SaveAs.bas) rồi gọi bằng UiPath Invoke VBA như trước.
+
+
+---
+
+✅ Điều code làm khác (vì sao fix được lỗi 1004)
+
+Tạo newWb = Workbooks.Add rồi copy sheet vào newWb bằng ws.Copy After:=newWb.Sheets(newWb.Sheets.Count) (thay vì rely ActiveWorkbook).
+
+Xóa các sheet mặc định trong newWb — đảm bảo chỉ còn sheet copy.
+
+Gọi newWb.SaveAs trực tiếp trên object newWb.
+
+Thêm retry + fallback SaveCopyAs + kiểm tra file lock.
+
+Không dùng ThisWorkbook (thường gây nhầm khi macro nằm trong add-in) mà dùng Application.ActiveWorkbook để lấy workbook mà UiPath đang mở.
+
+
+
+---
+
+Mã VBA (lưu file .bas)
+
+Attribute VB_Name = "ExportSheet_Fix_SaveAs"
+Option Explicit
+
+' Numeric constants (an toàn với nhiều bản Excel)
+Private Const XL_OPENXML_WORKBOOK As Long = 51
+Private Const XL_CSV As Long = 6
+Private Const XL_CSVUTF8 As Long = 62
+
+Public Sub ExportSheet_Fix_SaveAs(SheetName As String, OutputFolder As String, Optional FileFormat As String = "xlsx")
+    On Error GoTo ErrHandler
+
+    Dim srcWb As Workbook
+    Dim ws As Worksheet
+    Dim newWb As Workbook
+    Dim sh As Worksheet
+    Dim safeName As String
+    Dim targetPath As String
+    Dim tmpPath As String
+    Dim logPath As String
+    Dim fso As Object
+    Dim attempts As Long, saved As Boolean
+    Dim lastErr As String
+
+    ' Normalize folder
+    If Right(OutputFolder, 1) = Application.PathSeparator Then
+        OutputFolder = Left(OutputFolder, Len(OutputFolder) - 1)
+    End If
+    logPath = OutputFolder & Application.PathSeparator & "ExportLog.txt"
+
+    If Dir(OutputFolder, vbDirectory) = "" Then
+        WriteLog logPath, "ERROR: Output folder not found: " & OutputFolder
+        Exit Sub
+    End If
+
+    ' Use the workbook that UiPath opened (ActiveWorkbook)
+    Set srcWb = Application.ActiveWorkbook
+    If srcWb Is Nothing Then
+        WriteLog logPath, "ERROR: No active workbook (UiPath did not open workbook?)."
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    Set ws = srcWb.Worksheets(SheetName)
+    On Error GoTo ErrHandler
+    If ws Is Nothing Then
+        WriteLog logPath, "ERROR: Sheet not found: " & SheetName
+        Exit Sub
+    End If
+
+    safeName = MakeSafeFileName(SheetName)
+    If Len(safeName) = 0 Then safeName = "SheetExport"
+
+    If LCase(FileFormat) = "csv" Then
+        targetPath = OutputFolder & Application.PathSeparator & safeName & ".csv"
+    Else
+        targetPath = OutputFolder & Application.PathSeparator & safeName & ".xlsx"
+    End If
+    tmpPath = OutputFolder & Application.PathSeparator & safeName & "_" & Format(Now, "yyyymmdd_hhnnss") & ".tmp"
+
+    Set fso = CreateObject("Scripting.FileSystemObject")
+
+    ' Create a brand-new workbook and copy the sheet into it
+    Set newWb = Workbooks.Add
+    ' Copy the sheet into newWb (after last sheet)
+    ws.Copy After:=newWb.Sheets(newWb.Sheets.Count)
+
+    ' Remove default empty sheets in newWb (except the copied one)
+    Application.DisplayAlerts = False
+    For Each sh In newWb.Worksheets
+        If sh.Name <> ws.Name Then
+            On Error Resume Next
+            sh.Delete
+            On Error GoTo ErrHandler
+        End If
+    Next sh
+    Application.DisplayAlerts = True
+
+    ' Ensure we reference newWb explicitly
+    If newWb Is Nothing Then
+        WriteLog logPath, "ERROR: new workbook not created."
+        Exit Sub
+    End If
+
+    ' Try SaveAs with retries
+    saved = False
+    lastErr = ""
+    For attempts = 1 To 3
+        On Error Resume Next
+        newWb.Activate
+        DoEvents
+        If LCase(FileFormat) = "csv" Then
+            newWb.SaveAs Filename:=targetPath, FileFormat:=XL_CSVUTF8
+        Else
+            newWb.SaveAs Filename:=targetPath, FileFormat:=XL_OPENXML_WORKBOOK
+        End If
+
+        If Err.Number = 0 Then
+            saved = True
+            Exit For
+        Else
+            lastErr = "Attempt " & attempts & " Err " & Err.Number & " - " & Err.Description
+            WriteLog logPath, "WARN: " & lastErr
+            Err.Clear
+            Sleep 300
+        End If
+        On Error GoTo ErrHandler
+    Next attempts
+
+    ' Fallback: SaveCopyAs then move file
+    If Not saved Then
+        On Error Resume Next
+        newWb.SaveCopyAs tmpPath
+        If Err.Number = 0 Then
+            ' delete existing target if not locked
+            If fso.FileExists(targetPath) Then
+                If Not IsFileLocked(targetPath) Then
+                    On Error Resume Next
+                    fso.DeleteFile targetPath, True
+                    If Err.Number <> 0 Then
+                        WriteLog logPath, "WARN: unable delete existing target: " & Err.Number & " - " & Err.Description
+                        Err.Clear
+                    End If
+                Else
+                    WriteLog logPath, "ERROR: target exists and is locked: " & targetPath
+                End If
+            End If
+            On Error Resume Next
+            fso.MoveFile Source:=tmpPath, Destination:=targetPath
+            If Err.Number = 0 Then
+                saved = True
+            Else
+                WriteLog logPath, "WARN: MoveFile failed: " & Err.Number & " - " & Err.Description
+                Err.Clear
+            End If
+        Else
+            WriteLog logPath, "WARN: SaveCopyAs failed: " & Err.Number & " - " & Err.Description
+            Err.Clear
+        End If
+        On Error GoTo ErrHandler
+    End If
+
+    ' Close new workbook
+    On Error Resume Next
+    newWb.Close SaveChanges:=False
+    On Error GoTo ErrHandler
+
+    If saved Then
+        WriteLog logPath, "SUCCESS: Exported '" & SheetName & "' -> " & targetPath
+    Else
+        WriteLog logPath, "ERROR: Failed to save exported workbook for sheet '" & SheetName & "'. LastErr: " & lastErr
+    End If
+
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    Application.DisplayAlerts = True
+    If Not newWb Is Nothing Then newWb.Close SaveChanges:=False
+    WriteLog logPath, "ERROR: (" & Err.Number & ") " & Err.Description & " when exporting sheet '" & SheetName & "'."
+End Sub
+
+' ---------- Helpers ----------
+Private Function MakeSafeFileName(s As String) As String
+    Dim arr As Variant, i As Long
+    arr = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    MakeSafeFileName = s
+    For i = LBound(arr) To UBound(arr)
+        MakeSafeFileName = Replace(MakeSafeFileName, arr(i), "_")
+    Next i
+    MakeSafeFileName = Trim(MakeSafeFileName)
+    If Len(MakeSafeFileName) > 120 Then MakeSafeFileName = Left(MakeSafeFileName, 120)
+End Function
+
+Private Sub WriteLog(logPath As String, msg As String)
+    Dim fNum As Integer
+    fNum = FreeFile
+    On Error Resume Next
+    Open logPath For Append As #fNum
+    If Err.Number = 0 Then
+        Print #fNum, Now & " - " & msg
+        Close #fNum
+    Else
+        Debug.Print Now & " - " & msg
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function IsFileLocked(filePath As String) As Boolean
+    Dim hFile As Long
+    On Error GoTo Locked
+    hFile = FreeFile
+    Open filePath For Binary Access Read Write Lock Read Write As #hFile
+    Close #hFile
+    IsFileLocked = False
+    Exit Function
+Locked:
+    IsFileLocked = True
+    On Error GoTo 0
+End Function
+
+Private Sub Sleep(ms As Long)
+    Dim t0 As Single
+    t0 = Timer
+    Do While Timer < t0 + ms / 1000
+        DoEvents
+    Loop
+End Sub
+
+
+---
+
+🔧 Hướng dẫn gọi bằng UiPath (nhắc lại)
+
+Mở file Excel bằng Excel Application Scope (không để ReadOnly).
+
+Invoke VBA:
+
+Code file path: C:\path\ExportSheet_Fix_SaveAs.bas
+
+Entry method name: ExportSheet_Fix_SaveAs
+
+Parameters (In/String):
+
+1. "TênSheetCầnXuất"
+
+
+2. "C:\OutputFolder" (thư mục đã tồn tại)
+
+
+3. "xlsx" hoặc "csv"
+
+
+
+
+
+
+---
+
+🔍 Nếu vẫn gặp 1004 — làm ngay 3 việc và gửi cho mình
+
+1. Mở file ExportLog.txt trong folder đích và copy dòng lỗi cuối cùng vào đây.
+
+
+2. Cho biết bạn lưu vào ổ local (C:...) hay network share (\server...).
+
+
+3. Cho biết tên sheet mẫu (ví dụ Report_2025/ABC? nếu có ký tự đặc biệt).
+
+
+
+Mình sẽ phân tích log (Err.Number/Err.Description) và đưa bản sửa/chỉ dẫn chính xác (ví dụ: đổi permission, sửa Protected View, map network drive, hoặc đổi tham số FileFormat).
+
+
+---
+
+Nếu bạn muốn mình xuất file .bas sẵn để bạn tải, mình sẽ dán nội dung file dưới dạng plain text để bạn lưu nhanh. Bạn muốn mình làm file đó không?
