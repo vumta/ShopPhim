@@ -1,0 +1,289 @@
+Tốt — mình đã giữ nguyên cấu trúc code như bạn đưa, chỉ bổ sung cơ chế "force-activate + retry" trước khi SaveAs (giúp khắc phục tình trạng workbook mới chưa active kịp khi gọi từ UiPath), gỡ tất cả MsgBox để chạy silent, và ghi file log mỗi lần chạy vào cùng folder OutputFolder (tên file log dạng ExportSheetAsFile_YYYYMMDD_HHMMSS.log).
+
+Dán toàn bộ module bên dưới đè lên module hiện tại:
+
+Attribute VB_Name = "ExportSheetAsFile"
+Option Explicit
+
+' Numeric constants (an toàn khi enum không được nhận)
+Private Const XL_OPENXML_WORKBOOK As Long = 51            ' .xlsx
+Private Const XL_OPENXML_WORKBOOK_MACROENABLED As Long = 52 ' .xlsm
+Private Const XL_CSV_UTF8 As Long = 62                     ' xlCSVUTF8
+Private Const XL_CSV As Long = 6
+
+' ===== Wrapper: gọi từ UiPath, truyền 2 biến (OutputFolder, FileFormat) =====
+' UiPath gọi: ExportSheetsFromUiPath "C:\OutFolder", "csv"
+Public Sub ExportSheetsFromUiPath(OutputFolder As String, Optional FileFormat As String = "xlsx")
+    Dim sheetNames As Variant
+    Dim s As Variant
+    
+    ' --- <-- chỉnh danh sách sheet ở đây (gán cứng) --> 
+    sheetNames = Array("SheetA", "SheetB", "SheetC") ' <-- thay bằng tên sheet thực tế
+    ' -------------------------------------------------------------------------
+    
+    For Each s In sheetNames
+        On Error Resume Next
+        ExportSheetAsFile CStr(s), OutputFolder, FileFormat
+        On Error GoTo 0
+    Next s
+End Sub
+
+' ===== Hàm chính: xuất 1 sheet ra file (giữ signature để UiPath vẫn truyền OutputFolder, FileFormat) =====
+Public Sub ExportSheetAsFile(SheetName As String, OutputFolder As String, Optional FileFormat As String = "xlsx")
+    On Error GoTo ErrHandler
+
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWb As Workbook
+    Dim FilePath As String
+    Dim safeName As String
+    Dim ext As String
+    Dim attemptedFmt As Long
+    Dim logPath As String
+    Dim retry As Long
+    Dim lastErr As Long
+    Dim lastDesc As String
+    Dim timeStamp As String
+    
+    ' tạo tên file log trong cùng folder OutputFolder, mỗi lần chạy 1 file
+    timeStamp = Format(Now, "yyyymmdd_HHMMSS")
+    If Right(OutputFolder, 1) = Application.PathSeparator Then
+        logPath = OutputFolder & "ExportSheetAsFile_" & timeStamp & ".log"
+    Else
+        logPath = OutputFolder & Application.PathSeparator & "ExportSheetAsFile_" & timeStamp & ".log"
+    End If
+
+    ' kiểm tra folder tồn tại — nếu không có thì ghi log vào C:\RPA fallback
+    If Dir(OutputFolder, vbDirectory) = "" Then
+        ' fallback log folder
+        logPath = "C:\RPA\ExportSheetAsFile_" & timeStamp & ".log"
+        AppendLog logPath, "WARN: OutputFolder not found: " & OutputFolder & " - using fallback log path."
+        ' không exit — tiếp tục thử (Save sẽ fail sau nếu folder không tồn tại)
+    End If
+
+    Set wb = ThisWorkbook
+
+    ' lấy sheet
+    On Error Resume Next
+    Set ws = wb.Sheets(SheetName)
+    On Error GoTo ErrHandler
+
+    If ws Is Nothing Then
+        AppendLog logPath, "ERROR: Sheet not found: " & SheetName
+        Exit Sub
+    End If
+
+    ' sanitize sheet name
+    safeName = MakeSafeFileName(SheetName)
+    If Len(safeName) = 0 Then safeName = "SheetExport"
+    If Len(safeName) > 150 Then safeName = Left(safeName, 150)
+
+    ' copy sheet ra workbook mới
+    ws.Copy ' tạo workbook mới có sheet được copy
+    Set newWb = ActiveWorkbook
+
+    ' --- Force activate workbook + sheet trước khi SaveAs (giúp khắc phục race condition khi gọi từ UiPath) ---
+    On Error Resume Next
+    For retry = 1 To 5
+        Err.Clear
+        ' đảm bảo workbook mới active
+        newWb.Activate
+        If newWb.Sheets.Count > 0 Then
+            newWb.Sheets(1).Activate
+        End If
+        DoEvents
+        ' chờ ngắn để Excel hoàn tất focus/activation
+        Application.Wait Now + TimeValue("0:00:00.5")
+        ' kiểm tra ActiveWorkbook có phải newWb không
+        If Not Application.ActiveWorkbook Is Nothing Then
+            If Application.ActiveWorkbook.FullName = newWb.FullName Or Application.ActiveWorkbook Is newWb Then
+                Exit For
+            End If
+        End If
+        ' Nếu chưa active, thử tiếp lần nữa
+    Next retry
+    On Error GoTo ErrHandler
+
+    Select Case LCase(FileFormat)
+        Case "csv"
+            ext = ".csv"
+            attemptedFmt = XL_CSV_UTF8
+        Case "xlsm"
+            ext = ".xlsm"
+            attemptedFmt = XL_OPENXML_WORKBOOK_MACROENABLED
+        Case Else
+            ext = ".xlsx"
+            attemptedFmt = XL_OPENXML_WORKBOOK
+    End Select
+
+    FilePath = OutputFolder & Application.PathSeparator & safeName & ext
+
+    ' nếu file tồn tại -> xóa
+    On Error Resume Next
+    Kill FilePath
+    On Error GoTo ErrHandler
+
+    ' tắt alerts
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+
+    ' === Thử SaveAs với cơ chế retry (force-activate trước mỗi lần) ===
+    lastErr = 0: lastDesc = ""
+    For retry = 1 To 4
+        On Error Resume Next
+        Err.Clear
+        ' Force activate again
+        newWb.Activate
+        If newWb.Sheets.Count > 0 Then newWb.Sheets(1).Activate
+        DoEvents
+        Application.Wait Now + TimeValue("0:00:00.5")
+        ' SaveAs trực tiếp trên object newWb (tránh rely ActiveWorkbook)
+        newWb.SaveAs Filename:=FilePath, FileFormat:=attemptedFmt
+        lastErr = Err.Number
+        lastDesc = Err.Description
+        If lastErr = 0 Then Exit For
+        ' log từng lần fail
+        AppendLog logPath, "Attempt " & retry & " SaveAs failed. Err=" & lastErr & " Desc=" & lastDesc & " Path=" & FilePath & " Format=" & attemptedFmt
+        Err.Clear
+        ' chờ trước khi thử lại
+        Application.Wait Now + TimeValue("0:00:01")
+    Next retry
+
+    If lastErr <> 0 Then
+        ' fallback nếu là xlsx -> thử xlsm
+        If attemptedFmt = XL_OPENXML_WORKBOOK Then
+            On Error Resume Next
+            FilePath = OutputFolder & Application.PathSeparator & safeName & ".xlsm"
+            Err.Clear
+            newWb.Activate
+            If newWb.Sheets.Count > 0 Then newWb.Sheets(1).Activate
+            DoEvents
+            newWb.SaveAs Filename:=FilePath, FileFormat:=XL_OPENXML_WORKBOOK_MACROENABLED
+            lastErr = Err.Number: lastDesc = Err.Description
+            If lastErr = 0 Then
+                AppendLog logPath, "Fallback .xlsm succeeded: " & FilePath
+                GoTo SaveOK
+            Else
+                AppendLog logPath, "Fallback .xlsm failed. Err=" & lastErr & " Desc=" & lastDesc
+            End If
+        End If
+
+        ' nếu csv utf8 fail -> thử legacy csv
+        If attemptedFmt = XL_CSV_UTF8 Then
+            On Error Resume Next
+            FilePath = OutputFolder & Application.PathSeparator & safeName & ".csv"
+            Err.Clear
+            newWb.Activate
+            If newWb.Sheets.Count > 0 Then newWb.Sheets(1).Activate
+            DoEvents
+            newWb.SaveAs Filename:=FilePath, FileFormat:=XL_CSV
+            lastErr = Err.Number: lastDesc = Err.Description
+            If lastErr = 0 Then
+                AppendLog logPath, "Fallback xlCSV succeeded: " & FilePath
+                GoTo SaveOK
+            Else
+                AppendLog logPath, "Fallback xlCSV failed. Err=" & lastErr & " Desc=" & lastDesc
+            End If
+        End If
+
+        ' SaveCopyAs fallback (không thay đổi định dạng)
+        On Error Resume Next
+        Dim copyPath As String
+        copyPath = OutputFolder & Application.PathSeparator & safeName & "_copy" & ext
+        Err.Clear
+        newWb.SaveCopyAs Filename:=copyPath
+        If Err.Number = 0 Then
+            AppendLog logPath, "SaveCopyAs succeeded as fallback: " & copyPath
+            newWb.Close SaveChanges:=False
+            Application.DisplayAlerts = True
+            Application.EnableEvents = True
+            Exit Sub
+        Else
+            AppendLog logPath, "SaveCopyAs failed too. Err=" & Err.Number & " Desc=" & Err.Description
+        End If
+
+        ' tất cả fail -> log final và close newWb
+        AppendLog logPath, "ALL SAVE ATTEMPTS FAILED for Sheet=" & SheetName & " FinalErr=" & lastErr & " Desc=" & lastDesc & " TargetPath=" & FilePath
+        On Error Resume Next
+        newWb.Close SaveChanges:=False
+        Application.DisplayAlerts = True
+        Application.EnableEvents = True
+        Exit Sub
+    End If
+
+SaveOK:
+    ' đóng file mới (đã save)
+    On Error Resume Next
+    newWb.Close SaveChanges:=False
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    AppendLog logPath, "SAVED: " & FilePath & " (Sheet=" & SheetName & ")"
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    AppendLog logPath, "ERR Handler: " & Err.Number & " - " & Err.Description & " (Sheet=" & SheetName & " OutputFolder=" & OutputFolder & ")"
+    If Not newWb Is Nothing Then
+        On Error Resume Next
+        newWb.Close SaveChanges:=False
+    End If
+End Sub
+
+'--- Hàm thay thế ký tự không hợp lệ trong file name ---
+Private Function MakeSafeFileName(nameIn As String) As String
+    Dim i As Long, ch As String
+    Dim out As String
+    out = Trim(nameIn)
+    ' loại bỏ/replace các ký tự không hợp lệ
+    For i = 1 To Len(out)
+        ch = Mid$(out, i, 1)
+        Select Case ch
+            Case "/", "\", ":", "*", "?", """", "<", ">", "|"
+                out = Replace(out, ch, "_")
+        End Select
+    Next i
+    ' loại bỏ các control characters
+    Dim j As Long, cCode As Long, cleaned As String
+    cleaned = ""
+    For j = 1 To Len(out)
+        cCode = AscW(Mid$(out, j, 1))
+        If cCode >= 32 Then cleaned = cleaned & Mid$(out, j, 1)
+    Next j
+    MakeSafeFileName = cleaned
+End Function
+
+'--- Append log đơn giản ---
+Private Sub AppendLog(path As String, msg As String)
+    On Error Resume Next
+    Dim fso As Object, ts As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    ' nếu folder log không tồn tại, tạo folder (mềm mại)
+    Dim folderPath As String
+    folderPath = Left(path, InStrRev(path, Application.PathSeparator) - 1)
+    If Dir(folderPath, vbDirectory) = "" Then
+        On Error Resume Next
+        MkDir folderPath
+        On Error Resume Next
+    End If
+    Set ts = fso.OpenTextFile(path, 8, True)
+    ts.WriteLine Format(Now, "yyyy-mm-dd HH:NN:SS") & " - " & msg
+    ts.Close
+End Sub
+
+Ngắn gọn giải thích các thay đổi chính:
+
+Gỡ toàn bộ MsgBox để chạy silent khi được UiPath gọi.
+
+Tạo 1 file log riêng cho mỗi lần chạy nằm cùng OutputFolder (nếu OutputFolder không tồn tại, log sẽ ghi vào C:\RPA\...).
+
+Trước khi SaveAs, thuc hiện vòng force-activate workbook + sheet và DoEvents + Application.Wait để giảm race condition (thử 5 lần).
+
+Nếu SaveAs vẫn fail sẽ retry thêm 4 lần, sau đó thử fallback .xlsm / legacy .csv / SaveCopyAs.
+
+Ghi lại log chi tiết cho từng lần thử.
+
+
+Bạn thử thay danh sách sheet trong sheetNames = Array(...) và gọi ExportSheetsFromUiPath OutputFolder, FileFormat từ UiPath.
+Nếu vẫn lỗi, gửi lại: 3 dòng log cuối của file ExportSheetAsFile_YYYYMMDD_HHMMSS.log (nằm trong folder bạn truyền) — mình sẽ phân tích tiếp và điều chỉnh (ví dụ thêm small delay lâu hơn, hoặc đổi cách save).
