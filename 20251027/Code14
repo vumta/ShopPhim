@@ -1,0 +1,194 @@
+Dưới đây là phiên bản cập nhật của module — giữ nguyên 2 biến OutputFolder và FileFormat được truyền từ UiPath, nhưng bổ sung một wrapper (hàm public mới) có mảng tên sheet được gán cứng trong code và sẽ lặp để gọi ExportSheetAsFile cho từng sheet. Mình để ví dụ mảng sheet là Array("SheetA", "SheetB", "SheetC") — bạn thay danh sách này bằng tên sheet thực tế của bạn.
+
+Lưu ý: mình không thay đổi logic lưu/kiểm tra lỗi gốc; mỗi lần xuất vẫn sẽ hiện MsgBox như cũ (nếu bạn muốn tắt MsgBox khi chạy từ UiPath, mình có thể thêm tham số để suppress).
+
+Attribute VB_Name = "ExportSheetAsFile"
+
+Option Explicit
+
+' Numeric constants (an toàn khi enum không được nhận)
+Private Const XL_OPENXML_WORKBOOK As Long = 51            ' .xlsx
+Private Const XL_OPENXML_WORKBOOK_MACROENABLED As Long = 52 ' .xlsm
+Private Const XL_CSV_UTF8 As Long = 62                     ' xlCSVUTF8
+
+' ===== Wrapper: gọi từ UiPath, truyền 2 biến (OutputFolder, FileFormat) =====
+' Ví dụ UiPath sẽ gọi: ExportSheetsFromUiPath "C:\OutFolder", "csv"
+Public Sub ExportSheetsFromUiPath(OutputFolder As String, Optional FileFormat As String = "xlsx")
+    Dim sheetNames As Variant
+    Dim i As Long
+    Dim s As Variant
+    
+    ' --- <-- <-- <-- Chỉnh danh sách sheet ở đây (gán cứng) --> --> -->
+    sheetNames = Array("SheetA", "SheetB", "SheetC") ' <-- thay bằng tên sheet thực tế
+    ' -------------------------------------------------------------------------
+    
+    For Each s In sheetNames
+        ' gọi hàm xuất cho từng sheet
+        On Error Resume Next
+        ExportSheetAsFile CStr(s), OutputFolder, FileFormat
+        ' nếu muốn bắt lỗi riêng cho từng sheet có thể kiểm tra Err.Number ở đây
+        On Error GoTo 0
+    Next s
+End Sub
+
+' ===== Hàm cũ giữ nguyên (có thể gọi trực tiếp nếu cần) =====
+Public Sub ExportSheetAsFile(SheetName As String, OutputFolder As String, Optional FileFormat As String = "xlsx")
+    On Error GoTo ErrHandler
+
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWb As Workbook
+    Dim FilePath As String
+    Dim safeName As String
+    Dim ext As String
+    Dim attemptedFmt As Long
+    Dim fso As Object
+    Dim logPath As String
+    
+    logPath = Environ("TEMP") & Application.PathSeparator & "ExportSheetAsFile-log.txt"
+    
+    ' Kiểm tra folder tồn tại
+    If Dir(OutputFolder, vbDirectory) = "" Then
+        MsgBox "Thư mục không tồn tại: " & OutputFolder, vbExclamation
+        Exit Sub
+    End If
+    
+    ' Lấy workbook hiện tại
+    Set wb = ThisWorkbook
+    
+    ' Kiểm tra sheet có tồn tại không
+    On Error Resume Next
+    Set ws = wb.Sheets(SheetName)
+    On Error GoTo ErrHandler
+    
+    If ws Is Nothing Then
+        MsgBox "Không tìm thấy sheet: " & SheetName, vbCritical
+        Exit Sub
+    End If
+    
+    ' --- sanitize sheet name -> an toàn làm file name ---
+    safeName = MakeSafeFileName(SheetName)
+    If Len(safeName) = 0 Then safeName = "SheetExport"
+    ' tránh quá dài (reserve chỗ cho path)
+    If Len(safeName) > 150 Then safeName = Left(safeName, 150)
+    
+    ' Copy sheet ra file mới
+    ws.Copy ' tạo workbook mới có sheet được copy
+    Set newWb = ActiveWorkbook
+    
+    ' đảm bảo active để tránh lỗi automation
+    newWb.Activate
+    DoEvents
+    
+    Select Case LCase(FileFormat)
+        Case "csv"
+            ext = ".csv"
+            attemptedFmt = XL_CSV_UTF8
+        Case "xlsm"
+            ext = ".xlsm"
+            attemptedFmt = XL_OPENXML_WORKBOOK_MACROENABLED
+        Case Else
+            ext = ".xlsx"
+            attemptedFmt = XL_OPENXML_WORKBOOK
+    End Select
+    
+    FilePath = OutputFolder & Application.PathSeparator & safeName & ext
+    
+    ' Nếu file đang tồn tại thì xóa (cẩn trọng) — tránh dialog overwrite
+    On Error Resume Next
+    Kill FilePath
+    On Error GoTo ErrHandler
+    
+    ' Tắt alerts tránh popup, nhưng bật lại sau
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+    
+    ' Thử lưu; nếu fail với .xlsx do macros inside, thì thử .xlsm
+    On Error GoTo SaveError
+    newWb.SaveAs Filename:=FilePath, FileFormat:=attemptedFmt
+    GoTo SaveOK
+
+SaveError:
+    ' lưu thất bại — nếu định dạng là .xlsx thì thử .xlsm (trường hợp có macro trong sheet/objects)
+    Dim saveErr As Long: saveErr = Err.Number
+    Dim saveDesc As String: saveDesc = Err.Description
+    Call AppendLog(logPath, "SaveAs failed for " & FilePath & " Err=" & saveErr & " Desc=" & saveDesc)
+    
+    If attemptedFmt = XL_OPENXML_WORKBOOK Then
+        ' thử fallback sang xlsm
+        FilePath = OutputFolder & Application.PathSeparator & safeName & ".xlsm"
+        On Error GoTo ErrHandler
+        newWb.SaveAs Filename:=FilePath, FileFormat:=XL_OPENXML_WORKBOOK_MACROENABLED
+    Else
+        ' không có fallback -> ném lỗi tiếp
+        Err.Raise saveErr, , saveDesc
+    End If
+
+SaveOK:
+    ' Đóng file mới
+    newWb.Close SaveChanges:=False
+    
+    ' phục hồi
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    
+    MsgBox "Đã xuất sheet '" & SheetName & "' ra file: " & FilePath, vbInformation
+    Exit Sub
+
+ErrHandler:
+    ' phục hồi nếu có
+    On Error Resume Next
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    AppendLog logPath, "ERR Handler: " & Err.Number & " - " & Err.Description & " (Sheet=" & SheetName & " OutputFolder=" & OutputFolder & ")"
+    MsgBox "Lỗi khi xuất sheet. Err.Number=" & Err.Number & vbCrLf & "Err.Description=" & Err.Description & vbCrLf & "Xem log: " & logPath, vbCritical
+    ' đóng workbook mới nếu còn mở
+    If Not newWb Is Nothing Then
+        On Error Resume Next
+        newWb.Close SaveChanges:=False
+    End If
+End Sub
+
+'--- Hàm thay thế ký tự không hợp lệ trong file name ---
+Private Function MakeSafeFileName(nameIn As String) As String
+    Dim i As Long, ch As String
+    Dim out As String
+    out = Trim(nameIn)
+    ' loại bỏ/replace các ký tự không hợp lệ
+    For i = 1 To Len(out)
+        ch = Mid$(out, i, 1)
+        Select Case ch
+            Case "/", "\", ":", "*", "?", """", "<", ">", "|"
+                out = Replace(out, ch, "_")
+        End Select
+    Next i
+    ' loại bỏ các control characters
+    Dim j As Long, cCode As Long, cleaned As String
+    cleaned = ""
+    For j = 1 To Len(out)
+        cCode = AscW(Mid$(out, j, 1))
+        If cCode >= 32 Then cleaned = cleaned & Mid$(out, j, 1)
+    Next j
+    MakeSafeFileName = cleaned
+End Function
+
+'--- Append log đơn giản ---
+Private Sub AppendLog(path As String, msg As String)
+    On Error Resume Next
+    Dim fso As Object, ts As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set ts = fso.OpenTextFile(path, 8, True)
+    ts.WriteLine Now & " - " & msg
+    ts.Close
+End Sub
+
+Muốn mình chỉnh tiếp:
+
+Tắt MsgBox để chạy silent (thích hợp khi UiPath gọi): mình sẽ thêm một tham số Silent As Boolean vào ExportSheetsFromUiPath/ExportSheetAsFile.
+
+Nếu muốn danh sách sheet lấy tự động từ workbook (ví dụ lấy tất cả sheet hoặc theo prefix), mình có thể thay sheetNames = Array(...) bằng logic lấy tự động.
+
+Nếu muốn log kết quả (thành công/thất bại) vào file riêng thay vì MsgBox, mình có thể thêm.
+
+
+Bạn muốn mình cập nhật tiếp theo hướng nào?
