@@ -1,0 +1,126 @@
+Dưới đây là mã VBA hoàn chỉnh để bạn xuất ra file .bas, có thể dùng trong UiPath (Invoke VBA) hoặc chạy trực tiếp trong Excel.
+File này chứa function chạy một Power Query (Get & Transform Data) trong workbook hiện tại.
+
+
+---
+
+🔧 Nội dung file: RunPowerQuery.bas
+
+Attribute VB_Name = "RunPowerQuery"
+Option Explicit
+
+'===========================================================
+' MÔ-ĐUN: RunPowerQuery
+' Mô tả: Gọi refresh một Power Query (Get & Transform) trong Excel
+' Có thể được gọi từ UiPath thông qua Invoke VBA
+'===========================================================
+
+'----------------------------------------
+' Hàm chính để refresh query theo tên
+'----------------------------------------
+Public Sub RunQuery(QueryName As String)
+    Dim wb As Workbook
+    Dim qt As WorkbookQuery
+    Dim ws As Worksheet
+    Dim lo As ListObject
+    Dim found As Boolean
+    
+    Set wb = ThisWorkbook
+    found = False
+    
+    '=== Refresh query trong danh sách Workbook Queries ===
+    On Error Resume Next
+    Set qt = wb.Queries(QueryName)
+    On Error GoTo 0
+    
+    If Not qt Is Nothing Then
+        Debug.Print "Refreshing query: " & QueryName
+        qt.Refresh
+        found = True
+    End If
+    
+    '=== Nếu query gắn vào Table thì refresh Table đó ===
+    If Not found Then
+        For Each ws In wb.Worksheets
+            For Each lo In ws.ListObjects
+                If lo.SourceType = xlSrcQuery Then
+                    If LCase(lo.QueryTable.WorkbookConnection) Like "*" & LCase(QueryName) & "*" Then
+                        Debug.Print "Refreshing table for query: " & QueryName
+                        lo.QueryTable.Refresh BackgroundQuery:=False
+                        found = True
+                        Exit For
+                    End If
+                End If
+            Next lo
+            If found Then Exit For
+        Next ws
+    End If
+    
+    '=== Báo lỗi nếu không tìm thấy ===
+    If Not found Then
+        MsgBox "Không tìm thấy query có tên: " & QueryName, vbExclamation, "RunPowerQuery"
+    Else
+        Debug.Print "Query '" & QueryName & "' refreshed successfully."
+    End If
+End Sub
+
+'----------------------------------------
+' Hàm chạy toàn bộ query trong workbook
+'----------------------------------------
+Public Sub RunAllQueries()
+    Dim wb As Workbook
+    Dim qt As WorkbookQuery
+    
+    Set wb = ThisWorkbook
+    For Each qt In wb.Queries
+        Debug.Print "Refreshing query: " & qt.Name
+        qt.Refresh
+    Next qt
+    Debug.Print "All queries refreshed successfully."
+End Sub
+
+
+---
+
+📘 Hướng dẫn sử dụng
+
+1. Lưu nội dung trên vào file tên:
+👉 RunPowerQuery.bas
+
+
+2. Import vào Excel VBA (Alt + F11 → File → Import File...).
+
+
+3. Hoặc gọi từ UiPath như sau:
+
+Dùng activity Invoke VBA
+
+File path: RunPowerQuery.bas
+
+Entry method name:
+RunQuery
+
+Parameters:
+{"TênQueryTrongExcel"}
+(ví dụ: {"SalesData"})
+
+
+
+
+
+---
+
+⚙️ Ví dụ gọi từ Excel trực tiếp
+
+Sub TestRunQuery()
+    RunQuery "SalesData"
+End Sub
+
+Sub TestRunAll()
+    RunAllQueries
+End Sub
+
+
+---
+
+Bạn có muốn tôi tạo luôn file .bas sẵn để tải về không (để dùng ngay trong UiPath)?
