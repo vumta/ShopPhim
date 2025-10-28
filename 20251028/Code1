@@ -1,0 +1,76 @@
+Rất rõ 👍
+Dưới đây là nội dung đầy đủ của file .bas để bạn dùng trong UiPath (Invoke VBA).
+Mục đích: refresh một Power Query cụ thể trong Excel theo tên connection "Query - <Tên_Truy_vấn>".
+
+
+---
+
+📄 File: RefreshSpecificPowerQuery.bas
+
+Attribute VB_Name = "RefreshSpecificPowerQuery"
+Option Explicit
+
+'====================================================
+' MODULE: RefreshSpecificPowerQuery
+' Dùng để refresh Power Query cụ thể trong workbook.
+' Có thể gọi từ UiPath bằng Invoke VBA.
+'====================================================
+
+'-----------------------------------------
+' Refresh Power Query theo tên truy vấn
+'-----------------------------------------
+Public Sub RefreshSpecificPowerQuery(QueryName As String)
+    Dim connName As String
+    connName = "Query - " & QueryName
+    
+    On Error GoTo ErrHandler
+    ActiveWorkbook.Connections(connName).Refresh
+    Debug.Print "Power Query refreshed successfully: " & connName
+    Exit Sub
+    
+ErrHandler:
+    MsgBox "Không tìm thấy Query có tên: " & connName, vbExclamation, "RefreshSpecificPowerQuery"
+End Sub
+
+
+---
+
+⚙️ Cách sử dụng trong UiPath
+
+1. Lưu đoạn code này vào file:
+
+RefreshSpecificPowerQuery.bas
+
+
+2. Trong UiPath:
+
+Dùng activity Invoke VBA
+
+VBA File Path: đường dẫn tới file .bas này
+
+Entry Method Name:
+
+RefreshSpecificPowerQuery
+
+Parameters:
+
+{"Tên_Truy_vấn"}
+
+(ví dụ: {"SalesData"})
+
+
+
+
+
+---
+
+🧩 Ví dụ chạy trực tiếp trong Excel (test nhanh)
+
+Sub TestRefresh()
+    RefreshSpecificPowerQuery "SalesData"
+End Sub
+
+
+---
+
+Bạn có muốn tôi tạo sẵn file .bas để tải về ngay không (dạng hoàn chỉnh để dùng luôn trong UiPath)?
