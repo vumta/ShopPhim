@@ -1,0 +1,102 @@
+Rất hay — câu hỏi này đụng đúng “bẫy” phổ biến trong UiPath Do While 😊
+
+Giải thích chi tiết nhé:
+
+
+---
+
+🔍 1️⃣ Về cách hoạt động của Do While trong UiPath
+
+Do While trong UiPath chạy theo logic:
+
+> Thực hiện body trước, rồi kiểm tra điều kiện.
+Nếu điều kiện True, thì lặp lại.
+
+
+
+Nếu bạn dùng 2 điều kiện (ví dụ cond1 OR cond2 hoặc cond1 AND cond2) thì UiPath sẽ đánh giá cả 2 điều kiện này mỗi lần lặp.
+
+
+
+---
+
+⚠️ 2️⃣ Nguyên nhân thường gây lỗi khi có 2 điều kiện
+
+Có 3 nguyên nhân rất hay gặp:
+
+✅ (a) Một trong hai biến trong điều kiện bị Null (Nothing)
+
+Ví dụ:
+
+Do While (row("Status").ToString <> "Done" Or counter < 5)
+
+👉 Nếu row("Status") là Nothing (null) thì ToString sẽ gây lỗi
+
+> Error: Object reference not set to an instance of an object
+
+
+
+Khắc phục:
+Dùng IsNothing() để kiểm tra trước:
+
+Do While ((Not IsNothing(row("Status")) AndAlso row("Status").ToString <> "Done") Or counter < 5)
+
+
+---
+
+✅ (b) Bạn dùng Or thay vì OrElse
+
+Trong VB.NET (ngôn ngữ nền của UiPath):
+
+Or luôn đánh giá cả hai điều kiện
+
+OrElse sẽ dừng sớm nếu điều kiện đầu tiên đã đủ xác định kết quả
+
+
+➡️ Khi một điều kiện có thể null, nên dùng OrElse thay vì Or
+
+Ví dụ lỗi:
+
+Do While (item Is Nothing Or item.Contains("ABC"))
+
+👉 Nếu item là Nothing, thì .Contains sẽ lỗi.
+
+Cách đúng:
+
+Do While (item Is Nothing OrElse item.Contains("ABC"))
+
+
+---
+
+✅ (c) Biểu thức trả về kiểu không hợp lệ (không phải Boolean)
+
+Ví dụ:
+
+Do While (row("Count") > 5 Or row("Status"))
+
+Nếu row("Status") là chuỗi, UiPath sẽ báo lỗi kiểu dữ liệu không hợp lệ.
+Cần đảm bảo cả hai vế đều là Boolean.
+
+
+---
+
+💡 3️⃣ Cách debug nhanh:
+
+1. Thêm Log Message trước vòng Do While để in ra giá trị 2 biến điều kiện.
+
+
+2. Dùng Try Catch bao quanh vòng lặp để xem lỗi cụ thể.
+
+
+
+
+---
+
+Nếu bạn gửi giúp mình:
+
+Biểu thức điều kiện bạn dùng trong Do While
+
+Thông báo lỗi cụ thể hiển thị trong UiPath
+
+
+→ Mình sẽ chỉ đúng dòng nào gây lỗi và viết lại điều kiện đúng 100% cho bạn.
