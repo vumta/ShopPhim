@@ -1,0 +1,61 @@
+Câu hỏi rất hay 👏 — đúng là trong UiPath (và VB.NET nói chung),
+nếu bạn dùng:
+
+String.Join(",", list)
+
+và list = Nothing → sẽ bị lỗi runtime:
+
+> Object reference not set to an instance of an object.
+
+
+
+
+---
+
+✅ Cách fix an toàn tuyệt đối
+
+Bạn chỉ cần check Nothing trước khi Join, ví dụ:
+
+String.Join(",", If(list Is Nothing, New List(Of String), list))
+
+Giải thích:
+
+If(condition, valueIfTrue, valueIfFalse) là toán tử inline trong VB.NET.
+
+Nếu list Is Nothing → thay thế bằng New List(Of String) (tức là list rỗng).
+
+Nếu list có dữ liệu → giữ nguyên.
+
+
+Kết quả:
+→ Không bao giờ bị lỗi,
+→ Kể cả khi list = Nothing hoặc list.Count = 0,
+→ String.Join vẫn chạy và trả về chuỗi rỗng "".
+
+
+---
+
+🔧 Ví dụ tổng hợp trong UiPath:
+
+Giả sử bạn có 5 list:
+
+listA, listB, listC, listD, listE
+
+Bạn muốn nối chúng an toàn:
+
+Assign activities:
+
+joinedA = String.Join(",", If(listA Is Nothing, New List(Of String), listA))
+joinedB = String.Join(",", If(listB Is Nothing, New List(Of String), listB))
+joinedC = String.Join(",", If(listC Is Nothing, New List(Of String), listC))
+joinedD = String.Join(",", If(listD Is Nothing, New List(Of String), listD))
+joinedE = String.Join(",", If(listE Is Nothing, New List(Of String), listE))
+
+→ Không bao giờ lỗi dù list nào đó chưa được gán hoặc rỗng.
+
+
+---
+
+Bạn có muốn mình viết 1 hàm dùng trong Invoke Code (VB.NET)
+để nhận List(Of List(Of String)) và trả về mảng string đã Join an toàn không?
+Sẽ giúp bạn gọn code hơn trong UiPath.
