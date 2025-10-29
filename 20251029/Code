@@ -1,0 +1,66 @@
+Ok — mình hiểu rồi 👍
+Bạn có 5 biến kiểu IList(Of String), ví dụ:
+
+listA, listB, listC, listD, listE
+
+Bạn muốn kiểm tra xem có list nào Count = 0 (rỗng) hoặc thậm chí bị null (Nothing).
+
+Dưới đây là cách viết code trong UiPath (Assign hoặc If) để kiểm tra:
+
+
+---
+
+🧩 Cách 1: Kiểm tra tất cả list rỗng cùng lúc
+
+If (listA Is Nothing OrElse listA.Count = 0) OrElse
+   (listB Is Nothing OrElse listB.Count = 0) OrElse
+   (listC Is Nothing OrElse listC.Count = 0) OrElse
+   (listD Is Nothing OrElse listD.Count = 0) OrElse
+   (listE Is Nothing OrElse listE.Count = 0)
+Then
+    ' --> Có ít nhất 1 list rỗng
+Else
+    ' --> Tất cả list đều có dữ liệu
+End If
+
+> Dùng OrElse để tránh lỗi Object reference not set to an instance of an object khi list = Nothing.
+
+
+
+
+---
+
+🧩 Cách 2: Ngắn gọn hơn bằng mảng (recommend)
+
+Tạo 1 mảng chứa tất cả list và kiểm tra bằng LINQ:
+
+Assign:
+
+lists = {listA, listB, listC, listD, listE}
+
+If condition:
+
+lists.Any(Function(x) x Is Nothing OrElse x.Count = 0)
+
+Nếu điều kiện True → Có ít nhất 1 list rỗng
+
+Nếu False → Tất cả list đều có dữ liệu
+
+
+
+---
+
+🧩 Cách 3: Trả về danh sách các list rỗng
+
+Nếu bạn muốn biết cụ thể list nào rỗng:
+
+emptyLists = lists.Where(Function(x) x Is Nothing OrElse x.Count = 0).ToList()
+
+Sau đó có thể kiểm tra:
+
+emptyLists.Count
+
+
+---
+
+Bạn muốn mình viết luôn đoạn UiPath Expression chi tiết (Assign + If) để copy-paste vào workflow không?
