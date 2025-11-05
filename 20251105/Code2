@@ -1,0 +1,292 @@
+Hướng dẫn từng bước (hoàn chỉnh) — Dùng Merge DataTable → Remove Duplicate Rows → LINQ filter "NG" trong UiPath
+
+Mình sẽ hướng dẫn chi tiết từng bước, các activity cần kéo vào, giá trị các property, các biến cần tạo, và cách xử lý lỗi. Kịch bản:
+
+Đọc 2 file/2 sheet → dt1, dt2
+
+Gộp dt2 vào dt1 bằng Merge DataTable
+
+Loại duplicate (theo toàn bộ dòng hoặc theo cột cụ thể) bằng Remove Duplicate Rows (UiPath)
+
+Lọc chỉ giữ các row có "NG" ở bất kỳ cột nào bằng LINQ (với kiểm tra an toàn khi không có kết quả)
+
+Ghi kết quả ra Excel hoặc xử lý tiếp
+
+
+
+---
+
+Các biến (recommended)
+
+dt1 : DataTable (In) — từ Read Range 1
+
+dt2 : DataTable (In) — từ Read Range 2
+
+dtMergedAll : DataTable — sau Merge (tạm)
+
+dtNoDup : DataTable — sau Remove Duplicate Rows
+
+dtFilteredNG : DataTable — kết quả cuối cùng chỉ chứa row có "NG"
+
+filteredRows : IEnumerable(Of DataRow) (Optional temp)
+
+logMessage : String (dùng cho Write Line / Log)
+
+
+
+---
+
+Sequence (step-by-step)
+
+1) Read Excel → lấy dt1, dt2
+
+Activity: Excel Application Scope (hoặc Workbook)
+
+Inside: Read Range → Output: dt1
+
+Read Range (file 2) → Output: dt2
+
+
+
+Kiểm tra: thêm If activity ngay sau để kiểm tra cả 2 không cùng Nothing:
+
+Condition: dt1 Is Nothing AndAlso dt2 Is Nothing → Throw or Log + Exit
+
+
+
+---
+
+2) Merge DataTable (gộp dt2 vào dt1)
+
+Activity: Merge DataTable
+
+Source: dt2
+
+Destination: dtMergedAll (nên chuẩn bị biến: assign dtMergedAll = If(dt1 IsNot Nothing, dt1.Copy(), dt2.Clone()) trước khi Merge)
+
+MissingSchemaAction: (UI shows "PreserveChanges" or similar) — mặc định giữ cấu trúc của Destination
+
+
+
+Cách chuẩn bị trước Merge (Assign activities):
+
+1. Assign:
+
+dtMergedAll = Nothing
+
+
+
+2. If dt1 IsNot Nothing then Assign:
+
+dtMergedAll = dt1.Copy() ElseIf dt2 IsNot Nothing then:
+
+dtMergedAll = dt2.Copy() Else Throw.
+
+
+
+
+Sau đó kéo Merge DataTable:
+
+Source: dt2
+
+Destination: dtMergedAll
+
+
+> Kết quả: dtMergedAll chứa tất cả row từ dt1 + dt2.
+
+
+
+
+---
+
+3) Remove Duplicate Rows (loại duplicate)
+
+Activity: Remove Duplicate Rows (có trong UiPath.System.Activities / DataTable activities)
+
+Input: dtMergedAll
+
+Output: dtNoDup
+
+Properties:
+
+KeepRow (Keep first/last) — chọn KeepFirst (thường muốn giữ bản ghi xuất hiện trước)
+
+Columns (optional): nếu bạn muốn so sánh chỉ theo 1 vài cột (vd ID, Name), chỉ định danh sách tên cột.
+
+Nếu để trống → sẽ so sánh toàn bộ row (tức loại trùng toàn dòng)
+
+
+
+
+Ví dụ:
+
+Nếu muốn loại trùng theo toàn bộ dòng → bỏ trống Columns
+
+Nếu muốn loại trùng theo cột ID và Name → nhập {"ID","Name"} (cách nhập tùy activity version; có UI để add column names)
+
+
+> Sau bước này, dtNoDup là datatable gộp và đã loại duplicate theo rule bạn đặt.
+
+
+
+
+---
+
+4) Filter chỉ giữ row có chứa "NG" ở bất kỳ cột nào (LINQ, an toàn)
+
+Ta dùng LINQ để lọc dtNoDup.
+
+4.1 — Cách an toàn bằng Assign + kiểm tra CopyToDataTable
+
+Assign 1 — lấy filteredRows:
+
+filteredRows = dtNoDup.AsEnumerable().Where(Function(r) _
+    r.ItemArray.Any(Function(x) If(x Is Nothing, False, x.ToString().Trim().ToUpper().Contains("NG"))))
+
+filteredRows kiểu: IEnumerable(Of DataRow) hoặc System.Linq.EnumerableRowCollection(Of DataRow)
+
+
+Assign 2 — chuyển sang DataTable an toàn:
+
+If filteredRows IsNot Nothing AndAlso filteredRows.Any() Then
+    dtFilteredNG = filteredRows.CopyToDataTable()
+Else
+    dtFilteredNG = dtNoDup.Clone() ' trả datatable rỗng có cấu trúc
+End If
+
+> Lưu ý: không gọi CopyToDataTable() nếu filteredRows rỗng — sẽ throw exception.
+
+
+
+4.2 — Nếu bạn thích dùng Invoke Code (VB) thay vì nhiều Assign
+
+Bạn có thể dùng Invoke Code (language VB) (In: dtNoDup, Out: dtFilteredNG) với code:
+
+Try
+    If dtNoDup Is Nothing Then
+        dtFilteredNG = Nothing
+        Return
+    End If
+
+    Dim rows = dtNoDup.AsEnumerable().Where(Function(r)
+        Return r.ItemArray.Any(Function(x)
+                                   If x Is Nothing Then
+                                       Return False
+                                   Else
+                                       Return x.ToString().Trim().ToUpper().Contains("NG")
+                                   End If
+                               End Function)
+    End Function)
+
+    If rows IsNot Nothing AndAlso rows.Any() Then
+        dtFilteredNG = rows.CopyToDataTable()
+    Else
+        dtFilteredNG = dtNoDup.Clone()
+    End If
+
+Catch ex As Exception
+    Throw New Exception("Filter NG error: " & ex.Message)
+End Try
+
+
+---
+
+5) Ghi kết quả dtFilteredNG ra Excel (tuỳ chọn)
+
+If dtFilteredNG Is Nothing hoặc dtFilteredNG.Rows.Count = 0 → Write Line "No NG rows found" hoặc tạo file/ghi header rỗng
+
+Else → Write Range → file output
+
+
+
+---
+
+6) Logging & Error handling (toàn bộ flow)
+
+Bọc các bước chính trong Try Catch:
+
+Try: Steps 1 → 5
+
+Catch ex:
+
+Write Line ex.Message
+
+Log vào file (Append Text) với timestamp
+
+(Optional) Send Mail (nếu cần cảnh báo)
+
+
+
+Ví dụ xử lý lỗi nhỏ:
+
+Nếu dt1 và dt2 đều Nothing → Throw early: "Both input tables are empty."
+
+Nếu Remove Duplicate Rows lỗi vì column tên sai → Catch và log tên column, fallback: remove duplicates theo toàn bộ row.
+
+
+
+---
+
+Một vài tips / edge-cases bạn thường gặp
+
+1. Cột có giá trị NULL: code dùng If(x Is Nothing, False, ...) để tránh null reference.
+
+
+2. Muốn match exact "NG" (không match "NG01" hoặc "XXNG"): đổi .Contains("NG") → .Equals("NG") (kèm Trim & ToUpper).
+
+
+3. Muốn loại duplicate sau khi filter NG: thay vì Remove Duplicate trước, bạn có thể Filter NG trước rồi Remove Duplicate trên kết quả để giữ unique của NG rows. Chọn tuỳ business rule.
+
+
+4. Performance: với data rất lớn, tránh dùng nhiều .CopyToDataTable() liên tiếp — cố gắng limit xuống 1 lần cuối.
+
+
+5. Giữ thông tin nguồn: nếu muốn biết dòng từ file nguồn nào (dt1 hay dt2), trước khi Merge bạn có thể thêm cột SourceFile và gán "File1" / "File2" cho từng row — giúp trace sau này.
+
+
+
+
+---
+
+Tóm tắt ngắn: Flow final
+
+1. Read Range → dt1, dt2
+
+
+2. Assign & prepare dtMergedAll = If(dt1 IsNot Nothing, dt1.Copy(), dt2.Clone())
+
+
+3. Merge DataTable (Source dt2 → Destination dtMergedAll)
+
+
+4. Remove Duplicate Rows (Input dtMergedAll → Output dtNoDup; chọn columns nếu cần)
+
+
+5. Assign filteredRows = dtNoDup.AsEnumerable().Where(...) (filter contains "NG")
+
+
+6. If filteredRows.Any → dtFilteredNG = filteredRows.CopyToDataTable() else dtFilteredNG = dtNoDup.Clone()
+
+
+7. Write Range dtFilteredNG hoặc xử lý tiếp
+
+
+8. Try/Catch + Log
+
+
+
+
+---
+
+Nếu bạn muốn mình build sẵn file .xaml demo có đầy đủ:
+
+Read Range (2 files)
+
+Merge DataTable
+
+Remove Duplicate Rows (cấu hình theo toàn bộ row)
+
+LINQ filter NG + xử lý empty
+
+Write Range kết quả
+→ Reply: "Gửi .xaml demo" và attach 2 sample Excel (hoặc cho mình biết cấu trúc / tên cột nếu không gửi file).
