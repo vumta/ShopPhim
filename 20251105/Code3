@@ -1,0 +1,78 @@
+Rất hay 👌 — nếu bạn chỉ muốn so sánh khớp trong If activity của UiPath, thì ta có thể viết trực tiếp biểu thức điều kiện trong phần Condition mà không cần dùng Assign phụ.
+
+Dưới đây là chi tiết cho trường hợp của bạn 👇
+
+
+---
+
+🎯 Mục tiêu
+
+So sánh để If chỉ True khi tên file có đúng ngoặc full-width và đúng BU,
+ví dụ:
+
+［JP］SCM_Report.xlsx ✅
+［1_UQJP］SCM_Report.xlsx ❌
+
+
+---
+
+✅ Biểu thức trong UiPath If activity
+
+System.Text.RegularExpressions.Regex.IsMatch(FileName, "［" & System.Text.RegularExpressions.Regex.Escape(BUName) & "］")
+
+
+---
+
+🧩 Giải thích
+
+BUName là biến chứa giá trị bạn đã lấy từ ngoặc vuông trước đó (ví dụ "JP").
+
+"［" & ... & "］" tạo regex mẫu chính xác ［JP］.
+
+Regex.Escape() đảm bảo nếu BU có ký tự đặc biệt thì không bị lỗi.
+
+IsMatch() trả về True/False, nên dùng trực tiếp trong If.
+
+
+
+---
+
+🧠 Ví dụ cụ thể
+
+Giả sử bạn có:
+
+FileName = "［JP］SCM_Report.xlsx"
+BUName = "JP"
+
+→ If điều kiện:
+
+System.Text.RegularExpressions.Regex.IsMatch(FileName, "［" & System.Text.RegularExpressions.Regex.Escape(BUName) & "］")
+
+👉 Kết quả = True
+
+Còn nếu:
+
+FileName = "［1_UQJP］SCM_Report.xlsx"
+
+👉 Kết quả = False
+
+
+---
+
+⚙️ Nếu bạn muốn so khớp không phân biệt hoa thường
+
+Thì thêm RegexOptions.IgnoreCase:
+
+System.Text.RegularExpressions.Regex.IsMatch(FileName, "［" & System.Text.RegularExpressions.Regex.Escape(BUName) & "］", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+
+
+---
+
+Bạn có muốn mình viết lại 1 đoạn mẫu If hoàn chỉnh kiểu:
+
+If <điều kiện>
+   → Log "Match đúng BU"
+Else
+   → Log "Không khớp"
+
+để bạn copy thẳng vào UiPath không?
