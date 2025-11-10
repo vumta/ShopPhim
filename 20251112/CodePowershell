@@ -1,0 +1,186 @@
+Hoàn toàn được ✅ — mình sẽ cập nhật script PowerShell để:
+
+1. Thêm tùy chọn -Silent → khi chạy tự động (Task Scheduler hoặc muốn chạy ngầm), không popup, chỉ log.
+
+
+2. Dùng toast notification thay cho popup bình thường → nhẹ nhàng, không cản thao tác của bạn.
+
+
+
+Mình sẽ dùng module BurntToast (cần cài 1 lần nếu chưa có) để hiện toast notification.
+
+
+---
+
+💻 Script PowerShell Final (v6) – Toast + Silent mode
+
+param(
+    [switch]$Restore,
+    [switch]$Silent
+)
+
+# ========================
+# === CONFIG SECTION ====
+# ========================
+$padFolder   = "$env:USERPROFILE\Documents\Power Automate Desktop"
+$backupRoot  = "$env:USERPROFILE\Documents\PAD_Backups"
+$timestamp   = (Get-Date).ToString("yyyyMMdd_HHmmss")
+$backupFile  = "$backupRoot\PAD_Backup_$timestamp.zip"
+$maxBackups  = 5
+$logFile     = "$backupRoot\AutoBackupPAD.log"
+
+# ========================
+# === IMPORT BURNTTOAST ===
+# ========================
+if (-not (Get-Module -ListAvailable -Name BurntToast)) {
+    Install-Module -Name BurntToast -Force -Scope CurrentUser
+}
+Import-Module BurntToast
+
+# ========================
+# === FUNCTION SECTION ===
+# ========================
+
+function Write-Log {
+    param([string]$message)
+    $time = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logEntry = "[$time] $message"
+    Add-Content -Path $logFile -Value $logEntry
+    Write-Host $logEntry
+}
+
+function Show-Toast {
+    param(
+        [string]$Text,
+        [string]$Title = "PAD Auto Backup"
+    )
+    if (-not $Silent) {
+        New-BurntToastNotification -Text $Title, $Text
+    }
+}
+
+function Is-PADRunning {
+    $processes = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "PAD\.Desktop" }
+    return ($processes.Count -gt 0)
+}
+
+function Backup-PAD {
+    if (-not (Test-Path $backupRoot)) {
+        New-Item -ItemType Directory -Path $backupRoot | Out-Null
+    }
+
+    if (Test-Path $padFolder) {
+        try {
+            Compress-Archive -Path "$padFolder\*" -DestinationPath $backupFile -Force
+            Write-Log "✅ Backup completed: $backupFile"
+            Cleanup-OldBackups
+            Show-Toast "Backup completed successfully.`nSaved: $backupFile"
+        } catch {
+            Write-Log "❌ Backup failed: $($_.Exception.Message)"
+            Show-Toast "Backup failed!`nError: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Log "⚠️ PAD folder not found at $padFolder"
+        Show-Toast "PAD folder not found.`nPath: $padFolder"
+    }
+}
+
+function Cleanup-OldBackups {
+    $backups = Get-ChildItem -Path $backupRoot -Filter "*.zip" | Sort-Object LastWriteTime -Descending
+    if ($backups.Count -gt $maxBackups) {
+        $toDelete = $backups[$maxBackups..($backups.Count - 1)]
+        foreach ($file in $toDelete) {
+            try {
+                Remove-Item $file.FullName -Force
+                Write-Log "🗑️ Deleted old backup: $($file.Name)"
+            } catch {
+                Write-Log "⚠️ Could not delete $($file.Name): $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Restore-PAD {
+    $backups = Get-ChildItem -Path $backupRoot -Filter "*.zip" | Sort-Object LastWriteTime -Descending
+    if ($backups.Count -eq 0) {
+        Write-Log "❌ No backup files found in $backupRoot"
+        Show-Toast "No backup files found to restore!" "PAD Auto Restore"
+        return
+    }
+
+    $latest = $backups[0]
+    Write-Host "🕐 Latest backup found: $($latest.Name)"
+    $confirm = Read-Host "Do you want to restore this backup? (Y/N)"
+    if ($confirm -eq "Y") {
+        try {
+            Expand-Archive -Path $latest.FullName -DestinationPath $padFolder -Force
+            Write-Log "✅ Restored backup: $($latest.FullName)"
+            Show-Toast "Restore completed successfully.`nRestored from: $($latest.Name)" "PAD Auto Restore"
+        } catch {
+            Write-Log "❌ Restore failed: $($_.Exception.Message)"
+            Show-Toast "Restore failed!`nError: $($_.Exception.Message)" "PAD Auto Restore"
+        }
+    } else {
+        Write-Log "❎ Restore canceled by user."
+        Show-Toast "Restore canceled." "PAD Auto Restore"
+    }
+}
+
+# ========================
+# === MAIN EXECUTION ====
+# ========================
+
+if ($Restore) {
+    Restore-PAD
+} else {
+    if (Is-PADRunning) {
+        Write-Log "🟢 PAD is running. Starting backup..."
+        Show-Toast "Power Automate Desktop is running.`nStarting automatic backup..."
+        Backup-PAD
+    } else {
+        Write-Log "🟡 PAD not running. Backup skipped."
+        Show-Toast "Power Automate Desktop is not running.`nBackup skipped."
+    }
+}
+
+
+---
+
+⚙️ Cách sử dụng
+
+1️⃣ Tự động (Task Scheduler) → Silent + toast nhẹ:
+
+powershell.exe -ExecutionPolicy Bypass -File "C:\Scripts\AutoBackupPAD.ps1" -Silent
+
+Không popup chặn thao tác
+
+Vẫn hiện toast thông báo nhẹ và log đầy đủ
+
+
+2️⃣ Restore thủ công (có toast & prompt):
+
+powershell.exe -ExecutionPolicy Bypass -File "C:\Scripts\AutoBackupPAD.ps1" -Restore
+
+Hiện toast + prompt để xác nhận restore
+
+
+
+---
+
+✅ Ưu điểm
+
+Không làm phiền khi bạn đang code PAD → toast nhỏ gọn.
+
+Giữ 5 bản backup gần nhất → auto delete bản cũ.
+
+Ghi log chi tiết → tiện kiểm tra lịch sử backup/restore.
+
+Thao tác restore thủ công linh hoạt, vẫn toast thông báo.
+
+
+
+---
+
+Nếu bạn muốn, mình có thể update thêm tính năng: toast chỉ hiện khi Task Scheduler chạy vào ban ngày, còn ban đêm silent hoàn toàn, chỉ log, để không bị phiền khi bạn nghỉ ngơi.
+
+Bạn có muốn mình làm luôn không?
