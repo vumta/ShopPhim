@@ -1,0 +1,386 @@
+Tray app Auto‑Save PAD — hoàn thiện theo yêu cầu
+
+Dưới đây là bản PowerShell script hoàn chỉnh chuyển sang system tray app, tối ưu trải nghiệm, giữ nguyên cơ chế hỏi user khi cần restart PAD, thêm:
+- Retry thông minh khi lưu thất bại (exponential backoff)
+- Đếm lỗi liên tiếp và cảnh báo cấp cao qua toast
+- Giới hạn khi gửi SendKeys (chỉ gửi khi PAD có cửa sổ, process phản hồi, và không có modal)
+- Menu tray để Start/Stop, Force Save, Mở log, Exit, bật/tắt tự khởi động cùng Windows
+- Ghi log chi tiết và hồ sơ lỗi
+
+Lưu ý trước khi chạy:
+1. Cài BurntToast (chỉ 1 lần): Install-Module -Name BurntToast -Force  
+2. Cho phép script chạy: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+Mã nguồn (lưu file .ps1, ví dụ AutoSavePAD_Tray.ps1):
+
+`powershell
+
+AutoSavePAD_Tray.ps1
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Import-Module BurntToast -ErrorAction SilentlyContinue
+
+---------- Cấu hình ----------
+$logPath = "$env:USERPROFILE\Documents\AutoSavePAD_Log.txt"
+$idleLimitMs = 600000           # 10 phút không hoạt động
+$defaultIntervalMs = 180000     # 3 phút mặc định
+$maxRetries = 3                 # số lần retry khi thất bại
+$maxConsecutiveFailuresAlert = 5 # số lỗi liên tiếp để phát cảnh báo cấp cao
+$padExeCandidates = @(
+    "$env:ProgramFiles\Power Automate Desktop\PAD.Console.Host.exe",
+    "$env:ProgramFiles(x86)\Power Automate Desktop\PAD.Console.Host.exe"
+)
+
+Trạng thái runtime
+$autoSaveEnabled = $false
+$consecutiveFailures = 0
+$lastSuccessTime = $null
+
+---------- Utilities ----------
+function Write-Log($message) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "$timestamp - $message"
+    try { Add-Content -Path $logPath -Value $line } catch {}
+    Write-Host $line
+}
+
+function Show-Toast($message) {
+    try {
+        New-BurntToastNotification -Text "Auto-Save PAD", $message
+    } catch {
+        # fallback notifyicon balloon
+        $notify = New-Object System.Windows.Forms.NotifyIcon
+        $notify.Icon = [System.Drawing.SystemIcons]::Information
+        $notify.Visible = $true
+        $notify.BalloonTipTitle = "Auto-Save PAD"
+        $notify.BalloonTipText = $message
+        $notify.ShowBalloonTip(3000)
+        Start-Sleep -Seconds 3
+        $notify.Dispose()
+    }
+}
+
+---------- PAD checks ----------
+function Get-PADMainProcess {
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Power Automate" } | Select-Object -First 1
+}
+
+function Is-PADRunning {
+    return (Get-PADMainProcess) -ne $null
+}
+
+function Is-FlowRunning {
+    # PAD console host indicates flow/execution. Check for PAD.Console.Host or PAD* processes beyond main window
+    $host = Get-Process -ErrorAction SilentlyContinue | Where-Object { $.ProcessName -eq "PAD.Console.Host" -or $.ProcessName -like "PAD*" }
+    return ($host -ne $null -and $host.Count -gt 0)
+}
+
+function Is-PADResponsive {
+    $p = Get-PADMainProcess
+    if (-not $p) { return $false }
+    return $p.Responding
+}
+
+function Get-IdleTime {
+    $code = @'
+    using System;
+    using System.Runtime.InteropServices;
+    public static class IdleTime {
+        [DllImport("user32.dll")]
+        static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+        [StructLayout(LayoutKind.Sequential)]
+        struct LASTINPUTINFO {
+            public uint cbSize;
+            public uint dwTime;
+        }
+        public static TimeSpan GetIdleTime() {
+            LASTINPUTINFO lii = new LASTINPUTINFO();
+            lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+            GetLastInputInfo(ref lii);
+            return TimeSpan.FromMilliseconds(Environment.TickCount - lii.dwTime);
+        }
+    }
+'@
+    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue | Out-Null
+    return [IdleTime]::GetIdleTime()
+}
+
+---------- SendKeys safe helpers ----------
+$null = Add-Type -MemberDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class WinAPI {
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+"@ -Name "WinAPI" -Namespace "User32" -PassThru -ErrorAction SilentlyContinue
+
+function Safe-BringPADToFront($padProcess) {
+    try {
+        [User32.WinAPI]::SetForegroundWindow($padProcess.MainWindowHandle) | Out-Null
+        Start-Sleep -Milliseconds 300
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Can-SendKeysToPAD {
+    $p = Get-PADMainProcess
+    if (-not $p) { return $false }
+    if (-not $p.Responding) { return $false }
+    # If there are modal dialogs, MainWindowTitle often changes; we conservatively allow only when there's a non-empty title.
+    if ([string]::IsNullOrWhiteSpace($p.MainWindowTitle)) { return $false }
+    return $true
+}
+
+---------- Send-CtrlS with retry/backoff ----------
+function Try-SendSave {
+    param(
+        [int]$maxAttempts = $maxRetries
+    )
+    if (-not (Is-PADRunning)) {
+        Write-Log "PAD chưa chạy — bỏ qua lưu"
+        Show-Toast "PAD chưa chạy — Auto-Save chờ PAD"
+        return $false
+    }
+    if (Is-FlowRunning) {
+        Write-Log "Flow đang chạy — bỏ qua lưu"
+        return $false
+    }
+    if (-not (Can-SendKeysToPAD)) {
+        Write-Log "PAD không đáp ứng đúng điều kiện để gửi phím — bỏ qua"
+        return $false
+    }
+
+    $attempt = 0
+    $delayMs = 300
+    while ($attempt -lt $maxAttempts) {
+        $attempt++
+        $padProcess = Get-PADMainProcess
+        if (-not $padProcess) { Write-Log "Không tìm thấy cửa sổ PAD (lần $attempt)"; break }
+
+        if (-not (Safe-BringPADToFront $padProcess)) {
+            Write-Log "Không thể đưa PAD lên foreground (lần $attempt)"
+        } else {
+            try {
+                [System.Windows.Forms.SendKeys]::SendWait("^s")
+                Start-Sleep -Milliseconds 300
+                Write-Log "Gửi Ctrl+S thành công (lần $attempt)"
+                Show-Toast "Đã lưu flow lúc $(Get-Date -Format 'HH:mm:ss')"
+                $global:consecutiveFailures = 0
+                $global:lastSuccessTime = Get-Date
+                return $true
+            } catch {
+                Write-Log "Lỗi khi gửi Ctrl+S: $($_.Exception.Message)"
+            }
+        }
+
+        # Backoff before retry
+        Start-Sleep -Milliseconds $delayMs
+        $delayMs = [math]::Min(3000, $delayMs * 2)
+    }
+
+    # nếu tới đây thất bại
+    $global:consecutiveFailures++
+    Write-Log "Không lưu được sau $attempt lần thử. Lỗi liên tiếp: $global:consecutiveFailures"
+    Show-Toast "Auto-Save: không lưu được (lần thử $attempt)"
+    return $false
+}
+
+---------- Restart PAD (hỏi user) ----------
+function Find-PADExe {
+    foreach ($p in $padExeCandidates) { if (Test-Path $p) { return $p } }
+    $possible = Get-ChildItem "$env:ProgramFiles","$env:ProgramFiles(x86)" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Power Automate" } | Select-Object -First 1
+    if ($possible) {
+        $exe = Join-Path $possible.FullName "PAD.Console.Host.exe"
+        if (Test-Path $exe) { return $exe }
+    }
+    return $null
+}
+
+function Prompt-And-RestartPAD {
+    $res = [System.Windows.Forms.MessageBox]::Show("PAD có vẻ không phản hồi. Bạn có muốn khởi động lại PAD bây giờ?", "Khởi động lại PAD", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($res -eq [System.Windows.Forms.DialogResult]::Yes) {
+        try {
+            Get-Process -ErrorAction SilentlyContinue | Where-Object { $.ProcessName -like "PAD*" -or $.ProcessName -eq "PAD.Console.Host" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            $exe = Find-PADExe
+            if ($exe) {
+                Start-Process -FilePath $exe
+                Write-Log "PAD đã được khởi động lại theo yêu cầu user"
+                Show-Toast "Đã khởi động lại PAD"
+                $global:consecutiveFailures = 0
+            } else {
+                Write-Log "Không tìm thấy file thực thi PAD để restart"
+                Show-Toast "Không tìm thấy tệp thực thi PAD để khởi động lại"
+            }
+        } catch {
+            Write-Log "Lỗi khi restart PAD: $_"
+            Show-Toast "Lỗi khi khởi động lại PAD"
+        }
+    } else {
+        Write-Log "Người dùng từ chối restart PAD"
+    }
+}
+
+---------- Tray UI ----------
+$notifyIcon = New-Object System.Windows.Forms.NotifyIcon
+$notifyIcon.Icon = [System.Drawing.SystemIcons]::Application
+$notifyIcon.Text = "Auto-Save PAD"
+$notifyIcon.Visible = $true
+
+Context menu
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+
+$miStatus = New-Object System.Windows.Forms.ToolStripMenuItem "Auto-Save: OFF"
+$miStartStop = New-Object System.Windows.Forms.ToolStripMenuItem "Bật Auto-Save"
+$miForceSave = New-Object System.Windows.Forms.ToolStripMenuItem "Force Save Now"
+$miOpenLog = New-Object System.Windows.Forms.ToolStripMenuItem "Mở log"
+$miAutoStartup = New-Object System.Windows.Forms.ToolStripMenuItem "Tạo shortcut khởi động cùng Windows"
+$miExit = New-Object System.Windows.Forms.ToolStripMenuItem "Thoát"
+
+$menu.Items.AddRange(@($miStatus,$miStartStop,$miForceSave,$miOpenLog,$miAutoStartup,$miExit))
+$notifyIcon.ContextMenuStrip = $menu
+
+Timer hoạt động nền
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = $defaultIntervalMs
+
+Khi timeout -> thực hiện logic save
+$timer.Add_Tick({
+    if (-not $autoSaveEnabled) { return }
+
+    # Kiểm tra idle
+    $idle = Get-IdleTime()
+    if ($idle.TotalMilliseconds -ge $idleLimitMs) {
+        Write-Log "Người dùng không hoạt động $([math]::Round($idle.TotalMinutes,2)) phút -> tắt auto-save"
+        Show-Toast "Auto-Save đã tắt do không hoạt động"
+        $autoSaveEnabled = $false
+        $miStatus.Text = "Auto-Save: OFF"
+        $miStartStop.Text = "Bật Auto-Save"
+        $timer.Stop()
+        return
+    }
+
+    # Kiểm tra PAD chạy
+    if (-not (Is-PADRunning)) {
+        Write-Log "PAD chưa chạy — chờ PAD"
+        return
+    }
+
+    # Kiểm tra PAD responsive (nếu không -> hỏi restart)
+    if (-not (Is-PADResponsive)) {
+        Write-Log "Phát hiện PAD có thể không phản hồi"
+        Prompt-And-RestartPAD
+        return
+    }
+
+    # Thử save với retry/backoff
+    $ok = Try-SendSave -maxAttempts $maxRetries
+    if (-not $ok) {
+        # nếu thất bại tăng counter đã done trong Try-SendSave
+        if ($consecutiveFailures -ge $maxConsecutiveFailuresAlert) {
+            Show-Toast "Cảnh báo: Không lưu được liên tiếp $consecutiveFailures lần"
+            Write-Log "Cảnh báo cấp cao: $consecutiveFailures lỗi liên tiếp"
+        }
+    }
+})
+
+Menu handlers
+$miStartStop.Add_Click({
+    $autoSaveEnabled = -not $autoSaveEnabled
+    if ($autoSaveEnabled) {
+        $miStatus.Text = "Auto-Save: ON"
+        $miStartStop.Text = "Tắt Auto-Save"
+        $timer.Start()
+        Write-Log "Auto-Save đã bật (interval=$($timer.Interval/1000) giây)"
+        Show-Toast "Auto-Save đã bật"
+    } else {
+        $miStatus.Text = "Auto-Save: OFF"
+        $miStartStop.Text = "Bật Auto-Save"
+        $timer.Stop()
+        Write-Log "Auto-Save đã tắt"
+        Show-Toast "Auto-Save đã tắt"
+    }
+})
+
+$miForceSave.Add_Click({
+    Write-Log "Force Save được kích hoạt từ tray"
+    Try-SendSave -maxAttempts $maxRetries | Out-Null
+})
+
+$miOpenLog.Add_Click({
+    try {
+        if (-not (Test-Path $logPath)) { New-Item -Path $logPath -ItemType File -Force | Out-Null }
+        Start-Process -FilePath "notepad.exe" -ArgumentList $logPath
+    } catch {
+        Write-Log "Không thể mở log: $_"
+    }
+})
+
+$miAutoStartup.Add_Click({
+    try {
+        $startup = [Environment]::GetFolderPath("Startup")
+        $shortcutPath = Join-Path $startup "AutoSavePAD - Shortcut.lnk"
+        $psExe = (Get-Command powershell).Source
+        $scriptPath = $MyInvocation.MyCommand.Path
+        $wsh = New-Object -ComObject WScript.Shell
+        $sc = $wsh.CreateShortcut($shortcutPath)
+        $sc.TargetPath = $psExe
+        $sc.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File "$scriptPath""
+        $sc.WorkingDirectory = Split-Path $scriptPath
+        $sc.WindowStyle = 1
+        $sc.Save()
+        Write-Log "Đã tạo shortcut startup: $shortcutPath"
+        Show-Toast "Đã tạo shortcut khởi động cùng Windows"
+    } catch {
+        Write-Log "Không thể tạo shortcut startup: $_"
+        Show-Toast "Không thể tạo shortcut khởi động"
+    }
+})
+
+$miExit.Add_Click({
+    Write-Log "User thoát Auto-Save script"
+    $notifyIcon.Visible = $false
+    $timer.Stop()
+    [System.Windows.Forms.Application]::Exit()
+})
+
+Double click tray để bật/tắt nhanh
+$notifyIcon.Add_MouseDoubleClick({
+    $autoSaveEnabled = -not $autoSaveEnabled
+    if ($autoSaveEnabled) {
+        $miStatus.Text = "Auto-Save: ON"
+        $miStartStop.Text = "Tắt Auto-Save"
+        $timer.Start()
+        Write-Log "Auto-Save đã bật (double-click)"
+        Show-Toast "Auto-Save đã bật"
+    } else {
+        $miStatus.Text = "Auto-Save: OFF"
+        $miStartStop.Text = "Bật Auto-Save"
+        $timer.Stop()
+        Write-Log "Auto-Save đã tắt (double-click)"
+        Show-Toast "Auto-Save đã tắt"
+    }
+})
+
+Start Application message loop (ẩn form)
+$form = New-Object System.Windows.Forms.Form
+$form.Size = New-Object System.Drawing.Size(0,0)
+$form.ShowInTaskbar = $false
+$form.WindowState = "Minimized"
+$form.Load.Add({ $form.Hide() })
+Write-Log "Auto-Save Tray app bắt đầu"
+[System.Windows.Forms.Application]::Run($form)
+`
+
+Hướng dẫn nhanh:
+- Lưu script, mở PowerShell chạy: powershell.exe -ExecutionPolicy Bypass -File "C:\đường\AutoSavePAD_Tray.ps1"
+- Sau khi chạy, biểu tượng sẽ xuất hiện ở system tray. Dùng menu để bật/tắt, Force Save, mở log, tạo shortcut startup hoặc thoát.
+- Khi PAD không phản hồi script sẽ hỏi user có muốn khởi động lại; nếu đồng ý script sẽ dừng tiến trình PAD và khởi động lại từ file exe nếu tìm thấy.
+
+Nếu bạn muốn mình bổ sung thêm:
+- Dashboard hiển thị số save thành công/thất bại trực tiếp trong tooltip tray,
+- Gửi cảnh báo qua email/Teams khi đạt giới hạn lỗi,
+- Tùy chỉnh mức retry/backoff hoặc lưu lịch theo giờ.
