@@ -1,0 +1,317 @@
+PowerShell script hoàn chỉnh — Auto‑Save PAD với tất cả tính năng yêu cầu
+
+- Bật/tắt bằng GUI, chọn khoảng thời gian (1,3,5 phút)  
+- Tự động tắt khi idle (10 phút)  
+- Chỉ lưu khi PAD đang chạy và khi flow không đang chạy  
+- Ghi log vào Documents\AutoSavePAD_Log.txt  
+- Hiển thị toast notification (BurntToast) cho mọi sự kiện, thông báo khi không lưu được  
+- Nếu phát hiện PAD không phản hồi, hỏi user có muốn khởi động lại và thực hiện restart nếu đồng ý
+
+Lưu ý trước khi chạy:
+1. Cài BurntToast (chỉ chạy 1 lần): Install-Module -Name BurntToast -Force  
+2. Nếu policy chặn: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+`powershell
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Import-Module BurntToast -ErrorAction SilentlyContinue
+
+---------- Cấu hình ----------
+$logPath = "$env:USERPROFILE\Documents\AutoSavePAD_Log.txt"
+$idleLimit = 600000      # 10 phút không hoạt động (ms)
+$defaultInterval = 180000 # 3 phút (ms)
+$padExeCandidates = @(
+    "$env:ProgramFiles\Power Automate Desktop\PAD.Console.Host.exe",
+    "$env:ProgramFiles(x86)\Power Automate Desktop\PAD.Console.Host.exe"
+)
+
+---------- Hàm tiện ích ----------
+function Write-Log($message) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "$timestamp - $message"
+    try { Add-Content -Path $logPath -Value $line } catch {}
+    Write-Host $line
+}
+
+function Show-Notification($message) {
+    try {
+        New-BurntToastNotification -Text "Auto-Save PAD", $message
+    } catch {
+        # Fallback: NotifyIcon balloon
+        $notify = New-Object System.Windows.Forms.NotifyIcon
+        $notify.Icon = [System.Drawing.SystemIcons]::Information
+        $notify.Visible = $true
+        $notify.BalloonTipTitle = "Auto-Save PAD"
+        $notify.BalloonTipText = $message
+        $notify.ShowBalloonTip(3000)
+        Start-Sleep -Seconds 4
+        $notify.Dispose()
+    }
+}
+
+---------- Kiểm tra PAD và flow ----------
+function Is-PADRunning {
+    $padMain = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Power Automate" }
+    return ($padMain -ne $null -and $padMain.Count -gt 0)
+}
+
+function Is-FlowRunning {
+    # PAD Console host process thường biểu thị flow đang thực thi
+    $padHost = Get-Process -ErrorAction SilentlyContinue | Where-Object { $.ProcessName -eq "PAD.Console.Host" -or $.ProcessName -like "PAD*" }
+    return ($padHost -ne $null -and $padHost.Count -gt 0)
+}
+
+---------- Idle time ----------
+function Get-IdleTime {
+    $code = @'
+    using System;
+    using System.Runtime.InteropServices;
+    public static class IdleTime {
+        [DllImport("user32.dll")]
+        static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+        [StructLayout(LayoutKind.Sequential)]
+        struct LASTINPUTINFO {
+            public uint cbSize;
+            public uint dwTime;
+        }
+        public static TimeSpan GetIdleTime() {
+            LASTINPUTINFO lii = new LASTINPUTINFO();
+            lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+            GetLastInputInfo(ref lii);
+            return TimeSpan.FromMilliseconds(Environment.TickCount - lii.dwTime);
+        }
+    }
+'@
+    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue | Out-Null
+    return [IdleTime]::GetIdleTime()
+}
+
+---------- Gửi Ctrl+S ----------
+function Send-CtrlS {
+    if (-not (Is-PADRunning)) {
+        $msg = "PAD chưa chạy – không thể lưu"
+        Show-Notification $msg
+        Write-Log $msg
+        return $false
+    }
+    if (Is-FlowRunning) {
+        $msg = "Flow đang chạy – bỏ qua lưu"
+        Write-Log $msg
+        return $false
+    }
+
+    $sig = '
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    '
+    Add-Type -MemberDefinition $sig -Name "WinAPI" -Namespace "User32" -ErrorAction SilentlyContinue
+
+    $padWindow = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Power Automate" } | Select-Object -First 1
+    if ($padWindow) {
+        try {
+            [User32.WinAPI]::SetForegroundWindow($padWindow.MainWindowHandle) | Out-Null
+            Start-Sleep -Milliseconds 400
+            [System.Windows.Forms.SendKeys]::SendWait("^s")
+            Start-Sleep -Milliseconds 300
+            $msg = "Đã lưu flow lúc $(Get-Date -Format 'HH:mm:ss')"
+            Show-Notification $msg
+            Write-Log $msg
+            return $true
+        } catch {
+            $err = $_.Exception.Message
+            Show-Notification "Lỗi khi lưu: $err"
+            Write-Log "Lỗi khi gửi Ctrl+S: $err"
+            return $false
+        }
+    } else {
+        $msg = "Không tìm thấy cửa sổ PAD"
+        Show-Notification $msg
+        Write-Log $msg
+        return $false
+    }
+}
+
+---------- Kiểm tra PAD không phản hồi (treo) và restart ----------
+function Is-PADUnresponsive {
+    # Nếu PAD process tồn tại nhưng không có cửa sổ main: coi là không phản hồi/treo
+    $padProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object { $.ProcessName -like "PAD*" -or $.ProcessName -eq "PAD.Console.Host" }
+    if (-not $padProcesses) { return $false }
+    $mainWindow = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Power Automate" }
+    return ($mainWindow -eq $null)
+}
+
+function Find-PADExe {
+    foreach ($p in $padExeCandidates) {
+        if (Test-Path $p) { return $p }
+    }
+    # fallback: tìm trong Program Files với tên thư mục chứa "Power Automate"
+    $possible = Get-ChildItem "$env:ProgramFiles","$env:ProgramFiles(x86)" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Power Automate" } | Select-Object -First 1
+    if ($possible) {
+        $exe = Join-Path $possible.FullName "PAD.Console.Host.exe"
+        if (Test-Path $exe) { return $exe }
+    }
+    return $null
+}
+
+function Restart-PAD {
+    $res = [System.Windows.Forms.MessageBox]::Show("PAD có thể đang bị treo. Bạn có muốn khởi động lại PAD bây giờ?", "Khởi động lại PAD", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($res -eq [System.Windows.Forms.DialogResult]::Yes) {
+        try {
+            Get-Process -ErrorAction SilentlyContinue | Where-Object { $.ProcessName -like "PAD*" -or $.ProcessName -eq "PAD.Console.Host" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            $padExe = Find-PADExe
+            if ($padExe) {
+                Start-Process -FilePath $padExe
+                Show-Notification "Đã khởi động lại PAD"
+                Write-Log "PAD đã được khởi động lại theo yêu cầu người dùng"
+            } else {
+                Show-Notification "Không tìm thấy tệp thực thi PAD để khởi động lại"
+                Write-Log "Không tìm thấy tệp thực thi PAD để khởi động lại"
+            }
+        } catch {
+            Show-Notification "Lỗi khi khởi động lại PAD"
+            Write-Log "Lỗi khi khởi động lại PAD: $_"
+        }
+    } else {
+        Write-Log "Người dùng từ chối khởi động lại PAD"
+    }
+}
+
+---------- GUI ----------
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Auto-Save PAD"
+$form.Size = New-Object System.Drawing.Size(360,240)
+$form.StartPosition = "CenterScreen"
+
+$toggleButton = New-Object System.Windows.Forms.Button
+$toggleButton.Location = New-Object System.Drawing.Point(120,20)
+$toggleButton.Size = New-Object System.Drawing.Size(120,40)
+$toggleButton.Text = "Bật Auto-Save"
+$form.Controls.Add($toggleButton)
+
+$intervalLabel = New-Object System.Windows.Forms.Label
+$intervalLabel.Text = "Chọn thời gian lưu:"
+$intervalLabel.Location = New-Object System.Drawing.Point(20,80)
+$form.Controls.Add($intervalLabel)
+
+$intervalDropdown = New-Object System.Windows.Forms.ComboBox
+$intervalDropdown.Location = New-Object System.Drawing.Point(160,75)
+$intervalDropdown.Size = New-Object System.Drawing.Size(160,24)
+$intervalDropdown.Items.AddRange(@("1 phút","3 phút","5 phút"))
+$intervalDropdown.SelectedIndex = 1
+$form.Controls.Add($intervalDropdown)
+
+$autoStartupCheck = New-Object System.Windows.Forms.CheckBox
+$autoStartupCheck.Location = New-Object System.Drawing.Point(20,120)
+$autoStartupCheck.Size = New-Object System.Drawing.Size(320,24)
+$autoStartupCheck.Text = "Tạo shortcut khởi động cùng Windows (tạo shortcut vào Startup)"
+$form.Controls.Add($autoStartupCheck)
+
+$infoLabel = New-Object System.Windows.Forms.Label
+$infoLabel.Location = New-Object System.Drawing.Point(20,150)
+$infoLabel.Size = New-Object System.Drawing.Size(320,40)
+$infoLabel.Text = "Script sẽ chỉ lưu khi PAD đang mở và flow không đang chạy."
+$form.Controls.Add($infoLabel)
+
+$autoSaveEnabled = $false
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = $defaultInterval
+
+Timer hành động
+$timer.Add_Tick({
+    if ($autoSaveEnabled) {
+        $idle = Get-IdleTime()
+        if ($idle.TotalMilliseconds -ge $idleLimit) {
+            $autoSaveEnabled = $false
+            $toggleButton.Text = "Bật Auto-Save"
+            $timer.Stop()
+            Show-Notification "Auto-Save đã tắt do không hoạt động"
+            Write-Log "Auto-Save tự động tắt sau $([math]::Round($idle.TotalMinutes,2)) phút không hoạt động"
+            return
+        }
+
+        # Nếu PAD không chạy: ghi log và chờ, không spam notify quá nhiều
+        if (-not (Is-PADRunning)) {
+            Write-Log "PAD chưa chạy — chờ PAD khởi động"
+            Show-Notification "PAD chưa chạy — Auto-Save chờ PAD"
+            return
+        }
+
+        # Nếu PAD có dấu hiệu không phản hồi (không có window) -> hỏi restart
+        if (Is-PADUnresponsive) {
+            Write-Log "Phát hiện PAD có thể không phản hồi"
+            Restart-PAD
+            return
+        }
+
+        # Thực hiện save
+        $success = Send-CtrlS
+        if (-not $success) {
+            # Nếu không lưu được, thông báo và ghi log (Send-CtrlS đã thực hiện thông báo)
+            Write-Log "Không lưu được ở lần kiểm tra này"
+        }
+    }
+})
+
+Bật/tắt
+$toggleButton.Add_Click({
+    $autoSaveEnabled = -not $autoSaveEnabled
+    if ($autoSaveEnabled) {
+        $toggleButton.Text = "Tắt Auto-Save"
+        $selected = $intervalDropdown.SelectedItem
+        switch ($selected) {
+            "1 phút" { $timer.Interval = 60000 }
+            "3 phút" { $timer.Interval = 180000 }
+            "5 phút" { $timer.Interval = 300000 }
+            default { $timer.Interval = $defaultInterval }
+        }
+        $timer.Start()
+        Write-Log "Auto-Save đã bật với chu kỳ $selected"
+        Show-Notification "Auto-Save đã bật ($selected)"
+        # Nếu user yêu cầu tạo shortcut khởi động
+        if ($autoStartupCheck.Checked) {
+            try {
+                $startup = [Environment]::GetFolderPath("Startup")
+                $shortcutPath = Join-Path $startup "AutoSavePAD - Shortcut.lnk"
+                $psPath = (Get-Command powershell).Source
+                $scriptPath = $MyInvocation.MyCommand.Path
+                $wsh = New-Object -ComObject WScript.Shell
+                $sc = $wsh.CreateShortcut($shortcutPath)
+                $sc.TargetPath = $psPath
+                $sc.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File "$scriptPath""
+                $sc.WorkingDirectory = Split-Path $scriptPath
+                $sc.WindowStyle = 1
+                $sc.Save()
+                Write-Log "Đã tạo shortcut tự khởi động: $shortcutPath"
+                Show-Notification "Đã tạo shortcut tự khởi động"
+            } catch {
+                Write-Log "Không thể tạo shortcut khởi động: $_"
+                Show-Notification "Không thể tạo shortcut khởi động"
+            }
+        }
+    } else {
+        $toggleButton.Text = "Bật Auto-Save"
+        $timer.Stop()
+        Write-Log "Auto-Save đã tắt"
+        Show-Notification "Auto-Save đã tắt"
+    }
+})
+
+Khi form đóng, dọn dẹp
+$form.Add_FormClosing({
+    $timer.Stop()
+    Write-Log "Auto-Save script đã đóng"
+})
+
+$form.Topmost = $true
+$form.ShowDialog()
+`
+
+Hướng dẫn nhanh:
+- Lưu file dưới tên AutoSavePAD.ps1, chỉnh đường dẫn nếu cần.
+- Mở PowerShell chạy file (hoặc tạo shortcut khởi động như script hỗ trợ).
+- Khi bật Auto‑Save, nếu đã tick "Tạo shortcut khởi động cùng Windows", script sẽ tạo một shortcut trong thư mục Startup để tự chạy cùng Windows.
+
+Muốn mình điều chỉnh:
+- Tự động restart PAD nếu user không phản hồi sau X lần?  
+- Gửi email khi không lưu được nhiều lần liên tiếp?
