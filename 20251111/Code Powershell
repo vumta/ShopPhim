@@ -1,0 +1,185 @@
+Tuyệt vời 😎 — mình sẽ cập nhật script AutoBackupPAD.ps1 để:
+
+1. Tự động kiểm tra nếu BurntToast chưa cài → cài 1 lần.
+
+
+2. Những lần chạy sau → dùng ngay mà không hỏi gì.
+
+
+3. Vẫn giữ toast notification + silent mode + log + 5 bản backup gần nhất.
+
+
+
+
+---
+
+💻 Script PowerShell Final (v7) – Tự động cài BurntToast
+
+param(
+    [switch]$Restore,
+    [switch]$Silent
+)
+
+# ========================
+# === CONFIG SECTION ====
+# ========================
+$padFolder   = "$env:USERPROFILE\Documents\Power Automate Desktop"
+$backupRoot  = "$env:USERPROFILE\Documents\PAD_Backups"
+$timestamp   = (Get-Date).ToString("yyyyMMdd_HHmmss")
+$backupFile  = "$backupRoot\PAD_Backup_$timestamp.zip"
+$maxBackups  = 5
+$logFile     = "$backupRoot\AutoBackupPAD.log"
+
+# ========================
+# === CHECK & IMPORT BURNTTOAST ===
+# ========================
+try {
+    if (-not (Get-Module -ListAvailable -Name BurntToast)) {
+        Write-Host "BurntToast not found. Installing..."
+        Install-Module -Name BurntToast -Force -Scope CurrentUser -ErrorAction Stop
+    }
+    Import-Module BurntToast -ErrorAction Stop
+} catch {
+    Write-Host "❌ Failed to install/load BurntToast: $($_.Exception.Message)"
+    Write-Host "Toast notifications will be disabled."
+    $Silent = $true
+}
+
+# ========================
+# === FUNCTION SECTION ===
+# ========================
+function Write-Log {
+    param([string]$message)
+    $time = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logEntry = "[$time] $message"
+    Add-Content -Path $logFile -Value $logEntry
+    Write-Host $logEntry
+}
+
+function Show-Toast {
+    param(
+        [string]$Text,
+        [string]$Title = "PAD Auto Backup"
+    )
+    if (-not $Silent) {
+        try {
+            New-BurntToastNotification -Text $Title, $Text
+        } catch {
+            Write-Log "⚠️ Could not show toast: $($_.Exception.Message)"
+        }
+    }
+}
+
+function Is-PADRunning {
+    $processes = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "PAD\.Desktop" }
+    return ($processes.Count -gt 0)
+}
+
+function Backup-PAD {
+    if (-not (Test-Path $backupRoot)) {
+        New-Item -ItemType Directory -Path $backupRoot | Out-Null
+    }
+
+    if (Test-Path $padFolder) {
+        try {
+            Compress-Archive -Path "$padFolder\*" -DestinationPath $backupFile -Force
+            Write-Log "✅ Backup completed: $backupFile"
+            Cleanup-OldBackups
+            Show-Toast "Backup completed successfully.`nSaved: $backupFile"
+        } catch {
+            Write-Log "❌ Backup failed: $($_.Exception.Message)"
+            Show-Toast "Backup failed!`nError: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Log "⚠️ PAD folder not found at $padFolder"
+        Show-Toast "PAD folder not found.`nPath: $padFolder"
+    }
+}
+
+function Cleanup-OldBackups {
+    $backups = Get-ChildItem -Path $backupRoot -Filter "*.zip" | Sort-Object LastWriteTime -Descending
+    if ($backups.Count -gt $maxBackups) {
+        $toDelete = $backups[$maxBackups..($backups.Count - 1)]
+        foreach ($file in $toDelete) {
+            try {
+                Remove-Item $file.FullName -Force
+                Write-Log "🗑️ Deleted old backup: $($file.Name)"
+            } catch {
+                Write-Log "⚠️ Could not delete $($file.Name): $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Restore-PAD {
+    $backups = Get-ChildItem -Path $backupRoot -Filter "*.zip" | Sort-Object LastWriteTime -Descending
+    if ($backups.Count -eq 0) {
+        Write-Log "❌ No backup files found in $backupRoot"
+        Show-Toast "No backup files found to restore!" "PAD Auto Restore"
+        return
+    }
+
+    $latest = $backups[0]
+    Write-Host "🕐 Latest backup found: $($latest.Name)"
+    $confirm = Read-Host "Do you want to restore this backup? (Y/N)"
+    if ($confirm -eq "Y") {
+        try {
+            Expand-Archive -Path $latest.FullName -DestinationPath $padFolder -Force
+            Write-Log "✅ Restored backup: $($latest.FullName)"
+            Show-Toast "Restore completed successfully.`nRestored from: $($latest.Name)" "PAD Auto Restore"
+        } catch {
+            Write-Log "❌ Restore failed: $($_.Exception.Message)"
+            Show-Toast "Restore failed!`nError: $($_.Exception.Message)" "PAD Auto Restore"
+        }
+    } else {
+        Write-Log "❎ Restore canceled by user."
+        Show-Toast "Restore canceled." "PAD Auto Restore"
+    }
+}
+
+# ========================
+# === MAIN EXECUTION ====
+# ========================
+
+if ($Restore) {
+    Restore-PAD
+} else {
+    if (Is-PADRunning) {
+        Write-Log "🟢 PAD is running. Starting backup..."
+        Show-Toast "Power Automate Desktop is running.`nStarting automatic backup..."
+        Backup-PAD
+    } else {
+        Write-Log "🟡 PAD not running. Backup skipped."
+        Show-Toast "Power Automate Desktop is not running.`nBackup skipped."
+    }
+}
+
+
+---
+
+✅ Ưu điểm bản này
+
+1. Tự động cài BurntToast nếu chưa có → lần sau chạy ngay.
+
+
+2. Silent mode → chạy ngầm, toast vẫn hiển thị nhưng không popup chặn.
+
+
+3. Toast notification nhẹ nhàng, không cản thao tác.
+
+
+4. Ghi log đầy đủ → backup/restore + xoá backup cũ.
+
+
+5. Giữ tối đa 5 bản backup gần nhất.
+
+
+6. Restore thủ công linh hoạt → toast + prompt xác nhận.
+
+
+
+
+---
+
+Nếu muốn, mình có thể bổ sung thêm chế độ “silent hoàn toàn ban đêm”, tự động tắt toast trong khoảng giờ nghỉ, vẫn backup + log.
+Bạn có muốn mình làm luôn không?
