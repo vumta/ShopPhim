@@ -1,0 +1,31 @@
+Tuyệt vời 👌 mình sẽ tổng hợp lại full link tài liệu chính thức của Microsoft (hoặc nguồn đáng tin cậy) theo đúng plan 5 ngày bootcamp bạn đưa.
+Bảng có 3 cột: Ngày – Tên tài liệu – Link đầy đủ.
+
+
+---
+
+📚 Tài liệu Training PAD (Bootcamp 5 ngày)
+
+Ngày	Tên tài liệu	Link
+
+Ngày 1	Introduction to Power Automate for desktop flows	https://learn.microsoft.com/en-us/power-automate/desktop-flows/introduction
+Ngày 1	Variable data types in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/variable-data-types
+Ngày 1	Use variables and expressions in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/variable-manipulation
+Ngày 2	File system actions in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/files
+Ngày 2	Excel actions in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/excel
+Ngày 2	Work with data tables in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/datatable
+Ngày 3	Automating applications with UI elements	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/uiautomation
+Ngày 3	Web automation in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/webautomation
+Ngày 3	Handle errors in Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/error-handling
+Ngày 4	Run desktop flows from cloud flows	https://learn.microsoft.com/en-us/power-automate/desktop-flows/run-desktop-flow
+Ngày 4	Connect a cloud flow to desktop flows (training module)	https://learn.microsoft.com/en-us/training/modules/connect-cloud-desktop-flow
+Ngày 4	Invoke web service (HTTP actions in PAD)	https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/web
+Ngày 5	Best practices for Power Automate Desktop	https://learn.microsoft.com/en-us/power-automate/desktop-flows/best-practices
+Ngày 5	Tutorial: Get started with PAD	https://learn.microsoft.com/en-us/power-automate/desktop-flows/tutorials
+
+
+
+---
+
+👉 Với bảng này bạn có thể đưa thẳng vào Excel (hoặc Notion) để team theo dõi training.
+Bạn có muốn mình xuất file Excel Training Bootcamp Links (cột Ngày – Tài liệu – Link) luôn cho tiện dùng không?
