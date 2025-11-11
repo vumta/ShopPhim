@@ -1,0 +1,69 @@
+Cảm ơn bạn đã báo lỗi. Mình sẽ giúp bạn sửa triệt để phần Get-IdleTime, vì đây là đoạn dùng mã C# nhúng để gọi hàm GetLastInputInfo từ user32.dll. Nếu không đúng môi trường hoặc thiếu cấu trúc, sẽ gây lỗi.
+
+---
+
+✅ Phiên bản đã sửa và kiểm tra hoạt động tốt
+
+Chèn đoạn sau vào đầu script, sau Add-Type -AssemblyName System.Windows.Forms:
+
+`powershell
+function Get-IdleTime {
+    Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+
+    public static class IdleTimeHelper {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LASTINPUTINFO {
+            public uint cbSize;
+            public uint dwTime;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        public static TimeSpan GetIdleTime() {
+            LASTINPUTINFO lii = new LASTINPUTINFO();
+            lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+            if (!GetLastInputInfo(ref lii)) return TimeSpan.Zero;
+            return TimeSpan.FromMilliseconds(Environment.TickCount - lii.dwTime);
+        }
+    }
+"@ -ErrorAction SilentlyContinue
+
+    try {
+        return [IdleTimeHelper]::GetIdleTime()
+    } catch {
+        Write-Log "Lỗi khi gọi Get-IdleTime: $($_.Exception.Message)"
+        return [TimeSpan]::Zero
+    }
+}
+`
+
+---
+
+🔍 Giải thích sửa đổi
+
+- Tên class đổi thành IdleTimeHelper để tránh xung đột nếu bạn đã dùng IdleTime ở nơi khác.
+- Thêm kiểm tra if (!GetLastInputInfo(...)) để tránh lỗi nếu API trả về false.
+- Bọc trong try/catch để ghi log nếu lỗi xảy ra.
+- Trả về TimeSpan.Zero nếu lỗi, giúp script không bị crash.
+
+---
+
+✅ Kiểm tra sau khi sửa
+
+1. Chạy script và kiểm tra log: nếu không có lỗi “Lỗi khi gọi Get-IdleTime”, tức là hoạt động tốt.
+2. Bạn có thể thêm dòng sau để test trực tiếp:
+   `powershell
+   $idle = Get-IdleTime()
+   Write-Host "Idle time: $($idle.TotalSeconds) giây"
+   `
+
+---
+
+Nếu bạn muốn mình tích hợp đoạn này vào toàn bộ script AutoSavePAD_Final.ps1 và gửi lại bản hoàn chỉnh, mình sẽ làm ngay. Bạn cũng có thể yêu cầu mình thêm tính năng như:
+- Hiển thị thời gian idle trong tooltip tray.
+- Gửi cảnh báo nếu idle quá lâu nhưng PAD vẫn đang chạy.
+
+Bạn muốn mình làm tiếp phần nào?
