@@ -1,0 +1,740 @@
+﻿# AutoSavePAD_Final.ps1
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Import-Module BurntToast -ErrorAction SilentlyContinue
+
+
+# ---------- Config ----------
+$statePath = "$env:USERPROFILE\Documents\AutoSavePAD_State.json"
+$logFolder = "$env:USERPROFILE\Documents"
+$logPrefix = "AutoSavePAD_"
+$idleLimitMs = 600000           # 10 phút không hoạt động
+$defaultIntervalMs = 180000     # 3 phút mặc định
+$defaultMaxRetries = 3
+$defaultInitialBackoffMs = 300
+$defaultMaxBackoffMs = 3000
+$maxConsecutiveFailuresAlert = 5
+$retainLogDays = 7              # giữ 7 ngày gần nhất
+$padExeCandidates = @(
+    "$env:ProgramFiles\Power Automate Desktop\PAD.Console.Host.exe",
+    "$env:ProgramFiles(x86)\Power Automate Desktop\PAD.Console.Host.exe"
+)
+
+
+# ---------- Runtime state ----------
+$autoSaveEnabled = $false
+$inSleepMode = $false
+$consecutiveFailures = 0
+$successCount = 0
+$failureCount = 0
+$lastSuccessTime = $null
+
+
+# Settings (can change from UI)
+$settings = @{
+    IntervalMs = $defaultIntervalMs
+    MaxRetries = $defaultMaxRetries
+    InitialBackoffMs = $defaultInitialBackoffMs
+    MaxBackoffMs = $defaultMaxBackoffMs
+    ScheduleStart = "00:00"
+    ScheduleEnd   = "23:59"
+    AutoStartupShortcutCreated = $false
+}
+
+
+# ---------- Helpers ----------
+function Get-LogPath {
+    $date = Get-Date -Format "yyyy-MM-dd"
+    return Join-Path $logFolder ("${logPrefix}${date}.log")
+}
+
+
+function Cleanup-OldLogs {
+    try {
+        $files = Get-ChildItem -Path $logFolder -Filter "${logPrefix}*.log" -File -ErrorAction SilentlyContinue
+        if ($files) {
+            $cutoff = (Get-Date).AddDays(-$retainLogDays)
+            foreach ($f in $files) {
+                # parse date from filename if possible
+                $name = $f.BaseName.Substring($logPrefix.Length)
+                $ok = $false
+                try {
+                    $dt = [datetime]::ParseExact($name,'yyyy-MM-dd',$null)
+                    $ok = $true
+                } catch {}
+                if ($ok) {
+                    if ($dt -lt $cutoff) {
+                        Remove-Item -Path $f.FullName -Force -ErrorAction SilentlyContinue
+                    }
+                } else {
+                    # if not matching pattern, keep (safer) or optionally remove older than cutoff by WriteTime
+                    if ($f.LastWriteTime -lt $cutoff) {
+                        Remove-Item -Path $f.FullName -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+    } catch {
+        # ignore
+    }
+}
+
+
+function Write-Log($message) {
+    $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "$ts - $message"
+    $logPath = Get-LogPath
+    try {
+        $dir = Split-Path $logPath
+        if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
+        Add-Content -Path $logPath -Value $line -ErrorAction SilentlyContinue
+    } catch {}
+    Write-Host $line
+    Cleanup-OldLogs
+}
+
+
+function Show-Toast($message) {
+    try {
+        New-BurntToastNotification -Text "Auto-Save PAD", $message
+    } catch {
+        $notify = New-Object System.Windows.Forms.NotifyIcon
+        $notify.Icon = [System.Drawing.SystemIcons]::Information
+        $notify.Visible = $true
+        $notify.BalloonTipTitle = "Auto-Save PAD"
+        $notify.BalloonTipText = $message
+        $notify.ShowBalloonTip(3000)
+        Start-Sleep -Seconds 3
+        $notify.Dispose()
+    }
+}
+
+
+# ---------- PAD checks ----------
+function Get-PADMainProcess {
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "*Power Automate*" } | Select-Object -First 1
+}
+function Is-PADRunning { return (Get-PADMainProcess) -ne $null }
+function Is-FlowRunning {
+    $host = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -eq "PAD.Console.Host" -or $_.ProcessName -like "PAD*" }
+    return ($host -ne $null -and $host.Count -gt 0)
+}
+function Is-PADResponsive {
+    $p = Get-PADMainProcess
+    if (-not $p) { return $false }
+    return $p.Responding
+}
+
+
+# ---------- Idle time ----------
+function Get-IdleTime {
+    $code = @'
+    using System;
+    using System.Runtime.InteropServices;
+    public static class IdleTime {
+        [DllImport("user32.dll")]
+        static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+        [StructLayout(LayoutKind.Sequential)]
+        struct LASTINPUTINFO {
+            public uint cbSize;
+            public uint dwTime;
+        }
+        public static TimeSpan GetIdleTime() {
+            LASTINPUTINFO lii = new LASTINPUTINFO();
+            lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+            GetLastInputInfo(ref lii);
+            return TimeSpan.FromMilliseconds(Environment.TickCount - lii.dwTime);
+        }
+    }
+'@
+    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue | Out-Null
+    return [IdleTime]::GetIdleTime()
+}
+
+
+# ---------- Safe SendKeys helpers ----------
+$null = Add-Type -MemberDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class WinAPI {
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+"@ -Name "WinAPI" -Namespace "User32" -PassThru -ErrorAction SilentlyContinue
+
+
+function Safe-BringPADToFront($padProcess) {
+    try {
+        [User32.WinAPI]::SetForegroundWindow($padProcess.MainWindowHandle) | Out-Null
+        Start-Sleep -Milliseconds 300
+        return $true
+    } catch { return $false }
+}
+
+
+function Can-SendKeysToPAD {
+    $p = Get-PADMainProcess
+    if (-not $p) { return $false }
+    if (-not $p.Responding) { return $false }
+    if ([string]::IsNullOrWhiteSpace($p.MainWindowTitle)) { return $false }
+    return $true
+}
+
+
+# ---------- Schedule ----------
+function Is-InSchedule {
+    param($startTime,$endTime)
+    $now = Get-Date
+    $fmt = 'HH:mm'
+    $s = [datetime]::ParseExact($startTime,$fmt,$null)
+    $e = [datetime]::ParseExact($endTime,$fmt,$null)
+    $todayS = Get-Date -Hour $s.Hour -Minute $s.Minute -Second 0
+    $todayE = Get-Date -Hour $e.Hour -Minute $e.Minute -Second 0
+    if ($todayS -le $todayE) {
+        return ($now -ge $todayS -and $now -le $todayE)
+    } else {
+        return ($now -ge $todayS -or $now -le $todayE)
+    }
+}
+
+
+# ---------- Retry save ----------
+function Try-SendSave {
+    param([int]$maxAttempts = $settings.MaxRetries, [int]$initialBackoff = $settings.InitialBackoffMs, [int]$maxBackoff = $settings.MaxBackoffMs)
+    # Ensure PAD running before any attempt
+    if (-not (Is-PADRunning)) {
+        Write-Log "PAD chưa chạy — bỏ qua save"
+        return $false
+    }
+    if (-not (Is-InSchedule $settings.ScheduleStart $settings.ScheduleEnd)) {
+        Write-Log "Ngoài lịch lưu -> bỏ qua"
+        return $false
+    }
+    if (Is-FlowRunning) {
+        Write-Log "Flow đang chạy — bỏ qua save"
+        return $false
+    }
+    if (-not (Can-SendKeysToPAD)) {
+        Write-Log "PAD không đáp ứng điều kiện gửi phím — bỏ qua"
+        return $false
+    }
+
+
+    $attempt = 0
+    $delay = [int]$initialBackoff
+    while ($attempt -lt $maxAttempts) {
+        $attempt++
+        $padProcess = Get-PADMainProcess
+        if (-not $padProcess) { Write-Log "Không tìm thấy cửa sổ PAD (lần $attempt)"; break }
+
+
+        if (-not (Safe-BringPADToFront $padProcess)) {
+            Write-Log "Không thể đưa PAD lên foreground (lần $attempt)"
+        } else {
+            try {
+                [System.Windows.Forms.SendKeys]::SendWait("^s")
+                Start-Sleep -Milliseconds 300
+                Write-Log "Gửi Ctrl+S thành công (lần $attempt)"
+                Show-Toast "Đã lưu flow lúc $(Get-Date -Format 'HH:mm:ss')"
+                $script:consecutiveFailures = 0
+                $script:successCount++
+                $script:lastSuccessTime = Get-Date
+                Update-Tooltip
+                Save-State
+                return $true
+            } catch {
+                Write-Log "Lỗi khi gửi Ctrl+S: $($_.Exception.Message)"
+            }
+        }
+        Start-Sleep -Milliseconds $delay
+        $delay = [math]::Min($maxBackoff, $delay * 2)
+    }
+
+
+    $script:consecutiveFailures++
+    $script:failureCount++
+    Update-Tooltip
+    Write-Log "Không lưu được sau $attempt lần thử. Lỗi liên tiếp: $script:consecutiveFailures"
+    Show-Toast "Auto-Save: không lưu được (lần thử $attempt)"
+    Save-State
+    return $false
+}
+
+
+# ---------- Restart PAD (ask user) ----------
+function Find-PADExe {
+    foreach ($p in $padExeCandidates) { if (Test-Path $p) { return $p } }
+    $possible = Get-ChildItem "$env:ProgramFiles","$env:ProgramFiles(x86)" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*Power Automate*" } | Select-Object -First 1
+    if ($possible) {
+        $exe = Join-Path $possible.FullName "PAD.Console.Host.exe"
+        if (Test-Path $exe) { return $exe }
+    }
+    return $null
+}
+
+
+function Prompt-And-RestartPAD {
+    $res = [System.Windows.Forms.MessageBox]::Show("PAD có vẻ không phản hồi. Bạn có muốn khởi động lại PAD bây giờ?", "Khởi động lại PAD", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($res -eq [System.Windows.Forms.DialogResult]::Yes) {
+        try {
+            Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like "PAD*" -or $_.ProcessName -eq "PAD.Console.Host" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            $exe = Find-PADExe
+            if ($exe) {
+                Start-Process -FilePath $exe
+                Write-Log "PAD đã được khởi động lại theo yêu cầu user"
+                Show-Toast "Đã khởi động lại PAD"
+                $script:consecutiveFailures = 0
+                Save-State
+            } else {
+                Write-Log "Không tìm thấy file thực thi PAD để restart"
+                Show-Toast "Không tìm thấy tệp thực thi PAD để khởi động lại"
+            }
+        } catch {
+            Write-Log "Lỗi khi restart PAD: $_"
+            Show-Toast "Lỗi khi khởi động lại PAD"
+        }
+    } else {
+        Write-Log "Người dùng từ chối restart PAD"
+    }
+}
+
+
+# ---------- Persistence ----------
+function Save-State {
+    try {
+        $obj = [PSCustomObject]@{
+            AutoSaveEnabled = $autoSaveEnabled
+            InSleepMode = $inSleepMode
+            ConsecutiveFailures = $consecutiveFailures
+            SuccessCount = $successCount
+            FailureCount = $failureCount
+            LastSuccessTime = if ($lastSuccessTime) { $lastSuccessTime.ToString("o") } else { $null }
+            Settings = $settings
+            UiText = [PSCustomObject]@{
+                MenuStatusText = if ($miStatus) { $miStatus.Text } else { "Auto-Save: OFF" }
+                MenuStartStopText = if ($miStartStop) { $miStartStop.Text } else { "Bật Auto-Save" }
+            }
+        }
+        $json = $obj | ConvertTo-Json -Depth 6
+        $dir = Split-Path $statePath
+        if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
+        Set-Content -Path $statePath -Value $json -Encoding UTF8
+        Write-Log "Đã lưu state vào $statePath"
+    } catch {
+        Write-Log "Lỗi khi lưu state: $_"
+    }
+}
+
+
+function Load-State {
+    if (-not (Test-Path $statePath)) { return }
+    try {
+        $json = Get-Content -Path $statePath -Raw -ErrorAction Stop
+        $obj = $json | ConvertFrom-Json
+        if ($null -ne $obj) {
+            $script:autoSaveEnabled = $obj.AutoSaveEnabled
+            $script:inSleepMode = $obj.InSleepMode
+            $script:consecutiveFailures = $obj.ConsecutiveFailures
+            $script:successCount = $obj.SuccessCount
+            $script:failureCount = $obj.FailureCount
+            if ($obj.LastSuccessTime) { $script:lastSuccessTime = [datetime]::Parse($obj.LastSuccessTime) } else { $script:lastSuccessTime = $null }
+            if ($obj.Settings) {
+                foreach ($k in $obj.Settings.PSObject.Properties.Name) {
+                    $settings[$k] = $obj.Settings.$k
+                }
+            }
+            Write-Log "Đã load state từ $statePath"
+        }
+    } catch {
+        Write-Log "Lỗi khi load state: $_"
+    }
+}
+
+
+# ---------- Tray UI & Dashboard ----------
+$notifyIcon = New-Object System.Windows.Forms.NotifyIcon
+$notifyIcon.Icon = [System.Drawing.SystemIcons]::Application
+$notifyIcon.Text = "Auto-Save PAD"
+$notifyIcon.Visible = $true
+
+
+function Update-Tooltip {
+    $status = if ($autoSaveEnabled) { "ON" } elseif ($inSleepMode) { "SLEEP" } else { "OFF" }
+    $tooltip = "Auto-Save: $status`nSuccess: $successCount; Fail: $failureCount`nConsecFailures: $consecutiveFailures"
+    $notifyIcon.Text = $tooltip.Substring(0,[math]::Min(63,$tooltip.Length))
+    $notifyIcon.BalloonTipTitle = "Auto-Save PAD"
+    $notifyIcon.BalloonTipText = "Status: $status`nSuccess: $successCount`nFail: $failureCount`nConsecFailures: $consecutiveFailures"
+}
+
+
+# Context menu
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+$miStatus = New-Object System.Windows.Forms.ToolStripMenuItem "Auto-Save: OFF"
+$miStartStop = New-Object System.Windows.Forms.ToolStripMenuItem "Bật Auto-Save"
+$miForceSave = New-Object System.Windows.Forms.ToolStripMenuItem "Force Save Now"
+$miOpenLog = New-Object System.Windows.Forms.ToolStripMenuItem "Mở log"
+$miSettings = New-Object System.Windows.Forms.ToolStripMenuItem "Cấu hình..."
+$miAutoStartup = New-Object System.Windows.Forms.ToolStripMenuItem "Tạo shortcut khởi động cùng Windows"
+$miExit = New-Object System.Windows.Forms.ToolStripMenuItem "Thoát"
+$menu.Items.AddRange(@($miStatus,$miStartStop,$miForceSave,$miOpenLog,$miSettings,$miAutoStartup,$miExit))
+$notifyIcon.ContextMenuStrip = $menu
+
+
+# ---------- Timers ----------
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = $settings.IntervalMs
+
+
+$timer.Add_Tick({
+    if (-not $autoSaveEnabled) { return }
+    if ($inSleepMode) { return }
+
+
+    $idle = Get-IdleTime()
+    if ($idle.TotalMilliseconds -ge $idleLimitMs) {
+        Write-Log "Idle $([math]::Round($idle.TotalMinutes,2)) phút -> vào Sleep mode"
+        Show-Toast "Auto-Save tạm dừng do không hoạt động. App sẽ tự bật lại khi có tương tác hoặc PAD chạy."
+        $inSleepMode = $true
+        $autoSaveEnabled = $false
+        $miStatus.Text = "Auto-Save: SLEEP"
+        $miStartStop.Text = "Bật Auto-Save"
+        $timer.Stop()
+        Update-Tooltip
+        Save-State
+        return
+    }
+
+
+    if (-not (Is-InSchedule $settings.ScheduleStart $settings.ScheduleEnd)) {
+        Write-Log "Ngoài lịch lưu -> chờ"
+        return
+    }
+
+
+    if (-not (Is-PADRunning)) {
+        Write-Log "PAD chưa chạy — chờ PAD"
+        return
+    }
+
+
+    if (-not (Is-PADResponsive)) {
+        Write-Log "Phát hiện PAD có thể không phản hồi"
+        Prompt-And-RestartPAD
+        return
+    }
+
+
+    $ok = Try-SendSave -maxAttempts $settings.MaxRetries -initialBackoff $settings.InitialBackoffMs -maxBackoff $settings.MaxBackoffMs
+    if (-not $ok) {
+        if ($consecutiveFailures -ge $maxConsecutiveFailuresAlert) {
+            Show-Toast "Cảnh báo cấp cao: Không lưu được liên tiếp $consecutiveFailures lần"
+            Write-Log "Cảnh báo cấp cao: $consecutiveFailures lỗi liên tiếp"
+        }
+    }
+})
+
+
+# Idle-watch timer for auto-resume
+$idleWatcher = New-Object System.Windows.Forms.Timer
+$idleWatcher.Interval = 5000
+$idleWatcher.Add_Tick({
+    if (-not $inSleepMode) { return }
+
+
+    if (Is-PADRunning) {
+        Write-Log "Phát hiện PAD chạy lại -> resume auto-save"
+        Show-Toast "Phát hiện PAD — Auto-Save tự bật lại"
+        $inSleepMode = $false
+        $autoSaveEnabled = $true
+        $miStatus.Text = "Auto-Save: ON"
+        $miStartStop.Text = "Tắt Auto-Save"
+        $timer.Interval = $settings.IntervalMs
+        $timer.Start()
+        Update-Tooltip
+        Save-State
+        return
+    }
+
+
+    $idle = Get-IdleTime()
+    if ($idle.TotalMilliseconds -lt $idleLimitMs) {
+        Write-Log "Phát hiện hoạt động người dùng (idle $([math]::Round($idle.TotalSeconds,1))s) -> resume auto-save"
+        Show-Toast "Phát hiện tương tác — Auto-Save tự bật lại"
+        $inSleepMode = $false
+        $autoSaveEnabled = $true
+        $miStatus.Text = "Auto-Save: ON"
+        $miStartStop.Text = "Tắt Auto-Save"
+        $timer.Interval = $settings.IntervalMs
+        $timer.Start()
+        Update-Tooltip
+        Save-State
+        return
+    }
+})
+
+
+# ---------- Settings window (UI) ----------
+function Show-SettingsWindow {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "Cấu hình Auto-Save PAD"
+    $form.Size = New-Object System.Drawing.Size(420,380)
+    $form.StartPosition = "CenterScreen"
+
+
+    $lblInterval = New-Object System.Windows.Forms.Label
+    $lblInterval.Text = "Chu kỳ lưu (phút):"
+    $lblInterval.Location = New-Object System.Drawing.Point(20,20)
+    $form.Controls.Add($lblInterval)
+
+
+    $numInterval = New-Object System.Windows.Forms.NumericUpDown
+    $numInterval.Minimum = 1
+    $numInterval.Maximum = 120
+    $numInterval.Value = [int]($settings.IntervalMs/60000)
+    $numInterval.Location = New-Object System.Drawing.Point(160,18)
+    $form.Controls.Add($numInterval)
+
+
+    $lblRetries = New-Object System.Windows.Forms.Label
+    $lblRetries.Text = "Max retry khi thất bại:"
+    $lblRetries.Location = New-Object System.Drawing.Point(20,60)
+    $form.Controls.Add($lblRetries)
+
+
+    $numRetries = New-Object System.Windows.Forms.NumericUpDown
+    $numRetries.Minimum = 0
+    $numRetries.Maximum = 10
+    $numRetries.Value = [int]$settings.MaxRetries
+    $numRetries.Location = New-Object System.Drawing.Point(160,58)
+    $form.Controls.Add($numRetries)
+
+
+    $lblInitBack = New-Object System.Windows.Forms.Label
+    $lblInitBack.Text = "Initial backoff (ms):"
+    $lblInitBack.Location = New-Object System.Drawing.Point(20,100)
+    $form.Controls.Add($lblInitBack)
+
+
+    $txtInitBack = New-Object System.Windows.Forms.TextBox
+    $txtInitBack.Text = $settings.InitialBackoffMs.ToString()
+    $txtInitBack.Location = New-Object System.Drawing.Point(160,98)
+    $form.Controls.Add($txtInitBack)
+
+
+    $lblMaxBack = New-Object System.Windows.Forms.Label
+    $lblMaxBack.Text = "Max backoff (ms):"
+    $lblMaxBack.Location = New-Object System.Drawing.Point(20,140)
+    $form.Controls.Add($lblMaxBack)
+
+
+    $txtMaxBack = New-Object System.Windows.Forms.TextBox
+    $txtMaxBack.Text = $settings.MaxBackoffMs.ToString()
+    $txtMaxBack.Location = New-Object System.Drawing.Point(160,138)
+    $form.Controls.Add($txtMaxBack)
+
+
+    $lblSchedule = New-Object System.Windows.Forms.Label
+    $lblSchedule.Text = "Lịch lưu (HH:mm):"
+    $lblSchedule.Location = New-Object System.Drawing.Point(20,180)
+    $form.Controls.Add($lblSchedule)
+
+
+    $txtStart = New-Object System.Windows.Forms.TextBox
+    $txtStart.Text = $settings.ScheduleStart
+    $txtStart.Location = New-Object System.Drawing.Point(160,178)
+    $txtStart.Width = 80
+    $form.Controls.Add($txtStart)
+
+
+    $lblTo = New-Object System.Windows.Forms.Label
+    $lblTo.Text = "đến"
+    $lblTo.Location = New-Object System.Drawing.Point(250,180)
+    $form.Controls.Add($lblTo)
+
+
+    $txtEnd = New-Object System.Windows.Forms.TextBox
+    $txtEnd.Text = $settings.ScheduleEnd
+    $txtEnd.Location = New-Object System.Drawing.Point(290,178)
+    $txtEnd.Width = 80
+    $form.Controls.Add($txtEnd)
+
+
+    $btnSave = New-Object System.Windows.Forms.Button
+    $btnSave.Text = "Lưu"
+    $btnSave.Location = New-Object System.Drawing.Point(160,300)
+    $btnSave.Size = New-Object System.Drawing.Size(80,30)
+    $form.Controls.Add($btnSave)
+
+
+    $btnCancel = New-Object System.Windows.Forms.Button
+    $btnCancel.Text = "Hủy"
+    $btnCancel.Location = New-Object System.Drawing.Point(260,300)
+    $btnCancel.Size = New-Object System.Drawing.Size(80,30)
+    $form.Controls.Add($btnCancel)
+
+
+    $btnSave.Add_Click({
+        try {
+            $newIntervalMin = [int]$numInterval.Value
+            $settings.IntervalMs = $newIntervalMin * 60000
+            $timer.Interval = $settings.IntervalMs
+
+
+            $settings.MaxRetries = [int]$numRetries.Value
+            $settings.InitialBackoffMs = [int]$txtInitBack.Text
+            $settings.MaxBackoffMs = [int]$txtMaxBack.Text
+
+
+            [void][datetime]::ParseExact($txtStart.Text,'HH:mm',$null)
+            [void][datetime]::ParseExact($txtEnd.Text,'HH:mm',$null)
+            $settings.ScheduleStart = $txtStart.Text
+            $settings.ScheduleEnd = $txtEnd.Text
+
+
+            Write-Log "Cập nhật cấu hình: Interval=${settings.IntervalMs}ms, Retries=${settings.MaxRetries}, Backoff=${settings.InitialBackoffMs}-${settings.MaxBackoffMs}ms, Schedule=${settings.ScheduleStart}-${settings.ScheduleEnd}"
+            Show-Toast "Đã lưu cấu hình Auto-Save"
+            Update-Tooltip
+            Save-State
+            $form.Close()
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show("Giá trị nhập không hợp lệ. Vui lòng kiểm tra lại.", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    })
+
+
+    $btnCancel.Add_Click({ $form.Close() })
+    $form.Topmost = $true
+    $form.ShowDialog()
+}
+
+
+# ---------- Menu handlers ----------
+$miStartStop.Add_Click({
+    $autoSaveEnabled = -not $autoSaveEnabled
+    if ($autoSaveEnabled) {
+        if ($inSleepMode) {
+            Show-Toast "Ứng dụng đang ở chế độ Sleep do idle; nó sẽ tự bật lại khi có tương tác hoặc PAD chạy."
+            $autoSaveEnabled = $false
+            return
+        }
+        $miStatus.Text = "Auto-Save: ON"
+        $miStartStop.Text = "Tắt Auto-Save"
+        $timer.Interval = $settings.IntervalMs
+        $timer.Start()
+        Write-Log "Auto-Save bật (interval=${settings.IntervalMs}ms)"
+        Show-Toast "Auto-Save đã bật"
+    } else {
+        $miStatus.Text = "Auto-Save: OFF"
+        $miStartStop.Text = "Bật Auto-Save"
+        $timer.Stop()
+        Write-Log "Auto-Save tắt"
+        Show-Toast "Auto-Save đã tắt"
+    }
+    Update-Tooltip
+    Save-State
+})
+
+
+$miForceSave.Add_Click({
+    Write-Log "Force Save từ tray"
+    Try-SendSave -maxAttempts $settings.MaxRetries -initialBackoff $settings.InitialBackoffMs -maxBackoff $settings.MaxBackoffMs | Out-Null
+})
+
+
+$miOpenLog.Add_Click({
+    try {
+        $logPath = Get-LogPath
+        if (-not (Test-Path $logPath)) { New-Item -Path $logPath -ItemType File -Force | Out-Null }
+        Start-Process -FilePath "notepad.exe" -ArgumentList $logPath
+    } catch { Write-Log "Không thể mở log: $_" }
+})
+
+
+$miSettings.Add_Click({ Show-SettingsWindow })
+
+
+$miAutoStartup.Add_Click({
+    try {
+        $startup = [Environment]::GetFolderPath("Startup")
+        $shortcutPath = Join-Path $startup "AutoSavePAD - Shortcut.lnk"
+        $psExe = (Get-Command powershell).Source
+        $scriptPath = $MyInvocation.MyCommand.Path
+        $wsh = New-Object -ComObject WScript.Shell
+        $sc = $wsh.CreateShortcut($shortcutPath)
+        $sc.TargetPath = $psExe
+        $sc.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
+        $sc.WorkingDirectory = Split-Path $scriptPath
+        $sc.WindowStyle = 1
+        $sc.Save()
+        $settings.AutoStartupShortcutCreated = $true
+        Save-State
+        Write-Log "Đã tạo shortcut startup: $shortcutPath"
+        Show-Toast "Đã tạo shortcut khởi động cùng Windows"
+    } catch {
+        Write-Log "Không thể tạo shortcut startup: $_"
+        Show-Toast "Không thể tạo shortcut khởi động"
+    }
+})
+
+
+$miExit.Add_Click({
+    Write-Log "User thoát Auto-Save script"
+    $notifyIcon.Visible = $false
+    $timer.Stop()
+    $idleWatcher.Stop()
+    Save-State
+    [System.Windows.Forms.Application]::Exit()
+})
+
+
+# Double click tray toggles
+$notifyIcon.Add_MouseDoubleClick({
+    $miStartStop.PerformClick()
+})
+
+
+Update-Tooltip
+
+
+# ---------- Load persisted state on startup ----------
+Load-State
+
+
+# Restore UI texts and states precisely
+if ($miStatus -and $miStartStop) {
+    if ($inSleepMode) {
+        $miStatus.Text = "Auto-Save: SLEEP"
+        $miStartStop.Text = "Bật Auto-Save"
+    } elseif ($autoSaveEnabled) {
+        $miStatus.Text = "Auto-Save: ON"
+        $miStartStop.Text = "Tắt Auto-Save"
+    } else {
+        $miStatus.Text = "Auto-Save: OFF"
+        $miStartStop.Text = "Bật Auto-Save"
+    }
+    Update-Tooltip
+}
+
+
+# If previous state indicated AutoSave ON and not sleep, try to resume (respect schedule/PAD)
+if ($autoSaveEnabled -and -not $inSleepMode) {
+    $timer.Interval = $settings.IntervalMs
+    $timer.Start()
+    Write-Log "Khởi động: cố gắng khôi phục Auto-Save (từ state)"
+}
+
+
+# Start hidden form loop and timers
+$form = New-Object System.Windows.Forms.Form
+$form.Size = New-Object System.Drawing.Size(0,0)
+$form.ShowInTaskbar = $false
+$form.WindowState = "Minimized"
+$form.Load.Add({
+    $form.Hide()
+    Update-Tooltip
+    $idleWatcher.Start()
+    Write-Log "Auto-Save Tray app (Final) bắt đầu"
+    Cleanup-OldLogs
+})
+[System.Windows.Forms.Application]::Run($form)
