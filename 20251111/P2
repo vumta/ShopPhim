@@ -1,0 +1,578 @@
+Tuyệt — dưới đây mình đưa giải thích chi tiết từng ngày cho khóa nâng cao 6 ngày (6.5h/ngày), tập trung vào cách kết hợp PAD với VB.NET, VBA/Macro, PowerShell, JavaScript và các pattern thực tế (hybrid flows, logging, deploy). Mỗi ngày gồm: mục tiêu, phân bổ thời gian, nội dung chi tiết (kể cả ví dụ code hoặc mẫu), bài tập thực hành, lỗi thường gặp & checklist kiểm thử.
+
+Mình trình bày bằng tiếng Việt, rõ — bạn có thể copy/paste thẳng vào file training hoặc dùng làm tài liệu đào tạo team.
+
+Tổng quan ngắn
+
+Thời lượng: 6 ngày × 6.5h
+
+Mục đích: biến PAD từ “kéo-thả” thành nền tảng automation mạnh bằng cách nhúng script/compiled code khi cần (tăng performance, khả năng xử lý phức tạp, tái sử dụng).
+
+Output cuối khoá: 1 project end-to-end (PAD + scripts), docs deploy và checklist runbook.
+
+
+
+---
+
+Ngày 1 — VB.NET trong PAD (6.5h)
+
+Mục tiêu: Biết các cách tích hợp VB.NET với PAD, khi nào viết code VB.NET, cách truyền input/output, debug, và dùng .NET để xử lý JSON/HTTP/logic phức tạp.
+
+Phân bổ thời gian
+
+Giới thiệu & options tích hợp VB.NET (0.5h)
+
+Viết & gọi executable (console app) VB.NET từ PAD (1.5h)
+
+Xử lý HTTP + JSON bằng .NET (2.0h)
+
+Dùng .NET để thao tác DataTable / CSV (1.0h)
+
+Bài tập & test (1.5h)
+
+
+Nội dung chi tiết & kỹ thuật
+
+1. Các cách dùng VB.NET với PAD (ưu/nhược):
+
+Option A — Tạo Console App (.exe): viết VB.NET, build thành exe, gọi bằng PAD (Run Process / Start Process) — dễ debug, an toàn, phù hợp xử lý nặng.
+
+Option B — Tạo DLL và gọi qua COM/PowerShell wrapper: phức tạp hơn nhưng phù hợp tái dùng logic.
+
+Option C — Dùng PowerShell để host .NET code (PowerShell can load .NET assemblies) — linh hoạt.
+
+Chú ý: PAD không trực tiếp “embed” VB.NET compiler; workflow thực tế thường gọi exe/dll.
+
+
+
+2. Ví dụ: VB.NET Console App gọi từ PAD
+
+Mục tiêu: gọi API thời tiết, parse JSON, trả kết quả (Celsius) qua stdout → PAD đọc stdout.
+
+Mã ví dụ (VB.NET, .NET 6+ console):
+
+
+
+
+' File: GetWeather.vb (compile to GetWeather.exe)
+Imports System
+Imports System.Net.Http
+Imports System.Text.Json
+Module Program
+    Sub Main(args() )
+        If args.Length < 2 Then
+            Console.WriteLine("ERROR: Missing args. Usage: GetWeather.exe <city> <apikey>")
+            Environment.Exit(1)
+        End If
+        Dim city = args(0)
+        Dim apiKey = args(1)
+        Dim url = $"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={apiKey}"
+        Try
+            Using client As New HttpClient()
+                Dim resp = client.GetStringAsync(url).Result
+                Using doc = JsonDocument.Parse(resp)
+                    Dim tempK = doc.RootElement.GetProperty("main").GetProperty("temp").GetDouble()
+                    Dim tempC = tempK - 273.15
+                    Console.WriteLine(tempC.ToString("F2"))
+                End Using
+            End Using
+        Catch ex As Exception
+            Console.WriteLine("ERROR:" & ex.Message)
+            Environment.Exit(2)
+        End Try
+    End Sub
+End Module
+
+PAD: dùng action Run Process → Program: C:\path\GetWeather.exe → Arguments: Hanoi YOUR_API_KEY → Capture standard output (stdout) vào variable exeOutput → parse trong PAD.
+
+
+3. Xử lý JSON & data bằng .NET
+
+Dùng System.Text.Json hoặc Newtonsoft.Json (nếu thêm reference).
+
+Khi JSON phức tạp, trả về một JSON nhỏ gọn từ exe (ví dụ {"temp":27.5,"desc":"clear sky"}) để PAD Convert JSON to custom object dễ parse.
+
+
+
+4. DataTable / CSV bằng .NET
+
+Nếu cần xử lý data lớn (vài chục ngàn rows), tốt hơn xử lý bằng .NET (fast) rồi xuất CSV/Excel, PAD chỉ download & import.
+
+Ví dụ: đọc CSV, group by, aggregate totals by product, xuất CSV.
+
+
+
+
+Bài tập thực hành
+
+Viết GetWeather.exe, gọi từ PAD, lưu kết quả vào Excel bằng PAD.
+
+Viết VB.NET console tool gộp nhiều CSV trong folder thành 1 file, chạy trong PAD.
+
+
+Lỗi hay gặp / Tips
+
+DLL dependency: build self-contained exe nếu máy target không có .NET runtime.
+
+Truyền tham số: escape spaces, đặc biệt với file paths.
+
+Logging: exe nên log to stdout/stderr để PAD bắt lỗi.
+
+
+
+---
+
+Ngày 2 — Excel nâng cao với VBA & Macro (6.5h)
+
+Mục tiêu: Viết macro nâng cao xử lý dữ liệu, chart/pivot, gọi macro từ PAD, và pattern đồng bộ PAD ↔ VBA.
+
+Phân bổ thời gian
+
+Giới thiệu gọi macro từ PAD + security (0.5h)
+
+Viết macro tự động (Clean, Merge, Pivot) (2.0h)
+
+Pattern gọi macro từ PAD + nhận kết quả (1.5h)
+
+Tối ưu performance (bulk operations, screen updating) (1.0h)
+
+Thực hành & test (1.5h)
+
+
+Nội dung chi tiết & bước làm
+
+1. Cấu hình Excel để chạy macro
+
+Trust Center: enable macros on machine/trusted location hoặc sign macros. PAD có action Run Excel Macro (hoặc Run VB Script/Invoke macro via COM) — đảm bảo macro nằm trong workbook hoặc add-in.
+
+
+
+2. Ví dụ macro: Merge all sheets into one sheet
+
+
+
+' Module: MergeSheets.bas
+Sub MergeAllSheets()
+    Dim ws As Worksheet, master As Worksheet
+    On Error Resume Next
+    Set master = ThisWorkbook.Worksheets("Master")
+    If master Is Nothing Then
+        Set master = ThisWorkbook.Worksheets.Add
+        master.Name = "Master"
+    Else
+        master.Cells.Clear
+    End If
+    Dim destRow As Long
+    destRow = 1
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name <> master.Name Then
+            Dim lastRow As Long, lastCol As Long
+            lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+            lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+            ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol)).Copy
+            master.Cells(destRow, 1).PasteSpecial xlPasteValues
+            destRow = master.Cells(master.Rows.Count, 1).End(xlUp).Row + 1
+        End If
+    Next ws
+    Application.CutCopyMode = False
+    MsgBox "Merge completed."
+End Sub
+
+3. Gọi macro từ PAD
+
+PAD action: Launch Excel → open workbook (that contains macro) → Run Excel macro → Macro name Module1.MergeAllSheets. PAD chờ macro chạy xong → tiếp các bước (ví dụ: Save workbook → Close Excel).
+
+
+
+4. Best-practice macro performance
+
+Turn off screen updating & calculations during macro:
+
+
+
+
+Application.ScreenUpdating = False
+Application.Calculation = xlCalculationManual
+' ... processing ...
+Application.Calculation = xlCalculationAutomatic
+Application.ScreenUpdating = True
+
+5. Tương tác macro ↔ PAD
+
+Macro có thể viết kết quả vào workbook (ví dụ một cell A1 chứa OK), PAD đọc giá trị cell đó để biết trạng thái.
+
+Hoặc macro có thể export small result file (txt/json) để PAD đọc.
+
+
+
+
+Bài tập
+
+Viết macro CleanData: trim spaces, remove duplicates, convert date formats → gọi từ PAD.
+
+Tạo macro tạo pivot table & chart từ merged data → PAD gọi macro và export chart as image.
+
+
+Lỗi & lưu ý
+
+Macro security/Trust Center: cần cấu hình cho môi trường Production.
+
+Multithread/Excel interop: avoid heavy UI interactions in macro when PAD also manipulates Excel — coordinate (PAD should open workbook and leave it to macro).
+
+
+
+---
+
+Ngày 3 — PowerShell Integration (6.5h)
+
+Mục tiêu: Dùng PowerShell để thao tác hệ thống, network, file, SharePoint/Graph, và tích hợp chặt với PAD.
+
+Phân bổ thời gian
+
+Giới thiệu Run PowerShell script trong PAD, truyền input/output (0.5h)
+
+File-system & archive tasks (zip/unzip, copy) (1.0h)
+
+HTTP & API calls bằng Invoke-RestMethod (1.5h)
+
+SharePoint/OneDrive automation (PnP or Graph basics) (1.0h)
+
+Thực hành: scripts + chạy từ PAD (2.5h)
+
+
+Nội dung & ví dụ
+
+1. Chạy PowerShell từ PAD
+
+PAD action: Run PowerShell script (inline) hoặc Run process calling powershell.exe -File script.ps1 — capture stdout/stderr into PAD variables.
+
+
+
+2. Ví dụ: tải file từ web & unzip
+
+
+
+param($url, $outPath)
+try {
+    Invoke-RestMethod -Uri $url -OutFile $outPath
+    Expand-Archive -Path $outPath -DestinationPath (Split-Path $outPath) -Force
+    Write-Output ("OK|" + $outPath)
+} catch {
+    Write-Error $_.Exception.Message
+    exit 1
+}
+
+PAD parse stdout: if startswith OK| → success.
+
+
+3. API calls & auth
+
+Invoke-RestMethod with -Headers @{ Authorization = "Bearer $token" }
+
+Example: call Graph API or custom REST. (Token acquisition usually via AD App — separate).
+
+Nếu cần tải hàng loạt file từ SharePoint: bạn can call Graph API /sites/{site-id}/drive/root:/path:/children to list files (requires OAuth token).
+
+
+
+4. SharePoint automation (PnP PowerShell)
+
+PnP modules (PnP.PowerShell) make it easier to download/upload files: Get-PnPFile -Url ... -Path ... (requires authentication setup).
+
+Nếu không muốn auth complexity, use Cloud Flow to download then trigger PAD.
+
+
+
+5. PowerShell for system tasks
+
+Quản lý processes/services, read registry, schedule tasks, manipulate environment variables.
+
+
+
+
+Bài tập
+
+Viết script: scan folder, compress files older than X days, move archive to backup folder. PAD triggers script, then reads result & logs.
+
+Gọi REST API requiring Bearer token: request token (client_credentials) → call API → output JSON → PAD parse.
+
+
+Lỗi & tips
+
+Execution Policy: có thể block scripts; set execution policy or sign scripts.
+
+Encoding: ensure correct encoding (UTF-8) when writing stdout for PAD to parse.
+
+Authentication complexity: prefer Cloud Flow for heavy auth with Microsoft Graph.
+
+
+
+---
+
+Ngày 4 — JavaScript & JSON / XML parsing (6.5h)
+
+Mục tiêu: Dùng JavaScript (chạy bên trong browser context/Node/WSH) để xử lý JSON/XML/regex nhanh, trả output cho PAD.
+
+Phân bổ thời gian
+
+Cách chạy JS từ PAD (browser Eval, Node.exe, cscript) (0.5h)
+
+Parse JSON phức tạp & map sang CSV/DataTable (2.0h)
+
+XML parsing & transform (1.0h)
+
+Regex, text-extraction (1.0h)
+
+Thực hành & bài tập (2.0h)
+
+
+Nội dung & ví dụ
+
+1. Chạy JavaScript trong các môi trường
+
+Browser context: PAD Web automation có thể Execute JavaScript trong page (dùng để scrape complex DOM / SPA).
+
+Node.js: viết script .js, PAD chạy node script.js và lấy stdout. (phù hợp xử lý file/JSON lớn).
+
+Windows Script Host (cscript.exe): dùng .js để chạy WSH scripts — giới hạn hơn Node.
+
+
+
+2. Ví dụ: JS parse JSON → CSV
+
+
+
+// script: json2csv.js
+const fs = require('fs');
+const input = process.argv[2]; // path to json file
+const out = process.argv[3] || 'out.csv';
+const data = JSON.parse(fs.readFileSync(input,'utf8'));
+// assume array of objects
+const cols = Object.keys(data[0] || {});
+const lines = [cols.join(',')];
+for (const row of data) {
+  lines.push(cols.map(c=> JSON.stringify(row[c] || '')).join(','));
+}
+fs.writeFileSync(out, lines.join('\n'));
+console.log('OK|' + out);
+
+PAD runs node json2csv.js data.json out.csv, reads stdout.
+
+
+3. XML → JSON conversion
+
+Use xml2js (Node) or DOMParser (browser) to parse XML and map to JS object, then write JSON for PAD.
+
+
+
+4. Regex & extraction
+
+Use JS regex to extract phone numbers, emails from body text; return as JSON array to PAD.
+
+
+
+
+Bài tập
+
+Tạo script Node: nhận API response JSON file → produce DataTable-like JSON (array of rows) → PAD Convert JSON to custom object và Insert row into data table hoặc write CSV & Read from Excel convert.
+
+
+Lỗi & tips
+
+Node runtime must be available on PAD machine.
+
+Large JSON: stream processing preferred.
+
+Encoding and escaping: always JSON.stringify before writing to stdout to avoid PAD parse issues.
+
+
+
+---
+
+Ngày 5 — Hybrid Automation & Advanced Integration (6.5h)
+
+Mục tiêu: Học patterns phối hợp PAD + script (VB.NET / PowerShell / VBA / JS) cho case thực tế, best practices arhitecture & version control.
+
+Phân bổ thời gian
+
+Kiến trúc hybrid flows (0.75h)
+
+Patterns: Script-as-service, exe approach, Cloud Flow gateway (1.25h)
+
+Implement sample hybrid flow (2.0h)
+
+Testing, versioning & deployment strategy (1.0h)
+
+Cleanup, docs & review (1.5h)
+
+
+Nội dung chi tiết & patterns
+
+1. Patterns
+
+Wrapper exe/script pattern: PAD triggers script/exe, script performs heavy lift & outputs result file/stdout. PAD handles orchestration/UI.
+
+Microservice style (local): scripts expose local HTTP service (e.g., small Node or .NET API) — PAD calls via HTTP. Useful for repeated heavy tasks.
+
+Cloud-assisted: Cloud Flow does heavy auth/integration (ex: Graph), stores files to OneDrive, PAD processes local files.
+
+
+
+2. Example end-to-end flow (detailed)
+
+Step 1 (Cloud): user uploads invoice to SharePoint → Cloud Flow downloads and creates file in OneDrive sync folder on PAD machine.
+
+Step 2 (PAD): triggered by Cloud Flow, PAD calls ParseInvoice.exe (VB.NET) → exe outputs invoice.json.
+
+Step 3 (PAD): Runs Node script to normalize JSON → outputs lines.csv.
+
+Step 4 (PAD): Launch Excel → run VBA macro CreateReport to import CSV, generate pivots & charts.
+
+Step 5 (PAD): Runs PowerShell Compress-Archive → upload archive via Cloud Flow or send via email.
+
+
+
+3. Version control & deploy
+
+Keep scripts in Git (separate repo), tag releases, create build artifacts (zip/exe).
+
+On deployment, copy builds to PAD machine path (e.g., C:\PAD\bin\), update flow config variables (path to exe).
+
+Document prerequisites (Node version, .NET runtime, PowerShell modules).
+
+
+
+4. Security
+
+Secrets: do NOT embed API keys in scripts. Use secure stores (Azure KeyVault, Windows Credentials Manager) or pass secrets from Cloud Flow as sensitive inputs.
+
+Principle of least privilege for service accounts.
+
+
+
+
+Bài tập
+
+Build hybrid flow thực tế: ingest files → process with VB.NET → format Excel via VBA → send via Outlook. Tạo runbook deploy.
+
+
+
+---
+
+Ngày 6 — Mini Project & Best Practices (6.5h)
+
+Mục tiêu: Thực hiện mini-project tổng hợp, tập trung vào deployable solution, logging, retries, monitoring và deliverables.
+
+Project đề xuất (mô tả)
+
+Automation: Từ SharePoint folder “SalesUploads”, tự động: download file → PAD process (normalize via Node/VB.NET) → merge to master Excel via VBA (format & pivot) → compress & upload kết quả lên SharePoint → gửi email báo cáo → log & track failures.
+
+Phân bổ thời gian
+
+Thiết kế & tasks breakdown (0.5h)
+
+Implement phần download + call script (1.5h)
+
+Implement processing (VB.NET/Node) + Excel macro (1.5h)
+
+Implement upload/email/retry & logs (1.0h)
+
+Test cases, docs & runbook (1.0h)
+
+
+Chi tiết kỹ thuật & checklist deliverables
+
+1. Inputs / Outputs
+
+Input: files in SharePoint SalesUploads (various formats: xlsx, csv)
+
+Intermediate: local working folder C:\PAD\Working\<runid>\
+
+Output: Sales_Master_<date>.xlsx, Sales_Report_<date>.zip, log files (PAD_full_log.txt, FailedFiles.csv)
+
+
+
+2. Key features implemented
+
+Robust error handling per-file (retry 3 times, backoff), record fails to FailedFiles.csv.
+
+Centralized logging subflow LogMessage(level, tag, message).
+
+Idempotency: track processed files list (so re-run won’t duplicate).
+
+Monitoring: Cloud Flow receives outputs & sends success/failure notification.
+
+
+
+3. Testing matrix
+
+Unit tests for script components (where possible).
+
+Integration tests: normal files, missing columns, locked file, invalid format.
+
+Load test: 200 files → measure time; if too slow, change strategy (batch / parallel workers).
+
+
+
+4. Deploy & runbook
+
+Build artifacts: GetWeather.exe, ParseInvoice.js etc.
+
+On PAD machine: install Node/.NET, set environment variables, create C:\PAD\bin.
+
+Steps to deploy new version: pull from repo → build → replace in bin → notify ops → restart worker (if service).
+
+Rollback: keep previous artifact copy.
+
+
+
+
+Best Practices summary
+
+Modularize: small focused scripts & subflows.
+
+Secure secrets: use secure input or secret stores.
+
+Logging & traceability: structured logs, include run id, timestamps.
+
+Idempotency: avoid duplicates by tracking processed file ids.
+
+Performance: prefer compiled code for heavy tasks & batch writes for Excel.
+
+Monitoring: use Cloud Flow run history + central log to detect failures quickly.
+
+
+
+---
+
+Tài liệu tham khảo & resources (gợi ý để bạn đọc sâu)
+
+Microsoft Power Automate Desktop docs (action reference) — learn.microsoft.com.
+
+VB.NET: Microsoft Docs / System.Net.Http / System.Text.Json.
+
+Excel VBA reference: learn.microsoft.com / VBA language reference.
+
+PowerShell docs: docs.microsoft.com/powershell.
+
+Node.js & JS: MDN + nodejs.org.
+
+
+
+---
+
+Kết thúc & bước tiếp theo
+
+Mình đã mô tả chi tiết từng ngày (từ kỹ thuật, code mẫu, đến bài tập và checklist). Nếu bạn muốn mình làm tiếp một trong các việc sau thì nói ngay, mình sẽ làm luôn trong tin nhắn này:
+
+1. Xuất file Excel chi tiết (mỗi ngày tách thành checklist tasks, cột Done/Note) — mình sẽ tạo file và gửi link tải.
+
+
+2. Viết action-by-action (từng action trong PAD + parameter cụ thể) cho một bài tập (ví dụ: ngày 1 hoặc mini-project).
+
+
+3. Viết mẫu Runbook triển khai cho dự án mini (các bước deploy, yêu cầu môi trường, rollback).
+
+
+
+Bạn muốn mình làm (1), (2) hay (3)? Mình sẽ làm ngay.
