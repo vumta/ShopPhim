@@ -1,0 +1,242 @@
+Rõ ràng rồi 👌. Sau khi bạn đã học cơ bản (6 ngày) + nâng cao script (6 ngày), thì bước tiếp theo sẽ là Enterprise Training – tức là học cách dùng PAD trong môi trường dự án thật, team lớn, quản trị, tối ưu & tích hợp cloud.
+
+Mình thiết kế 7 ngày Enterprise Training (6.5h/ngày) như sau:
+
+
+---
+
+📅 Power Automate Desktop – Enterprise Training Plan (7 ngày)
+
+
+---
+
+Ngày 1 – Design Patterns & Best Practices
+
+⏰ 6.5h
+Mục tiêu: Học cách thiết kế flow theo chuẩn, dễ mở rộng và bảo trì.
+
+Subflow & Reusable Components
+
+Tách subflow theo chức năng (Logging, Error Handling, Excel Helper…).
+
+Chuẩn đặt tên (naming convention).
+
+
+Coding Standards
+
+Đặt biến (camelCase, PascalCase).
+
+Comment & Documentation trong PAD.
+
+
+Design Pattern
+
+Dispatcher – Performer pattern (quản lý queue).
+
+Retry Mechanism (giống UiPath Retry Scope).
+
+
+Thực hành:
+
+Tạo thư viện subflow logging + retry reusable.
+
+Xây dựng flow Dispatcher – Performer mẫu với Excel làm queue.
+
+
+
+
+---
+
+Ngày 2 – Error Handling & Logging nâng cao
+
+⏰ 6.5h
+Mục tiêu: Thiết kế framework xử lý lỗi & log chuẩn enterprise.
+
+Error Handling Strategy:
+
+Global Exception Handler trong PAD.
+
+Retry/Skip/Abort.
+
+
+Logging:
+
+Log ra file txt, Excel, SQL.
+
+Log vào Dataverse hoặc SharePoint List.
+
+
+Alerting:
+
+Khi lỗi → gửi email/Teams alert.
+
+
+Thực hành:
+
+Xây framework logging (flowId, step, status, errorMsg).
+
+Flow đọc file → nếu lỗi → log vào SQL → gửi alert Teams.
+
+
+
+
+---
+
+Ngày 3 – Cloud + PAD Integration
+
+⏰ 6.5h
+Mục tiêu: Kết hợp Cloud Flow và Desktop Flow thành automation hybrid.
+
+Cloud Flow gọi PAD (Desktop Flow) qua Power Automate Gateway.
+
+PAD gọi Cloud Flow (HTTP Request).
+
+Trigger PAD từ SharePoint/Outlook/Teams.
+
+Case Study:
+
+SharePoint có file mới → Cloud Flow → chạy PAD để xử lý SAP → lưu kết quả về SharePoint.
+
+
+Thực hành:
+
+Tạo Cloud Flow → Trigger khi có file Excel mới → gọi PAD → PAD nhập dữ liệu vào ứng dụng ERP demo.
+
+
+
+
+---
+
+Ngày 4 – AI Builder & OCR nâng cao
+
+⏰ 6.5h
+Mục tiêu: Dùng AI để mở rộng PAD (Document Processing).
+
+AI Builder Models:
+
+Form Processing (Invoice, Receipt).
+
+OCR (trích xuất text từ PDF/ảnh).
+
+Sentiment Analysis, Classification.
+
+
+PAD + AI Builder = Document Understanding Light (giống UiPath DU).
+
+Thực hành:
+
+PAD lấy invoice PDF → gọi AI Builder OCR → trích xuất số tiền & ngày → ghi Excel → gửi mail báo cáo.
+
+
+
+
+---
+
+Ngày 5 – Governance, Security & Deployment
+
+⏰ 6.5h
+Mục tiêu: Quản lý PAD trong môi trường doanh nghiệp.
+
+Environment & DLP Policy trong Power Platform.
+
+Quản lý quyền: ai chạy flow, ai chỉnh sửa.
+
+Deployment Flow: DEV → TEST → PROD.
+
+Source Control: export/import .zip, quản lý với Git.
+
+Thực hành:
+
+Tạo môi trường riêng DEV/PROD.
+
+Export 1 PAD Flow → import sang môi trường khác.
+
+Thiết lập policy chặn copy data ra ngoài.
+
+
+
+
+---
+
+Ngày 6 – Monitoring & Performance Optimization
+
+⏰ 6.5h
+Mục tiêu: Theo dõi, tối ưu tốc độ PAD flow.
+
+Monitoring:
+
+Log lên Application Insights.
+
+Dashboard trong Power BI để theo dõi flow.
+
+
+Performance Tips:
+
+Giảm số action, dùng batch, dùng script (PowerShell, VBA).
+
+Tránh loop nặng → thay bằng DataTable action hoặc SQL.
+
+Xử lý lỗi retry thông minh.
+
+
+Thực hành:
+
+Flow đọc 10.000 record → đo thời gian → tối ưu bằng script.
+
+Log performance (startTime, endTime, duration).
+
+
+
+
+---
+
+Ngày 7 – Mini Enterprise Project
+
+⏰ 6.5h
+Mục tiêu: Tổng hợp toàn bộ kiến thức Enterprise.
+
+Đề bài:
+Xây dựng quy trình:
+
+1. Cloud Flow nhận file PDF invoice từ SharePoint.
+
+
+2. PAD chạy: mở ERP desktop app → nhập dữ liệu invoice.
+
+
+3. PAD gọi AI Builder để OCR số tiền.
+
+
+4. Log kết quả vào SQL + báo cáo qua Power BI.
+
+
+5. Nếu lỗi → log + gửi Teams alert.
+
+
+
+Output:
+
+Một flow hoàn chỉnh end-to-end.
+
+Documentation (cấu trúc subflow, logging, error handling, deployment guide).
+
+
+
+
+---
+
+📌 Kết quả sau 7 ngày:
+
+Hiểu chuẩn Enterprise khi dùng PAD (Design pattern, Logging, Error Handling).
+
+Biết tích hợp PAD + Cloud Flow + AI Builder.
+
+Biết triển khai & quản lý PAD trong môi trường nhiều user.
+
+Có 1 mini project thực tế để demo cho khách hàng / quản lý.
+
+
+
+---
+
+👉 Bạn có muốn mình làm tiếp file Excel Training Plan Enterprise (7 ngày) như 2 plan trước (cột Ngày – Nội dung – Thời lượng – Link tài liệu – Done/Note) để bạn tiện quản lý không?
