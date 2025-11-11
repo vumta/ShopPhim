@@ -1,0 +1,104 @@
+Giải pháp ngắn gọn
+Mình sẽ:
+- Thêm cơ chế bắt lỗi toàn cục để log + hiện MessageBox (không để PowerShell thoát ngay), và
+- Đặt $ErrorActionPreference để mọi lỗi không bị nuốt, ghi log chi tiết kèm stack trace, rồi giữ process chạy (đợi thao tác từ user) — vẫn giữ tray app hoạt động.
+Dưới đây là những thay đổi bạn cần chèn vào đầu script hiện tại (trước mọi logic khác). Sau đó mình liệt kê file / cài đặt cần chuẩn bị.
+
+---
+
+Chèn vào đầu script (bắt lỗi toàn cục, log & giữ process)
+Chèn đoạn này vào đầu file .ps1, ngay sau phần Add-Type / Import-Module hoặc trước khi bất kỳ hàm nào được định nghĩa:
+
+`powershell
+
+--- GLOBAL ERROR / UNHANDLED EXCEPTION HANDLER ---
+$ErrorActionPreference = 'Stop'
+
+path dùng chung cho log lỗi khẩn cấp
+$global:CriticalLogPath = "$env:USERPROFILE\Documents\AutoSavePAD_CriticalErrors.log"
+
+function Write-CriticalLog {
+    param([string]$msg)
+    try {
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $line = "$ts - $msg"
+        Add-Content -Path $global:CriticalLogPath -Value $line -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+Xử lý unhandled exceptions từ PowerShell runtime
+[AppDomain]::CurrentDomain.add_UnhandledException({
+    param($sender,$args)
+    try {
+        $ex = $args.ExceptionObject
+        $text = "UnhandledException: $($ex.GetType().FullName): $($ex.Message)`n$($ex.StackTrace)"
+        Write-CriticalLog $text
+        [System.Windows.Forms.MessageBox]::Show("AutoSavePAD: Đã bắt lỗi không xử lý.`nXem log: $global:CriticalLogPath", "Lỗi nghiêm trọng", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    } catch {}
+})
+
+Xử lý lỗi từ các cmdlet không bắt (non-terminating) bằng trap toàn cục
+$global:PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+
+Bắt lỗi trong script chính (fallback)
+trap {
+    $err = $_.Exception
+    $msg = "TRAP: $($err.GetType().FullName): $($err.Message)`n$($err.StackTrace)"
+    Write-CriticalLog $msg
+    try {
+        [System.Windows.Forms.MessageBox]::Show("AutoSavePAD: Đã xảy ra lỗi.`nChi tiết đã lưu vào: $global:CriticalLogPath", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+    } catch {}
+    continue
+}
+
+--- END GLOBAL ERROR HANDLING ---
+`
+
+Giải thích ngắn:
+- $ErrorActionPreference = 'Stop' buộc cmdlet ném lỗi (terminating) để dễ catch.
+- AppDomain UnhandledException đảm bảo các exception không bị tắt đều được log và user thông báo.
+- trap { ... continue } giúp script không thoát khi bắt lỗi trong khối global; nó tiếp tục chạy sau khi ghi log.
+- Ghi file log riêng cho lỗi khẩn cấp: Documents\AutoSavePAD_CriticalErrors.log — bạn có thể mở xem khi cần.
+
+---
+
+Thay đổi nhỏ khác đề xuất (tùy chọn)
+- Trong những chỗ try/catch quan trọng (ví dụ Save-State, SendKeys, tạo shortcut) hãy gọi Write-CriticalLog / Show-Toast khi catch; script hiện tại đã có Write-Log — bạn có thể thêm Write-CriticalLog trong catch để xuất hiện cả file critical.
+- Nếu muốn PowerShell cửa sổ dừng (thấy lỗi) khi chạy thủ công, có thể thêm:
+  [System.Windows.Forms.MessageBox]::Show("Đã xảy ra lỗi. Xem log.", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+  trong trap — hiện tại mình đã thêm một messagebox thông báo.
+
+---
+
+Những file / cài đặt cần chuẩn bị trước khi chạy script
+1. BurntToast module (nếu muốn toast notification):
+   - Mở PowerShell (Admin nếu cần) và chạy:
+     Install-Module -Name BurntToast -Force
+2. Execution policy:
+   - Nếu bị chặn, chạy (bằng quyền user):
+     Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+3. Lưu script:
+   - Lưu toàn bộ mã vào một file .ps1 (ví dụ AutoSavePAD_Final.ps1). Đường dẫn này sẽ được dùng nếu tạo shortcut khởi động.
+4. Quyền ghi:
+   - Thư mục Documents phải có quyền ghi cho user. Script lưu state/log vào Documents.
+5. Đường dẫn PAD:
+   - Cài Power Automate Desktop trên máy và đảm bảo file exe ở một trong các candidate paths trong script (mặc định script đã tìm tự động).
+6. Chạy thử thủ công:
+   - Mở PowerShell (không phải elevated nếu bạn không cần), chạy:
+     powershell.exe -ExecutionPolicy Bypass -File "C:\path\AutoSavePAD_Final.ps1"
+   - Khi chạy lần đầu, nếu có lỗi, MessageBox sẽ hiện và file AutoSavePAD_CriticalErrors.log sẽ chứa chi tiết để debug.
+7. Tạo shortcut khởi động:
+   - Dùng menu trong tray app hoặc tạo thủ công shortcut Powershell pointing to the script with -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\path\AutoSavePAD_Final.ps1"
+8. Nếu muốn xem log rolling 7 ngày: mở Documents\AutoSavePAD_YYYY-MM-DD.log từ menu "Mở log".
+
+---
+
+Kiểm tra sau cập nhật
+- Sau khi chèn handler ở đầu script, chạy thử và cố tạo một lỗi có chủ đích (ví dụ tạm đổi tên thư mục Documents để tạo lỗi ghi log) — MessageBox sẽ hiện và file AutoSavePAD_CriticalErrors.log được cập nhật.
+- Khi script gặp lỗi logic (ví dụ unhandled exception), nó sẽ không chết ngay; bạn sẽ nhận được popup và log để xem.
+
+---
+
+Nếu bạn muốn, mình sẽ:
+- Cập nhật toàn bộ file AutoSavePAD_Final.ps1 để đã bao gồm phần bắt lỗi toàn cục trên (gói sẵn), và
+- Thêm một lệnh debug-mode (ví dụ -Verbose hoặc -DebugSwitch) để script tự mở console window và giữ lại sau lỗi (dễ debug). Bạn muốn mình làm luôn không?
