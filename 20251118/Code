@@ -1,0 +1,96 @@
+Dưới đây là cách xử lý đúng trong UiPath để remove duplicate theo mã trong ngoặc vuông, bất kể sau đó có khoảng trắng hay không.
+
+
+---
+
+✅ Yêu cầu
+
+Data mẫu:
+
+{"[65_GUJP] xxx","[60_GUUS]xxx","[65_GUJP]xxx"}
+
+Bạn muốn remove duplicate theo giá trị trong ngoặc vuông, nghĩa là:
+
+[65_GUJP] xxx
+
+[65_GUJP]xxx → Chỉ giữ 1 dòng duy nhất
+
+
+Dù có khoảng trắng hay không cũng phải xem là trùng.
+
+
+---
+
+✅ Giải pháp bằng UiPath (LINQ + Regex)
+
+Giữ duy nhất 1 item ứng với mỗi mã [ ... ].
+
+Code UiPath (Assign):
+
+📌 Input List (List<String>): myList
+📌 Output List (List<String>): uniqueList
+
+Assign vào uniqueList:
+
+uniqueList = myList.
+    Select(Function(x) New With {
+        .Code = System.Text.RegularExpressions.Regex.Match(x, "\[(.*?)\]").Groups(1).Value,
+        .Value = x
+    }).
+    GroupBy(Function(a) a.Code).
+    Select(Function(g) g.First().Value).
+    ToList()
+
+
+---
+
+🔍 Giải thích
+
+1. Regex "" để lấy nội dung trong ngoặc vuông.
+Ví dụ:
+
+"[65_GUJP] xxx" ⇒ "65_GUJP"
+
+"[65_GUJP]xxx" ⇒ "65_GUJP"
+
+
+
+2. Tạo list tạm:
+{ Code="65_GUJP", Value="[65_GUJP] xxx" }
+
+
+3. GroupBy Code → gom các item trùng nhau.
+
+
+4. Select First() → lấy dòng đầu tiên, bỏ duplicate.
+
+
+
+
+---
+
+📌 Kết quả cuối cùng
+
+uniqueList sẽ chứa:
+
+["[65_GUJP] xxx","[60_GUUS]xxx"]
+
+
+---
+
+Nếu bạn muốn quy tắc giữ ưu tiên:
+
+ưu tiên cái có khoảng trắng
+
+hoặc ưu tiên cái không có khoảng trắng
+
+
+→ Mình có thể viết thêm priority sorting cho bạn.
+
+Bạn muốn giữ dòng nào khi trùng?
+1️⃣ Dòng có khoảng trắng
+2️⃣ Dòng không có khoảng trắng
+3️⃣ Dòng độ dài ngắn nhất
+4️⃣ Dòng độ dài dài nhất
+
+Chọn giúp mình.
