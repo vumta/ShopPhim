@@ -1,0 +1,26 @@
+Dưới đây là một vài API công khai (“public APIs”) mà bạn có thể dùng ngay để demo / thử nghiệm tương tác — rất phù hợp để test với Power Automate Desktop (gửi HTTP request, parse JSON, v.v.) 👇
+
+✅ Một số API public dễ dùng để demo / test
+
+API / Dịch vụ	Mô tả / Ghi chú	Ví dụ endpoint
+
+JSONPlaceholder	Fake REST API cực phổ biến — cung cấp dữ liệu mẫu (posts, todos, users, comments, albums, photos…), hỗ trợ CRUD (GET, POST, PUT, DELETE). 	https://jsonplaceholder.typicode.com/posts → GET danh sách post; <br>https://jsonplaceholder.typicode.com/users/1 → GET user #1
+DummyJSON	API trả dữ liệu giả (dummy data) — users, products, posts, carts, todos,… cũng rất thuận tiện để thử GET/POST/PUT động. 	https://dummyjson.com/products → GET products; <br>https://dummyjson.com/users → GET users
+VN Public APIs (VN-public-apis.fpo.vn)	API miễn phí, công khai, lấy dữ liệu địa lý / hành chính Việt Nam (tỉnh, quận, phường, …) — phù hợp nếu bạn muốn thử làm việc với dữ liệu có cấu trúc thực tế tại Việt Nam. 	https://vn-public-apis.fpo.vn/provinces/getAll?limit=-1 → GET danh sách tỉnh/thành
+
+
+🔧 Vì sao nên dùng các API này khi test với PAD
+
+Không cần đăng ký, không yêu cầu API key — dễ setup, dễ thử.
+
+Trả dữ liệu JSON rõ ràng → dễ dùng action “Invoke Web Request / Web Service” trong PAD để GET/POST, rồi parse JSON.
+
+Có đủ GET/POST/PUT/DELETE để thử cả CRUD, validate thao tác.
+
+Cấu trúc dữ liệu khá đơn giản — phù hợp làm POC (proof of concept), demo, hoặc học cách parse JSON + xử lý dòng lệnh.
+
+
+
+---
+
+Nếu muốn — mình có thể tìm 5–10 API public dung lượng lớn + free (dữ liệu thật, nhiều endpoint) — giúp bạn test “hệ thống giống thật”, không chỉ demo. Muốn mình lọc giúp luôn không?
