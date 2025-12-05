@@ -1,0 +1,142 @@
+Có thể 100% làm được bằng Action trong Power Automate Desktop (không cần code).
+Dưới đây là cách chuẩn nhất để chuyển Excel → Dictionary chỉ bằng action.
+
+
+---
+
+✅ MỤC TIÊU
+
+Excel có 2 cột:
+
+Key	Value
+
+A	100
+B	200
+
+
+Bạn muốn tạo dictionary để dùng trong PAD như:
+
+%myDict["A"]%  → 100
+%myDict["B"]%  → 200
+
+
+---
+
+✅ CÁCH THỰC HIỆN (DÙNG ACTION 100%, KHÔNG CODE)
+
+Bước 1 — Đọc Excel
+
+1. Action: Launch Excel (không hiện)
+
+
+2. Action: Open Excel Document
+
+
+3. Action: Read from Excel Worksheet
+
+Read entire worksheet
+
+Output: DataTable → đặt tên: dtExcel
+
+
+
+
+
+---
+
+Bước 2 — Tạo Dictionary trống
+
+Action: Create Dictionary
+
+Name: myDict
+
+
+Giờ myDict là dictionary rỗng.
+
+
+---
+
+Bước 3 — Lặp từng dòng để thêm vào Dictionary
+
+Action: For Each
+
+Value to iterate: %dtExcel.Rows%
+
+Current item: row
+
+
+Bên trong vòng lặp, làm 2 action:
+
+
+---
+
+3.1 — Lấy giá trị Key
+
+Action: Get item from list (DataRow)
+
+List: %row%
+
+Index: 0    (cột Key)
+
+Output → currentKey
+
+
+
+---
+
+3.2 — Lấy giá trị Value
+
+Action: Get item from list (DataRow)
+
+List: %row%
+
+Index: 1    (cột Value)
+
+Output → currentValue
+
+
+
+---
+
+3.3 — Add vào dictionary
+
+Action: Add item to dictionary
+
+Dictionary: myDict
+
+Key: %currentKey%
+
+Value: %currentValue%
+
+
+
+---
+
+🎉 KẾT QUẢ
+
+Bạn đã có dictionary dùng được ngay trong PAD:
+
+Ví dụ:
+
+%myDict["A"]%
+
+➡ Trả về 100
+
+
+---
+
+📝 Lưu ý quan trọng
+
+Nếu Excel có header dòng 1, hãy bật tùy chọn “First row contains column names” khi đọc Excel.
+
+Nếu không bật, thì dòng 1 cũng sẽ bị thêm vào dictionary.
+
+Nếu trùng key, PAD sẽ lỗi → nếu bạn muốn "overwrite" thì tôi có thể hướng dẫn bạn cách xử lý.
+
+
+
+---
+
+❓Bạn muốn tôi tạo luôn flow mẫu dạng screenshot cho bạn không?
+
+Chỉ cần nói tên cột trong Excel của bạn là gì.
