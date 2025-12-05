@@ -1,0 +1,116 @@
+Đúng rồi — phiên bản Power Automate Desktop hiện tại KHÔNG có action “Add item to dictionary” như tôi mô tả trước.
+(Microsoft đã bỏ Dictionary từ các bản PAD mới → chỉ còn Custom Object và List.)
+
+👉 Vì vậy, cách đúng để bạn tạo “dictionary” trong PAD là dùng:
+
+✅ Custom Object (tương đương dictionary)
+
+và sử dụng action:
+
+“Set variable” + “Set property in custom object”
+
+Không cần code, chỉ dùng action.
+
+
+---
+
+⭐ CÁCH LÀM “DICTIONARY” TRONG PAD (CHUẨN NHẤT HIỆN NAY)
+
+Bước 1 — Đọc Excel thành DataTable
+
+Bạn đã làm được:
+→ Output: dtExcel
+
+
+---
+
+Bước 2 — Tạo Custom Object trống
+
+Action: Set variable
+
+Value type: Blank custom object
+
+Store in: myDict
+
+
+
+---
+
+Bước 3 — Lặp từng dòng
+
+Action: For each
+
+Value to iterate → %dtExcel.Rows%
+
+Current item → row
+
+
+
+---
+
+Bước 4 — Lấy Key và Value
+
+4.1 – Lấy Key (cột 0)
+
+Action: Get item from list
+
+List: %row%
+
+Index: 0
+
+Output: currentKey
+
+
+4.2 – Lấy Value (cột 1)
+
+Action: Get item from list
+
+List: %row%
+
+Index: 1
+
+Output: currentValue
+
+
+
+---
+
+Bước 5 — Thêm vào Custom Object (giống Dictionary)
+
+Action: Set property in custom object
+
+Custom object: myDict
+
+Property name: %currentKey%
+
+Value: %currentValue%
+
+
+🔹 Đây chính là cách PAD thay thế Dictionary trước đây.
+
+
+---
+
+🎉 GIỜ BẠN DÙNG GIỐNG HỆT DICTIONARY
+
+Ví dụ:
+
+%myDict["A"]%   → trả về 100
+%myDict["B"]%   → trả về 200
+
+Y như dictionary trong UiPath.
+
+
+---
+
+📌 Nếu Excel có tiêu đề header
+
+Bật “First row contains column names” khi đọc
+→ PAD tự bỏ dòng 1.
+
+
+---
+
+Bạn muốn tôi gửi flow mẫu dạng screenshot không?
+
+Hoặc bạn gửi tôi file excel mẫu, tôi làm flow đầy đủ cho bạn.
