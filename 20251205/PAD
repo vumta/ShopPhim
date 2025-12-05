@@ -1,0 +1,78 @@
+Đúng rồi — Power Automate Desktop có action để thêm phần tử vào dictionary, nhưng nó không tên là Add dictionary mà là:
+
+👉 “Add item to dictionary”
+
+Đây là action chính thức nằm trong nhóm:
+Variables → Dictionary
+
+
+---
+
+📌 Cách tìm trong PAD
+
+Trong khung Search actions, gõ:
+
+dictionary
+
+Bạn sẽ thấy các action sau:
+
+Create new dictionary
+
+Add item to dictionary
+
+Set value in dictionary
+
+Remove item from dictionary
+
+Get item from dictionary
+
+
+👉 Cái bạn cần để thêm key–value là:
+
+Add item to dictionary
+
+
+---
+
+📌 Hình minh họa (mô tả)
+
+Add item to dictionary
+
+Dictionary → chọn dictionary bạn đã tạo (vd: myDict)
+
+Key → %currentKey%
+
+Value → %currentValue%
+
+
+
+---
+
+📌 Nếu bạn không thấy action này
+
+Một số trường hợp do:
+
+PAD phiên bản quá cũ
+
+Bạn đang dùng bản portable
+
+Bị filter action theo category
+
+
+Giải pháp:
+
+1. Update PAD lên bản mới nhất (Windows 10/11 Store hoặc Power Automate Installer).
+
+
+2. Tìm trong nhóm:
+Variables → Dictionary
+
+
+
+
+---
+
+❓ Bạn đang dùng PAD bản bao nhiêu?
+
+Nếu bạn muốn, tôi có thể hướng dẫn cách tạo dictionary bằng List of KeyValuePairs thay thế — cũng chạy được 100% và không cần action “Add item to dictionary”.
+
