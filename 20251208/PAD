@@ -1,0 +1,102 @@
+Trong Power Automate Desktop (PAD), biến kiểu “Error” chỉ tồn tại sau khi một action thực sự lỗi và PAD tự động sinh ra đối tượng Error (với các thuộc tính như Message, Details, ErrorCode…).
+
+Nếu bạn tự tạo một biến object thủ công (ví dụ: customers) và chưa gán cấu trúc bên trong, thì khi bạn gọi:
+
+%customers.Message%
+
+%customers.Detail%
+
+
+→ PAD sẽ báo lỗi “Cannot get property … of a non-existent object” vì biến đó không phải là object Error và không có thuộc tính nào cả.
+
+
+---
+
+✅ Cách Fix (không dựa vào Get Last Error)
+
+Cách 1 — Khởi tạo object rỗng đúng cấu trúc trước khi dùng
+
+Trước khi truy cập thuộc tính, bạn phải tạo biến object và set các thuộc tính bên trong nó thủ công.
+
+Bước 1: Dùng action Set Variable
+
+Name: customers
+
+Value: {}
+
+
+Bước 2: Dùng Set Variable để thêm thuộc tính
+
+Ví dụ:
+
+Set variable →
+Variable: customers
+Value: {"Message": "", "Detail": ""}
+
+
+Hoặc nếu muốn giữ cấu trúc như Error object:
+
+{"Message": "", "Details": "", "ErrorCode": 0 }
+
+Bước 3: Bây giờ bạn có thể gọi
+
+%customers.Message%
+
+%customers.Details%
+
+
+✔ Không còn lỗi
+
+
+---
+
+Cách 2 — Kiểm tra object có thuộc tính hay không trước khi gọi
+
+Nếu bạn không chắc object đã tồn tại hay chưa:
+
+Action: If Condition
+
+If customers is empty
+    Set customers = {"Message": "", "Details": "" }
+End
+
+Sau đó truy cập bình thường.
+
+
+---
+
+Cách 3 — Dùng “Get details of JSON object”
+
+Nếu bạn muốn truy cập thuộc tính của object tùy ý:
+
+1. Tạo biến customers = {} hoặc một JSON hợp lệ.
+
+
+2. Dùng action Get details of JSON object
+
+
+3. Truy cập bằng dictionary:
+%customers["Message"]%
+
+
+
+Nhưng vẫn phải đảm bảo key tồn tại.
+
+
+---
+
+🔥 Kết luận
+
+Bạn bị lỗi vì:
+
+Biến bạn tạo không phải Error object
+
+Bạn gọi thuộc tính không tồn tại
+
+
+👉 Cách sửa: khởi tạo trước cấu trúc object, hoặc kiểm tra trước khi truy cập thuộc tính.
+
+
+---
+
+Nếu bạn gửi flow hoặc cách bạn tạo biến customers, mình có thể hướng dẫn chi tiết đúng theo flow của bạn.
