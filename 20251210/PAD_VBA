@@ -1,0 +1,151 @@
+Mục tiêu
+Bạn sẽ lưu macro vào file .xlsm (không cần sheet Config) với một Sub công khai nhận 4 tham số. Từ Power Automate Desktop (PAD) dùng action Run Excel Macro và truyền trực tiếp 4 tham số vào macro đó.
+
+---
+
+1 — Mã VBA (Sub nhận tham số trực tiếp)
+Dán đoạn mã này vào Module trong VBA (Alt+F11 → Insert → Module). Macro tên RemoveDuplicatesByParams nhận 4 tham số: sFilePath, sSheetName, colIndex, hasHeader.
+
+`vb
+Option Explicit
+
+' Macro công khai nhận tham số trực tiếp
+' sFilePath: đường dẫn file Excel (để trống "" để xử lý workbook chứa macro)
+' sSheetName: tên sheet cần xử lý
+' colIndex: chỉ số cột (1 = A, 2 = B, ...)
+' hasHeader: True nếu có header ở hàng 1, False nếu không
+Public Sub RemoveDuplicatesByParams(ByVal sFilePath As String, _
+                                    ByVal sSheetName As String, _
+                                    ByVal colIndex As Long, _
+                                    ByVal hasHeader As Boolean)
+    Dim wb As Workbook
+    Dim targetWb As Workbook
+    Dim openedHere As Boolean
+    Dim ws As Worksheet
+    
+    openedHere = False
+    On Error GoTo ErrHandler
+    
+    ' Mở workbook nếu truyền đường dẫn, ngược lại dùng workbook chứa macro
+    If Trim(sFilePath) = "" Then
+        Set targetWb = ThisWorkbook
+    Else
+        Set wb = Workbooks.Open(Filename:=sFilePath)
+        Set targetWb = wb
+        openedHere = True
+    End If
+    
+    ' Kiểm tra sheet tồn tại
+    On Error Resume Next
+    Set ws = targetWb.Worksheets(sSheetName)
+    On Error GoTo ErrHandler
+    If ws Is Nothing Then
+        MsgBox "Không tìm thấy sheet: " & sSheetName, vbExclamation
+        GoTo CleanUp
+    End If
+    
+    ' Thực hiện loại trùng
+    Call RemoveDuplicatesInWorksheet(ws, colIndex, hasHeader)
+    
+    ' Lưu nếu mở từ file ngoài
+    If openedHere Then targetWb.Save
+    
+    ' (Không bắt buộc) thông báo hoàn tất
+    ' MsgBox "Hoàn tất: đã loại trùng theo cột " & colIndex, vbInformation
+
+CleanUp:
+    If openedHere Then
+        targetWb.Close SaveChanges:=False
+    End If
+    Set ws = Nothing
+    Set targetWb = Nothing
+    Exit Sub
+
+ErrHandler:
+    MsgBox "Lỗi: " & Err.Number & " - " & Err.Description, vbCritical
+    Resume CleanUp
+End Sub
+
+' Hàm phụ thực hiện RemoveDuplicates trên worksheet đã cho
+Private Sub RemoveDuplicatesInWorksheet(ByVal ws As Worksheet, _
+                                        ByVal colIndex As Long, _
+                                        ByVal hasHeader As Boolean)
+    Dim rng As Range
+    Dim headerArg As XlYesNoGuess
+    
+    ' Lấy vùng dữ liệu (thay đổi nếu muốn phạm vi cụ thể)
+    Set rng = ws.UsedRange
+    If rng Is Nothing Then Exit Sub
+    
+    If hasHeader Then
+        headerArg = xlYes
+    Else
+        headerArg = xlNo
+    End If
+    
+    rng.RemoveDuplicates Columns:=Array(colIndex), Header:=headerArg
+End Sub
+`
+
+---
+
+2 — Lưu file .xlsm
+1. Save As → Excel Macro-Enabled Workbook (*.xlsm), ví dụ RemoveDupTool.xlsm.  
+2. Đóng hoặc để mở tùy bạn.
+
+---
+
+3 — Cách gọi macro từ Power Automate Desktop (PAD)
+Dưới đây là flow PAD mẫu, giả sử bạn muốn PAD mở file .xlsm chứa macro và truyền tham số trực tiếp:
+
+A. Các bước chính trong PAD
+1. Launch Excel (hoặc Run Excel) → lưu instance (ví dụ %ExcelInstance%).  
+2. Open Excel → mở file RemoveDupTool.xlsm (đường dẫn đầy đủ). Lưu workbook vào biến (ví dụ %Workbook%).  
+3. Run Excel Macro:
+   - Macro name: RemoveDuplicatesByParams
+   - Workbook: chọn workbook đã mở (%Workbook%)
+   - Parameters: truyền 4 tham số theo thứ tự, dạng chuỗi/giá trị phù hợp (xem phần định dạng bên dưới).  
+4. Save Excel (nếu muốn) và Close Excel.
+
+B. Định dạng tham số trong PAD (ví dụ)
+- Ví dụ 1 — xử lý file khác  
+  - sFilePath = C:\Data\Target.xlsx  
+  - sSheetName = Sheet1  
+  - colIndex = 1  
+  - hasHeader = True  
+  Trong PAD, trường Parameters của action Run Excel Macro nhập như:  
+  `
+  "C:\Data\Target.xlsx","Sheet1",1,True
+  `
+- Ví dụ 2 — xử lý workbook chứa macro  
+  - sFilePath = "" (chuỗi rỗng)  
+  - sSheetName = Sheet1  
+  - colIndex = 1  
+  - hasHeader = True  
+  Truyền:
+  `
+  "","Sheet1",1,True
+  `
+
+> Ghi chú: PAD thường yêu cầu tham số được nhập dưới dạng một chuỗi liệt kê các tham số phân tách bằng dấu phẩy; chuỗi văn bản phải được đặt trong dấu ngoặc kép. Nếu PAD của bạn có giao diện cho nhập từng tham số riêng biệt, điền tương ứng vào từng ô.
+
+---
+
+4 — Lưu ý thực tế và xử lý lỗi
+- Sao lưu file đích trước khi chạy.  
+- Nếu PAD không cho truyền tham số trực tiếp (phiên bản PAD khác nhau), phương án thay thế: tạo một wrapper macro không tham số trong file .xlsm và từ PAD chỉ gọi wrapper; wrapper có thể đọc tham số từ Named Ranges hoặc từ CustomDocumentProperties mà PAD ghi trước khi gọi. (Bạn đã yêu cầu bỏ sheet Config; Named Range / CustomProperty là lựa chọn thay thế nếu PAD không hỗ trợ truyền tham số trực tiếp.)  
+- Nếu macro hiển thị MsgBox gây dừng PAD, bạn có thể comment/loại bỏ các MsgBox trong mã để chạy không tương tác.  
+- Kiểm tra quyền macro: khi mở file .xlsm, Excel có thể chặn macro — bật Enable Content hoặc cấu hình trust center nếu chạy tự động.
+
+---
+
+5 — Ví dụ gọi từ PAD (tóm tắt ngắn)
+1. Open Excel → RemoveDupTool.xlsm.  
+2. Run Excel Macro → Macro name: RemoveDuplicatesByParams ; Parameters: "C:\Data\Target.xlsx","Sheet1",1,True.  
+3. Save → Close.
+
+---
+
+Nếu bạn muốn, tôi sẽ:  
+- cung cấp phiên bản macro không hiện MsgBox để chạy headless;  
+- hoặc cung cấp mã VBA dùng CustomDocumentProperties làm kênh nhận tham số (nếu PAD không hỗ trợ truyền tham số trực tiếp). Bạn muốn tôi thêm phương án nào không?
