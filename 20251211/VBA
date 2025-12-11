@@ -1,0 +1,99 @@
+Chào bạn, đây là đoạn code VBA được tối ưu hóa để bạn dán vào Module và gọi trực tiếp từ Power Automate Desktop (PAD).
+Tôi đã loại bỏ hàm Main, thêm xử lý lỗi và giữ nguyên logic Gom vùng (Method 2) để đảm bảo tốc độ.
+Code VBA (Copy vào Module)
+Option Explicit
+
+Sub DeleteRowsForPAD(FilePath As String, SheetName As String, ColIndex As Variant, CompareValue As Variant)
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim rngToDelete As Range
+    Dim fso As Object
+    
+    ' Tối ưu hóa tốc độ hệ thống
+    With Application
+        .ScreenUpdating = False
+        .Calculation = xlCalculationManual
+        .DisplayAlerts = False ' Quan trọng: Tắt cảnh báo Save để PAD không bị treo
+        .EnableEvents = False
+    End With
+    
+    On Error GoTo ErrorHandler
+    
+    ' Kiểm tra file tồn tại (để tránh lỗi Crash)
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FileExists(FilePath) Then
+        Err.Raise 53, "DeleteRowsForPAD", "File not found: " & FilePath
+    End If
+    
+    ' Mở Workbook từ đường dẫn được truyền vào
+    Set wb = Workbooks.Open(FilePath)
+    
+    ' Xác định Worksheet
+    On Error Resume Next
+    Set ws = wb.Sheets(SheetName)
+    On Error GoTo ErrorHandler
+    
+    If ws Is Nothing Then
+        wb.Close SaveChanges:=False
+        Err.Raise 9, "DeleteRowsForPAD", "Sheet not found: " & SheetName
+    End If
+    
+    ' --- BẮT ĐẦU XỬ LÝ (GOM VÙNG) ---
+    lastRow = ws.Cells(ws.Rows.Count, ColIndex).End(xlUp).Row
+    
+    ' Duyệt từ dòng 2 (Giả định dòng 1 là Header)
+    For i = 2 To lastRow
+        ' So sánh giá trị: Nếu KHÁC giá trị tham chiếu thì đưa vào danh sách xóa
+        ' Lưu ý: CStr đảm bảo so sánh dưới dạng chuỗi để tránh lỗi type mismatch
+        If CStr(ws.Cells(i, ColIndex).Value) <> CStr(CompareValue) Then
+            If rngToDelete Is Nothing Then
+                Set rngToDelete = ws.Rows(i)
+            Else
+                Set rngToDelete = Union(rngToDelete, ws.Rows(i))
+            End If
+        End If
+    Next i
+    
+    ' Xóa 1 lần duy nhất
+    If Not rngToDelete Is Nothing Then
+        rngToDelete.Delete
+    End If
+    
+    ' Lưu và Đóng file
+    wb.Close SaveChanges:=True
+    
+CleanUp:
+    ' Trả lại trạng thái cho Excel
+    With Application
+        .ScreenUpdating = True
+        .Calculation = xlCalculationAutomatic
+        .DisplayAlerts = True
+        .EnableEvents = True
+    End With
+    Set fso = Nothing
+    Set ws = Nothing
+    Set wb = Nothing
+    Exit Sub
+
+ErrorHandler:
+    ' Nếu có lỗi, đóng file không lưu để bảo toàn dữ liệu gốc
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    ' Bắn lỗi ra để Power Automate nhận biết được là đã fail
+    Err.Raise Err.Number, Err.Source, Err.Description
+    Resume CleanUp
+End Sub
+
+Cách cấu hình trong Power Automate Desktop (PAD)
+Trong PAD, khi bạn dùng action Run Excel Macro, bạn cần điền thông tin như sau để truyền biến vào:
+ * Macro name: DeleteRowsForPAD
+ * Macro arguments: Bạn điền các biến của PAD vào theo thứ tự, ngăn cách bởi dấu chấm phẩy (;) và bao quanh chuỗi bằng dấu nháy đơn (') nếu cần thiết (tùy thuộc vào phiên bản PAD, nhưng thường PAD tự xử lý biến).
+Cú pháp chuẩn trong ô Macro arguments sẽ trông giống như sau:
+'%FilePath%'; '%SheetName%'; '%ColIndex%'; '%CompareValue%'
+Ví dụ cụ thể nếu điền cứng (hardcode):
+'C:\Data\Report.xlsx'; 'Sheet1'; 'C'; 'E'
+Lưu ý quan trọng:
+ * File chứa code VBA này (Master File) cần được mở trước bằng action Launch Excel.
+ * Code trên sẽ tự động Open -> Process -> Save -> Close file dữ liệu mục tiêu (file nằm ở biến FilePath). Do đó, file dữ liệu mục tiêu KHÔNG ĐƯỢC MỞ TRƯỚC khi chạy macro này (nếu đang mở, lệnh Workbooks.Open có thể gây lỗi Read-only).
+ 
