@@ -1,1 +1,159 @@
 
+Chào bạn, để đáp ứng yêu cầu nâng cao này:
+ * Không dùng hộp thoại chọn file: Đường dẫn file được "cứng hóa" hoặc truyền qua biến.
+ * Truyền tham số: Viết dưới dạng một thủ tục (Sub) nhận đối số đầu vào.
+ * Copy Format + Data: Sử dụng phương thức Copy trực tiếp sang Destination (thay vì PasteSpecial xlPasteValues).
+Dưới đây là giải pháp được chia làm 2 phần:
+ * Phần 1 (Main): Nơi bạn điền đường dẫn và danh sách cột, sau đó bấm chạy.
+ * Phần 2 (Core Logic): Hàm xử lý chính, bạn không cần sửa gì ở đây.
+Code VBA
+Hãy copy toàn bộ vào một Module.
+Option Explicit
+
+' ==============================================================================
+' PHẦN 1: MAIN - NƠI BẠN CẤU HÌNH VÀ CHẠY
+' ==============================================================================
+Sub Run_CopyProcess()
+    Dim sourcePath As String
+    Dim destPath As String
+    Dim arrSourceCols As Variant
+    Dim arrDestCols As Variant
+    
+    ' 1. Cấu hình đường dẫn file (Lưu ý: File đích phải đang đóng hoặc là file này)
+    ' Bạn hãy thay đổi đường dẫn bên dưới cho đúng với máy tính của bạn
+    sourcePath = "C:\Users\Admin\Documents\Data_Nguon.xlsx"
+    destPath = "C:\Users\Admin\Documents\Data_Dich.xlsx"
+    
+    ' 2. Cấu hình tên cột (Thứ tự phải tương ứng 1-1)
+    ' Ví dụ: Cột "Ten KH" (nguồn) sẽ chép vào "Khach Hang" (đích)
+    arrSourceCols = Array("Ten KH", "Ngay Sinh", "Doanh So")
+    arrDestCols = Array("Khach Hang", "Ngay De", "Tong Tien")
+    
+    ' 3. Gọi hàm xử lý
+    Call CopyColumnsByParams(sourcePath, destPath, "Sheet1", "Sheet1", arrSourceCols, arrDestCols)
+    
+End Sub
+
+' ==============================================================================
+' PHẦN 2: CORE LOGIC - HÀM XỬ LÝ (KHÔNG CẦN SỬA)
+' ==============================================================================
+Sub CopyColumnsByParams(sFilePath As String, dFilePath As String, _
+                        sSheetName As String, dSheetName As String, _
+                        sCols As Variant, dCols As Variant)
+                        
+    Dim wbSource As Workbook, wbDest As Workbook
+    Dim wsSource As Worksheet, wsDest As Worksheet
+    Dim sHeader As String, dHeader As String
+    Dim colIndxS As Range, colIndxD As Range
+    Dim dataRng As Range
+    Dim i As Integer, lastRowS As Long, lastRowD As Long
+    Dim isDestOpen As Boolean
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ' --- KIỂM TRA INPUT ---
+    If UBound(sCols) <> UBound(dCols) Then
+        MsgBox "Loi: So luong cot nguon va cot dich khong khop nhau!", vbCritical
+        Exit Sub
+    End If
+    
+    ' --- MỞ FILE NGUỒN (READ ONLY ĐỂ NHANH HƠN) ---
+    On Error Resume Next
+    Set wbSource = Workbooks.Open(sFilePath, ReadOnly:=True)
+    If wbSource Is Nothing Then
+        MsgBox "Khong tim thay file nguon: " & sFilePath, vbCritical
+        GoTo ExitHandler
+    End If
+    Set wsSource = wbSource.Sheets(sSheetName)
+    On Error GoTo 0
+    
+    ' --- MỞ FILE ĐÍCH ---
+    ' Kiểm tra xem file đích có phải là file đang chạy code này không
+    If dFilePath = ThisWorkbook.FullName Then
+        Set wbDest = ThisWorkbook
+        isDestOpen = True
+    Else
+        ' Kiểm tra file đích đã mở sẵn chưa
+        On Error Resume Next
+        Set wbDest = Workbooks(Dir(dFilePath))
+        If wbDest Is Nothing Then
+            Set wbDest = Workbooks.Open(dFilePath)
+            isDestOpen = False ' Đánh dấu là code tự mở, lát sẽ tự đóng (Save)
+        Else
+            isDestOpen = True ' Đã mở sẵn thì không đóng
+        End If
+        On Error GoTo 0
+    End If
+    Set wsDest = wbDest.Sheets(dSheetName)
+    
+    ' --- XỬ LÝ COPY (DATA + FORMAT) ---
+    lastRowS = wsSource.Cells(wsSource.Rows.Count, 1).End(xlUp).Row
+    
+    For i = LBound(sCols) To UBound(sCols)
+        sHeader = sCols(i)
+        dHeader = dCols(i)
+        
+        ' Tìm vị trí cột nguồn
+        Set colIndxS = wsSource.Rows(1).Find(sHeader, LookIn:=xlValues, LookAt:=xlWhole)
+        ' Tìm vị trí cột đích
+        Set colIndxD = wsDest.Rows(1).Find(dHeader, LookIn:=xlValues, LookAt:=xlWhole)
+        
+        If Not colIndxS Is Nothing And Not colIndxD Is Nothing Then
+            ' Xác định vùng dữ liệu (Bỏ qua dòng Header, lấy từ dòng 2)
+            If lastRowS >= 2 Then
+                Set dataRng = wsSource.Range(wsSource.Cells(2, colIndxS.Column), wsSource.Cells(lastRowS, colIndxS.Column))
+                
+                ' Tìm dòng trống tiếp theo ở file đích (để nối đuôi dữ liệu)
+                ' Nếu muốn ghi đè từ dòng 2 luôn thì sửa lastRowD = 1
+                lastRowD = wsDest.Cells(wsDest.Rows.Count, colIndxD.Column).End(xlUp).Row
+                If lastRowD < 1 Then lastRowD = 1
+                
+                ' COPY VÀ PASTE (Cả Format + Data)
+                ' Cú pháp: Source.Copy Destination:=Target
+                dataRng.Copy Destination:=wsDest.Cells(lastRowD + 1, colIndxD.Column)
+            End If
+        Else
+            Debug.Print "Khong tim thay cap cot: " & sHeader & " -> " & dHeader
+        End If
+    Next i
+    
+    ' --- DỌN DẸP & LƯU ---
+    wbSource.Close SaveChanges:=False ' Đóng file nguồn không lưu
+    
+    If isDestOpen = False Then
+        wbDest.Close SaveChanges:=True ' Đóng và LƯU file đích nếu code tự mở nó
+    Else
+        If Not wbDest Is ThisWorkbook Then wbDest.Save ' Nếu file đích mở sẵn thì Save
+    End If
+    
+    MsgBox "Da copy Data va Format thanh cong!", vbInformation
+
+ExitHandler:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Application.CutCopyMode = False
+End Sub
+
+Giải thích các thay đổi quan trọng:
+ * Truyền tham số (Arguments):
+   * Sub CopyColumnsByParams nhận đầu vào là: Đường dẫn file nguồn/đích, Tên Sheet nguồn/đích, và 2 mảng (Array) chứa tên các cột.
+   * Bạn không cần Hard-code (gán cứng) logic trong hàm xử lý nữa.
+ * Copy cả Format và Data:
+   * Tôi đã sử dụng câu lệnh:
+     dataRng.Copy Destination:=wsDest.Cells(...)
+   * Câu lệnh này tương đương với Ctrl+C và Ctrl+V thông thường, nó sẽ mang theo Font chữ, màu nền, đường viền (Border) và cả giá trị của ô sang file đích.
+ * Xử lý file thông minh:
+   * File nguồn: Luôn mở chế độ ReadOnly để đọc nhanh hơn và tránh xung đột.
+   * File đích: Code tự kiểm tra:
+     * Nếu file đích là file đang chứa code này -> Dùng luôn (ThisWorkbook).
+     * Nếu file đích chưa mở -> Mở ra, copy xong thì Lưu và Đóng.
+     * Nếu file đích đang mở sẵn -> Dùng luôn và Lưu.
+Cách sử dụng:
+ * Dán code vào Module.
+ * Chỉnh sửa thông tin tại Sub Run_CopyProcess:
+   * sourcePath: Đường dẫn file Excel chứa dữ liệu.
+   * destPath: Đường dẫn file Excel cần paste dữ liệu.
+   * arrSourceCols: Danh sách tên cột ở file nguồn.
+   * arrDestCols: Danh sách tên cột tương ứng ở file đích.
+ * Chạy Sub Run_CopyProcess (Nhấn F5).
