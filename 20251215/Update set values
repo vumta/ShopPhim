@@ -1,0 +1,282 @@
+Chào bạn, đây là một yêu cầu hợp lý để tách biệt file chứa mã (Macro Runner) và file dữ liệu (File Đích).
+Để thực hiện điều này, tôi cần cập nhật lại cách thức xử lý file đích trong hàm FillDefaultValues và Run_CopyProcess.
+Các thay đổi chính:
+ * Hàm FillDefaultValues: Sẽ nhận thêm đường dẫn file đích (dFilePath) và tên Sheet đích (dSheetName) để tự động mở, tìm Sheet, điền giá trị, lưu và đóng file đích.
+ * Hàm Run_CopyProcess: Sẽ gọi FillDefaultValues bằng đường dẫn file đích thay vì dùng ThisWorkbook.
+ * Tối ưu hóa mở/đóng file: Sử dụng các biến Application.ScreenUpdating và Application.DisplayAlerts để code chạy ngầm và nhanh hơn.
+Dưới đây là toàn bộ code đã được cập nhật. Bạn có thể đặt code này vào một file Excel mới hoàn toàn (File Runner) và nó sẽ thao tác trên hai file dữ liệu khác (Nguồn và Đích).
+Code VBA Đã Cập Nhật Toàn Bộ (File Chứa Code là File Runner)
+Option Explicit
+
+' Cấu hình chung cho toàn bộ Module: Dòng Header của file Đích
+Const HEADER_ROW_DEST As Integer = 2
+' Dòng dữ liệu bắt đầu trong file Đích (Ngay dưới Header)
+Const DATA_START_ROW_DEST As Integer = HEADER_ROW_DEST + 1
+
+' ==============================================================================
+' HÀM HỖ TRỢ: CHUẨN HÓA TÊN CỘT (LOẠI BỎ KÝ TỰ XUỐNG DÒNG)
+' ==============================================================================
+Function CleanHeader(ByVal headerName As String) As String
+    ' Loại bỏ ký tự ngắt dòng (Line Feed - Alt+Enter)
+    headerName = Replace(headerName, Chr(10), " ")
+    ' Loại bỏ ký tự Carriage Return (đôi khi xuất hiện)
+    headerName = Replace(headerName, Chr(13), " ")
+    ' Loại bỏ khoảng trắng thừa
+    headerName = Trim(headerName)
+    CleanHeader = headerName
+End Function
+
+' ==============================================================================
+' FUNCTION ĐIỀN GIÁ TRỊ MẶC ĐỊNH VÀO CỘT ĐÍCH (ĐÃ CẬP NHẬT ĐỂ TỰ MỞ/ĐÓNG FILE)
+' ==============================================================================
+Sub FillDefaultValues(dFilePath As String, dSheetName As String, arrDefaultValues As Variant)
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim defaultMap As Variant
+    Dim destHeader As String
+    Dim defaultValue As Variant
+    Dim colIndx As Range
+    Dim lastRowDest As Long
+    Dim i As Integer
+    Dim fillRange As Range
+    Dim isDestOpenedHere As Boolean ' Biến cờ để biết code có tự mở file đích hay không
+    
+    ' --- MỞ FILE ĐÍCH ---
+    On Error Resume Next
+    ' Kiểm tra file đích đã mở sẵn chưa
+    Set wbDest = Workbooks(Dir(dFilePath))
+    If wbDest Is Nothing Then
+        Set wbDest = Workbooks.Open(dFilePath)
+        isDestOpenedHere = True
+    End If
+    On Error GoTo 0
+    
+    If wbDest Is Nothing Then
+        Debug.Print "Loi: Khong the mo file dich: " & dFilePath
+        Exit Sub
+    End If
+    
+    ' Kiểm tra Sheet Đích
+    On Error Resume Next
+    Set wsDest = wbDest.Sheets(dSheetName)
+    If wsDest Is Nothing Then
+        Debug.Print "Loi: Sheet dich '" & dSheetName & "' khong ton tai."
+        GoTo ExitHandler
+    End If
+    On Error GoTo 0
+    
+    ' --- TÌM VÙNG CẦN ĐIỀN ---
+    lastRowDest = wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRowDest < DATA_START_ROW_DEST Then
+        Debug.Print "Khong co du lieu moi trong file dich (Sau dong Header 2) de dien gia tri mac dinh."
+        GoTo ExitHandler
+    End If
+    
+    ' --- TIẾN HÀNH ĐIỀN GIÁ TRỊ ---
+    For i = LBound(arrDefaultValues) To UBound(arrDefaultValues)
+        destHeader = arrDefaultValues(i)(0)
+        defaultValue = arrDefaultValues(i)(1)
+        
+        ' 1. TÌM VỊ TRÍ CỘT ĐÍCH (TÌM TRONG DÒNG 2)
+        Set colIndx = Nothing
+        For Each colIndx In wsDest.Rows(HEADER_ROW_DEST).Cells
+            If Trim(colIndx.Value) = "" Then Exit For
+            If CleanHeader(colIndx.Value) = CleanHeader(destHeader) Then
+                Exit For
+            End If
+        Next colIndx
+        
+        ' 2. GÁN GIÁ TRỊ NẾU TÌM THẤY
+        If Not colIndx Is Nothing And CleanHeader(colIndx.Value) = CleanHeader(destHeader) Then
+            ' Vùng cần điền giá trị (Từ dòng 3 đến dòng cuối cùng)
+            Set fillRange = wsDest.Range(wsDest.Cells(DATA_START_ROW_DEST, colIndx.Column), wsDest.Cells(lastRowDest, colIndx.Column))
+            
+            fillRange.Value = defaultValue
+            Debug.Print "Da dien gia tri '" & defaultValue & "' cho cot '" & destHeader & "'."
+        Else
+            Debug.Print "Khong tim thay cot dich '" & destHeader & "' de dien gia tri mac dinh."
+        End If
+    Next i
+
+ExitHandler:
+    ' Lưu và đóng nếu code tự mở
+    If Not wbDest Is Nothing Then
+        If isDestOpenedHere Then
+            wbDest.Close SaveChanges:=True
+        Else
+            ' Nếu file mở sẵn, chỉ cần Save
+            wbDest.Save
+        End If
+    End If
+
+End Sub
+
+' ==============================================================================
+' PHẦN 1: MAIN - NƠI BẠN CẤU HÌNH VÀ CHẠY
+' ==============================================================================
+Sub Run_CopyProcess()
+    Dim sourcePath As String
+    Dim destPath As String
+    Dim arrSourceCols As Variant
+    Dim arrDestCols As Variant
+    Dim arrDefaults As Variant
+    Dim destSheetName As String ' Biến cho tên Sheet đích
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ' 1. Cấu hình đường dẫn file (Thay đổi tại đây)
+    sourcePath = "C:\Users\Admin\Documents\Data_Nguon.xlsx"
+    destPath = "C:\Users\Admin\Documents\Data_Dich.xlsx"
+    destSheetName = "Sheet1" ' Tên Sheet đích
+    
+    ' 2. Cấu hình tên cột copy
+    arrSourceCols = Array("Ten KH", "Ngay Sinh", "Doanh So")
+    arrDestCols = Array("Khach Hang", "Ngay De", "Tong Tien")
+    
+    ' 3. Cấu hình giá trị mặc định cho cột đích
+    arrDefaults = Array( _
+        Array("Trang Thai", "Moi"), _
+        Array("Nhom", "A"), _
+        Array("Ngay Cap Nhat", Date)
+    )
+    
+    ' 4. Gọi hàm xử lý Copy (Giữ nguyên logic mở/đóng)
+    Call CopyColumnsByParams(sourcePath, destPath, "Sheet1", destSheetName, arrSourceCols, arrDestCols)
+    
+    ' 5. Gọi hàm điền giá trị mặc định (Sử dụng đường dẫn file đích)
+    ' File đích sẽ được tự động mở, điền giá trị và đóng/lưu trong hàm này
+    Call FillDefaultValues(destPath, destSheetName, arrDefaults)
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Qua trinh xu ly da hoan tat tren file dich: " & destPath, vbInformation
+
+End Sub
+
+' ==============================================================================
+' PHẦN 2: CORE LOGIC - HÀM XỬ LÝ COPY
+' ==============================================================================
+Sub CopyColumnsByParams(sFilePath As String, dFilePath As String, _
+                        sSheetName As String, dSheetName As String, _
+                        sCols As Variant, dCols As Variant)
+                        
+    Dim wbSource As Workbook, wbDest As Workbook
+    Dim wsSource As Worksheet, wsDest As Worksheet
+    Dim sHeader As String, dHeader As String
+    Dim colIndxS As Range, colIndxD As Range
+    Dim dataRng As Range
+    Dim i As Integer, lastRowS As Long, lastRowD As Long
+    Dim isDestOpenedHere As Boolean
+    Dim cellHeader As Range
+    Dim cleanSHeader As String, cleanDHeader As String
+    
+    Const HEADER_ROW_SOURCE As Integer = 1
+    
+    ' --- BẮT ĐẦU MỞ/XỬ LÝ ---
+    
+    If UBound(sCols) <> UBound(dCols) Then
+        MsgBox "Loi: So luong cot nguon va cot dich khong khop nhau!", vbCritical
+        GoTo ExitHandler
+    End If
+    
+    ' MỞ FILE NGUỒN
+    On Error Resume Next
+    Set wbSource = Workbooks.Open(sFilePath, ReadOnly:=True)
+    If wbSource Is Nothing Then
+        MsgBox "Khong tim thay file nguon: " & sFilePath, vbCritical
+        GoTo ExitHandler
+    End If
+    Set wsSource = wbSource.Sheets(sSheetName)
+    On Error GoTo 0
+    
+    ' MỞ FILE ĐÍCH
+    On Error Resume Next
+    Set wbDest = Workbooks(Dir(dFilePath))
+    If wbDest Is Nothing Then
+        Set wbDest = Workbooks.Open(dFilePath)
+        isDestOpenedHere = True
+    Else
+        isDestOpenedHere = False
+    End If
+    On Error GoTo 0
+    
+    On Error Resume Next
+    Set wsDest = wbDest.Sheets(dSheetName)
+    If wsDest Is Nothing Then
+        MsgBox "Sheet dich '" & dSheetName & "' khong ton tai trong file dich.", vbCritical
+        GoTo ExitHandler
+    End If
+    On Error GoTo 0
+    
+    ' --- XỬ LÝ COPY ---
+    lastRowS = wsSource.Cells(wsSource.Rows.Count, 1).End(xlUp).Row
+    
+    For i = LBound(sCols) To UBound(sCols)
+        sHeader = sCols(i)
+        dHeader = dCols(i)
+        cleanSHeader = CleanHeader(sHeader)
+        cleanDHeader = CleanHeader(dHeader)
+        
+        ' 1. TÌM CỘT NGUỒN (DÒNG 1)
+        Set colIndxS = Nothing
+        For Each cellHeader In wsSource.Rows(HEADER_ROW_SOURCE).Cells
+            If Trim(cellHeader.Value) = "" Then Exit For
+            If CleanHeader(cellHeader.Value) = cleanSHeader Then
+                Set colIndxS = cellHeader
+                Exit For
+            End If
+        Next cellHeader
+        
+        ' 2. TÌM CỘT ĐÍCH (DÒNG 2)
+        Set colIndxD = Nothing
+        For Each cellHeader In wsDest.Rows(HEADER_ROW_DEST).Cells
+            If Trim(cellHeader.Value) = "" Then Exit For
+            If CleanHeader(cellHeader.Value) = cleanDHeader Then
+                Set colIndxD = cellHeader
+                Exit For
+            End If
+        Next cellHeader
+        
+        ' 3. COPY NẾU TÌM THẤY
+        If Not colIndxS Is Nothing And Not colIndxD Is Nothing Then
+            If lastRowS >= HEADER_ROW_SOURCE + 1 Then
+                Set dataRng = wsSource.Range(wsSource.Cells(HEADER_ROW_SOURCE + 1, colIndxS.Column), wsSource.Cells(lastRowS, colIndxS.Column))
+                
+                lastRowD = wsDest.Cells(wsDest.Rows.Count, colIndxD.Column).End(xlUp).Row
+                If lastRowD < DATA_START_ROW_DEST Then lastRowD = DATA_START_ROW_DEST - 1
+                
+                dataRng.Copy Destination:=wsDest.Cells(lastRowD + 1, colIndxD.Column)
+            End If
+        Else
+            Debug.Print "Khong tim thay cap cot: " & sHeader & " -> " & dHeader
+        End If
+    Next i
+    
+    ' --- DỌN DẸP & LƯU ---
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    
+    If Not wbDest Is Nothing Then
+        If isDestOpenedHere Then
+            wbDest.Close SaveChanges:=True
+        Else
+            wbDest.Save
+        End If
+    End If
+
+ExitHandler:
+    Application.CutCopyMode = False
+End Sub
+
+Cách sử dụng mới:
+ * Lưu code: Lưu đoạn code trên vào một Module trong File Excel Runner của bạn.
+ * Cấu hình: Chắc chắn rằng bạn đã cập nhật chính xác sourcePath, destPath, và destSheetName trong Sub Run_CopyProcess.
+ * Chạy: Chạy Sub Run_CopyProcess. Code sẽ tự động thực hiện:
+   * Mở file nguồn, mở file đích (nếu chưa mở).
+   * Copy dữ liệu từ nguồn sang đích.
+   * Lưu và đóng file đích (hoặc chỉ lưu nếu nó đã mở sẵn) trong CopyColumnsByParams.
+   * Tiếp tục mở file đích (hoặc sử dụng file đang mở) trong FillDefaultValues.
+   * Điền giá trị mặc định.
+   * Lưu và đóng file đích lần cuối.
+Quá trình này hoàn toàn tách biệt khỏi file chứa code.
