@@ -1,0 +1,162 @@
+Chào bạn,
+Tôi đã thêm một Function mới có tên là FillDefaultValue vào Module VBA. Function này sẽ nhận tham số tương tự như ColumnMapping để điền giá trị mặc định vào các cột đã chỉ định trong file đích.
+Tôi cũng sẽ hướng dẫn cách bạn có thể gọi cả hai Function này tuần tự từ Power Automate Desktop (PAD).
+💻 Code VBA Hoàn Chỉnh
+📄 1. Function CopyDataByColumnName (Giữ nguyên)
+(Sử dụng phiên bản đã sửa lỗi lCol từ lần trước)
+📄 2. Function Mới: FillDefaultValue
+Function này sẽ mở file đích và điền giá trị mặc định cho các cột được chỉ định, áp dụng cho tất cả các hàng có dữ liệu (tính đến hàng cuối cùng có dữ liệu trong file).
+' ---------------------------------------------------------------------------------
+' NEW FUNCTION: Fill Default Values
+' ---------------------------------------------------------------------------------
+
+' Function to fill a specific default value into designated columns 
+' in the destination workbook.
+' Parameters:
+' - DestinationPath: Full path to the destination Excel file.
+' - DefaultMapping: String in the format "ColIndex1,DefaultValue1;ColIndex2,DefaultValue2;..."
+Public Function FillDefaultValue(ByVal DestinationPath As String, _
+                                 ByVal DefaultMapping As String) As String
+
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim lDestIndex As Long
+    Dim vDefaultValue As Variant
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+
+    FillDefaultValue = "Success" ' Initialize return value
+
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' --- 1. Open Destination Workbook ---
+    Set wbDest = Workbooks.Open(DestinationPath)
+    
+    ' Assume data is on Sheet 1 (Modify if needed)
+    Set wsDest = wbDest.Sheets(1)
+    
+    ' Assume Header row is 1
+    lHeaderRow = 1 
+
+    ' Determine the overall last row that contains data across all used cells
+    lLastRow = wsDest.Cells.Find(What:="*", After:=wsDest.Range("A1"), LookIn:=xlValues, LookAt:=xlPart, SearchOrder:=xlByRows, SearchDirection:=xlPrevious).Row
+    
+    ' If there's no data beyond the header, stop
+    If lLastRow <= lHeaderRow Then
+        FillDefaultValue = "Success (No data rows found to fill)"
+        GoTo Finalize
+    End If
+
+    ' --- 2. Process Default Mapping ---
+    ' Split the mapping string by semicolon (;)
+    arrMapping = Split(DefaultMapping, ";")
+
+    ' --- 3. Fill Default Values ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split each pair by comma (,)
+            arrPair = Split(arrMapping(i), ",")
+            
+            If UBound(arrPair) = 1 Then
+                ' Destination Column Index
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(0)))
+                On Error GoTo ErrorHandler ' Reset Error Handler
+                
+                ' Default Value
+                vDefaultValue = Trim(arrPair(1))
+                
+                If lDestIndex > 0 Then
+                    ' Define the range to fill (from row below header to last row)
+                    ' Fill the entire block with the default value
+                    wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = vDefaultValue
+                End If
+            End If
+        End If
+    Next
+
+    ' --- 4. Save and Close ---
+    wbDest.Save
+
+Finalize:
+    wbDest.Close SaveChanges:=False
+    
+    ' --- 5. Cleanup ---
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    ' Handle runtime errors
+    Dim sErrorLog As String
+    sErrorLog = "Runtime Error: " & Err.Description & " (" & Err.Number & ") on line " & Erl & ". "
+    FillDefaultValue = "Fatal Error in FillDefaultValue: " & sErrorLog
+    
+    ' Ensure settings are reset even on error
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    
+    ' Close open workbook (attempt gracefully)
+    On Error Resume Next
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+
+End Function
+
+📋 Giải thích về Tham số DefaultMapping
+Tham số này được truyền vào Function FillDefaultValue.
+ * Định dạng: "Index Cột Đích 1,Giá Trị Mặc Định 1;Index Cột Đích 2,Giá Trị Mặc Định 2;..."
+ * Ví dụ: Để điền giá trị "Pending" vào Cột 8 và giá trị 2025 vào Cột 9, bạn sẽ truyền chuỗi: "8,Pending;9,2025"
+⚙️ Gọi Tuần tự 2 Function trong Power Automate Desktop (PAD)
+Trong PAD, bạn sẽ cần 4 bước chính:
+Bước 1: Khai báo Biến (Set Variables)
+Tạo các biến để sử dụng cho cả hai Function:
+| Biến PAD | Giá trị Ví dụ | Mục đích |
+|---|---|---|
+| %SourcePath% | C:\Data\Source.xlsx | File nguồn |
+| %DestPath% | C:\Data\Destination.xlsx | File đích |
+| %CopyMapping% | "Product Name,1;Price,3" | Ánh xạ cho CopyDataByColumnName |
+| %DefaultMapping% | "8,Pending;9,2025" | Ánh xạ cho FillDefaultValue |
+Bước 2: Chạy Function Copy Data
+| Action | Cấu hình |
+|---|---|
+| Launch Excel | Mở %DestPath% (hoặc file chứa macro) |
+| Run Excel macro | Macro name: CopyDataByColumnName |
+|  | Arguments: %SourcePath%, %DestPath%, %CopyMapping% |
+|  | Macro result: %CopyResult% |
+| Close Excel | Không lưu (vì macro đã tự lưu) |
+Bước 3: Kiểm tra và Chạy Function Fill Default Value
+Bạn cần kiểm tra kết quả Copy trước khi chạy Fill.
+IF %CopyResult% CONTAINS 'Success'
+    ' --- TÁI KHỞI CHẠY EXCEL ĐỂ CHẠY FUNCTION THỨ HAI ---
+    
+    ' 1. Launch Excel
+    '    Document path: %DestPath%
+    '    Variables produced: %ExcelInstance2% 
+
+    ' 2. Run Excel macro
+    '    Excel instance: %ExcelInstance2%
+    '    Macro name: FillDefaultValue
+    '    Arguments: %DestPath%, %DefaultMapping%
+    '    Macro result: %FillResult%
+    
+    ' 3. Close Excel
+    '    Excel instance: %ExcelInstance2%
+
+    ' 4. Kiểm tra kết quả Fill
+    IF %FillResult% CONTAINS 'Success'
+        LOG MESSAGE "Hoàn thành cả Copy và Fill Default."
+    ELSE
+        LOG MESSAGE "Lỗi khi điền giá trị mặc định: %FillResult%"
+    END
+ELSE
+    LOG MESSAGE "LỖI: Copy Data thất bại: %CopyResult%"
+END
+
+Lưu ý quan trọng: Mỗi lần bạn gọi một Macro mà thao tác với File Excel (như CopyDataByColumnName và FillDefaultValue của chúng ta), bạn nên mở và đóng file Excel trong PAD cho mỗi lần gọi để đảm bảo Excel được giải phóng tài nguyên giữa các lần thực thi, đặc biệt khi các Function này tự mở/đóng/lưu file.
+Bạn có muốn tôi giúp bạn xác nhận chuỗi ánh xạ cho trường hợp cụ thể của bạn không?
