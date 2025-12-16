@@ -1,0 +1,178 @@
+Chào bạn,
+Đây là phần code VBA và hướng dẫn cách bạn có thể thực hiện yêu cầu của mình, cùng với hướng dẫn để chạy macro này từ Power Automate Desktop (PAD).
+💻 Code VBA: Copy Data Giữa Các File Excel
+Macro này nhận 3 đối số:
+ * SourcePath: Đường dẫn đầy đủ đến file Excel nguồn.
+ * DestinationPath: Đường dẫn đầy đủ đến file Excel đích.
+ * ColumnMapping: Một chuỗi chứa ánh xạ cột, định dạng là "Tên Cột Nguồn 1,Index Cột Đích 1;Tên Cột Nguồn 2,Index Cột Đích 2;...".
+📄 Code VBA (Sử dụng trong file Macro hoặc file đích)
+Option Explicit
+
+' Macro để copy dữ liệu từ cột có tên cụ thể trong file nguồn
+' sang cột có chỉ số (index) cụ thể trong file đích.
+' Macro này được thiết kế để chạy từ Power Automate Desktop (PAD)
+' hoặc bằng tay, truyền các tham số dưới dạng chuỗi.
+
+Sub CopyDataByColumnName(ByVal SourcePath As String, _
+                         ByVal DestinationPath As String, _
+                         ByVal ColumnMapping As String)
+
+    Dim wbSource As Workbook
+    Dim wbDest As Workbook
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim sSourceName As String
+    Dim lDestIndex As Long
+    Dim lSourceCol As Long
+    Dim lLastRow As Long
+    Dim lRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+
+    On Error GoTo ErrorHandler
+
+    ' --- 1. Mở các Workbook ---
+    ' Tắt thông báo lỗi và cập nhật màn hình để tối ưu tốc độ
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    Set wbSource = Workbooks.Open(SourcePath)
+    Set wbDest = Workbooks.Open(DestinationPath)
+
+    ' Giả sử dữ liệu nằm ở Sheet 1 (thay đổi nếu cần)
+    Set wsSource = wbSource.Sheets(1)
+    Set wsDest = wbDest.Sheets(1)
+    
+    ' Giả sử hàng tiêu đề (Header) là hàng đầu tiên (thay đổi nếu cần)
+    lHeaderRow = 1 
+
+    ' --- 2. Xử lý Column Mapping ---
+    arrMapping = Split(ColumnMapping, ";")
+
+    ' --- 3. Bắt đầu Copy/Paste ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            arrPair = Split(arrMapping(i), ",")
+            
+            ' Đảm bảo có đủ 2 phần tử (Tên cột nguồn và Index cột đích)
+            If UBound(arrPair) = 1 Then
+                sSourceName = Trim(arrPair(0))
+                
+                ' Chuyển Index Cột Đích thành số nguyên
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(1)))
+                On Error GoTo ErrorHandler ' Reset Error Handler
+
+                ' --- Tìm cột nguồn theo Tên ---
+                lSourceCol = 0 ' Reset cột nguồn
+                For lCol = 1 To wsSource.Cells(lHeaderRow, Columns.Count).End(xlToLeft).Column
+                    If StrComp(Trim(wsSource.Cells(lHeaderRow, lCol).Value), sSourceName, vbTextCompare) = 0 Then
+                        lSourceCol = lCol
+                        Exit For
+                    End If
+                Next lCol
+
+                If lSourceCol > 0 And lDestIndex > 0 Then
+                    ' --- Xác định hàng cuối cùng có dữ liệu trong cột nguồn ---
+                    ' Bắt đầu tìm từ hàng dưới Header
+                    lLastRow = wsSource.Cells(Rows.Count, lSourceCol).End(xlUp).Row
+                    If lLastRow < lHeaderRow + 1 Then
+                        ' Không có dữ liệu, chuyển sang cặp cột tiếp theo
+                        GoTo NextMapping
+                    End If
+                    
+                    ' --- Copy dữ liệu (loại bỏ hàng tiêu đề) ---
+                    ' Phạm vi nguồn: Từ ô đầu tiên dưới Header đến hàng cuối cùng
+                    ' Phạm vi đích: Bắt đầu từ ô đầu tiên dưới Header
+                    
+                    ' Copy Giá trị
+                    wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = _
+                    wsSource.Range(wsSource.Cells(lHeaderRow + 1, lSourceCol), wsSource.Cells(lLastRow, lSourceCol)).Value
+
+                ElseIf lSourceCol = 0 Then
+                    ' Có thể thêm cơ chế ghi log nếu không tìm thấy cột nguồn
+                    Debug.Print "Lỗi: Không tìm thấy cột nguồn: " & sSourceName
+                ElseIf lDestIndex = 0 Then
+                     ' Có thể thêm cơ chế ghi log nếu index cột đích không hợp lệ
+                    Debug.Print "Lỗi: Index cột đích không hợp lệ cho: " & sSourceName
+                End If
+            End If
+NextMapping:
+        End If
+    Next i
+
+    ' --- 4. Lưu và Đóng ---
+    wbDest.Save
+    wbSource.Close SaveChanges:=False
+    wbDest.Close SaveChanges:=False
+
+    ' --- 5. Dọn dẹp ---
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Sub
+
+ErrorHandler:
+    ' Xử lý lỗi
+    MsgBox "Đã xảy ra lỗi: " & Err.Description, vbCritical
+    
+    ' Đảm bảo các thiết lập được reset ngay cả khi lỗi
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    
+    ' Đóng workbook đang mở để tránh treo file (chỉ đóng nếu đã mở)
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+
+End Sub
+
+' Ví dụ về cách gọi macro:
+' Sub TestCopy()
+'     CopyDataByColumnName "C:\Data\SourceFile.xlsx", _
+'                          "C:\Data\DestinationFile.xlsx", _
+'                          "Tên Sản Phẩm,1;Giá Bán,3;Mã Số,5"
+' End Sub
+
+📋 Giải thích về Tham số ColumnMapping
+Tham số này là chìa khóa để macro hoạt động linh hoạt.
+ * Nó là một chuỗi duy nhất.
+ * Các cặp ánh xạ được phân tách bằng dấu chấm phẩy (;).
+ * Trong mỗi cặp, Tên Cột Nguồn và Index Cột Đích được phân tách bằng dấu phẩy (,).
+| Phần Tử | Mô Tả | Ví dụ |
+|---|---|---|
+| Tên Cột Nguồn | Tên chính xác của tiêu đề cột trong file nguồn. | Tên Sản Phẩm |
+| Index Cột Đích | Số thứ tự cột (1 cho A, 2 cho B,...) trong file đích. | 1 |
+| Ví dụ Chuỗi Hoàn Chỉnh |  | "Tên Sản Phẩm,1;Giá Bán,3;Mã Số,5" |
+⚙️ Chạy VBA Macro từ Power Automate Desktop (PAD)
+Bạn sẽ sử dụng hành động "Run Excel macro" trong Power Automate Desktop.
+1. Chuẩn bị File Macro
+ * Lưu đoạn code VBA trên vào một Module trong một file Excel (ví dụ: MacroRunner.xlsm).
+ * Hoặc Tốt nhất là bạn có thể để code VBA này trong file Excel đích (DestinationFile.xlsx).
+2. Thiết lập trong Power Automate Desktop
+Sử dụng chuỗi hành động sau:
+1. Mở file Excel có chứa Macro
+ * Action: Launch Excel (Khởi chạy Excel)
+ * Parameters:
+   * Launch mode: Open the following document (Mở tài liệu sau)
+   * Document path: Đường dẫn đến file chứa code VBA (ví dụ: DestinationFile.xlsx).
+   * Variables produced: %ExcelInstance%
+2. Chạy Macro
+ * Action: Run Excel macro (Chạy Macro Excel)
+ * Parameters:
+   * Excel instance: %ExcelInstance% (Giá trị từ bước 1)
+   * Macro name: CopyDataByColumnName (Tên Sub)
+   * Macro arguments (Các tham số):
+     * Argument 1 (SourcePath): %SourceFilePath% (Tạo biến này trước đó)
+       * Ví dụ: C:\Data\SourceFile.xlsx
+     * Argument 2 (DestinationPath): %DestinationFilePath% (Tạo biến này trước đó)
+       * Ví dụ: C:\Data\DestinationFile.xlsx
+     * Argument 3 (ColumnMapping): %MappingString% (Tạo biến này trước đó)
+       * Ví dụ: "Tên Sản Phẩm,1;Giá Bán,3;Mã Số,5"
+3. Đóng Excel
+ * Action: Close Excel (Đóng Excel)
+ * Parameters:
+   * Excel instance: %ExcelInstance%
+   * Before closing: Do not save document (Vì macro đã tự lưu)
+Bạn có muốn tôi mô phỏng hoặc viết một đoạn Power Automate Desktop Flow (bằng pseudo-code) để làm rõ hơn cách truyền biến không?
