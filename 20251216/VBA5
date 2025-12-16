@@ -1,0 +1,263 @@
+Chào bạn, đây là giải pháp hoàn chỉnh.
+Tôi đã cập nhật lại toàn bộ Code VBA để sử dụng ký tự phân cách an toàn (| và #) nhằm tránh lỗi khi chạy từ Power Automate Desktop (PAD). Code cũng đã được khai báo biến đầy đủ để khắc phục lỗi "Variable not defined".
+1. 📄 CODE VBA HOÀN CHỈNH (Copy & Paste vào Module Excel)
+Bạn hãy tạo một file Excel (ví dụ MacroMaster.xlsm) hoặc lưu vào file đích của bạn, nhấn Alt + F11, Insert > Module và dán toàn bộ code sau:
+Option Explicit
+
+' ==========================================================================================
+' CẤU HÌNH ĐỊNH DẠNG CHUỖI MAPPING CHO PAD
+' ==========================================================================================
+' Do PAD gặp lỗi với dấu phẩy (,) và chấm phẩy (;), chúng ta dùng:
+' - Dấu Thăng (#) để phân cách các cặp dữ liệu.
+' - Dấu Gạch Đứng (|) để phân cách giá trị trong một cặp.
+'
+' Ví dụ Mapping Copy:    "Tên Cột|1#Giá Tiền|3"
+' Ví dụ Mapping Default: "5|Đã Xử Lý#6|2024"
+' ==========================================================================================
+
+' ------------------------------------------------------------------------------------------
+' FUNCTION 1: COPY DATA (Dựa trên tên cột nguồn -> Index cột đích)
+' ------------------------------------------------------------------------------------------
+Public Function CopyDataByColumnName(ByVal SourcePath As String, _
+                                     ByVal DestinationPath As String, _
+                                     ByVal ColumnMapping As String) As String
+
+    Dim wbSource As Workbook
+    Dim wbDest As Workbook
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim sSourceName As String
+    Dim lDestIndex As Long
+    Dim lSourceCol As Long
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+    Dim lCol As Long ' Biến đếm cột (đã khai báo đầy đủ)
+    Dim sErrorLog As String
+
+    ' Khởi tạo giá trị trả về
+    CopyDataByColumnName = "Success"
+
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' Mở file
+    Set wbSource = Workbooks.Open(SourcePath)
+    Set wbDest = Workbooks.Open(DestinationPath)
+
+    ' Giả định Sheet 1 (Sửa nếu cần)
+    Set wsSource = wbSource.Sheets(1)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' --- Xử lý Mapping (Dùng dấu #) ---
+    arrMapping = Split(ColumnMapping, "#")
+
+    ' --- Bắt đầu Copy ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Tách cặp bằng dấu |
+            arrPair = Split(arrMapping(i), "|")
+            
+            If UBound(arrPair) = 1 Then
+                sSourceName = Trim(arrPair(0))
+                
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(1)))
+                On Error GoTo ErrorHandler
+
+                ' Tìm cột nguồn theo tên
+                lSourceCol = 0
+                For lCol = 1 To wsSource.Cells(lHeaderRow, Columns.Count).End(xlToLeft).Column
+                    If StrComp(Trim(wsSource.Cells(lHeaderRow, lCol).Value), sSourceName, vbTextCompare) = 0 Then
+                        lSourceCol = lCol
+                        Exit For
+                    End If
+                Next lCol
+
+                ' Thực hiện Copy
+                If lSourceCol > 0 And lDestIndex > 0 Then
+                    lLastRow = wsSource.Cells(Rows.Count, lSourceCol).End(xlUp).Row
+                    
+                    If lLastRow > lHeaderRow Then
+                        ' Copy Value (Bỏ qua Header)
+                        wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = _
+                        wsSource.Range(wsSource.Cells(lHeaderRow + 1, lSourceCol), wsSource.Cells(lLastRow, lSourceCol)).Value
+                    Else
+                        sErrorLog = sErrorLog & "Warn: Cột '" & sSourceName & "' rỗng. "
+                    End If
+                ElseIf lSourceCol = 0 Then
+                    sErrorLog = sErrorLog & "Err: Không tìm thấy cột nguồn '" & sSourceName & "'. "
+                    CopyDataByColumnName = "Error: Missing Column"
+                End If
+            End If
+        End If
+    Next
+
+    If Len(sErrorLog) > 0 And CopyDataByColumnName = "Success" Then
+        CopyDataByColumnName = "Success with Warnings: " & sErrorLog
+    End If
+
+    ' Lưu và Đóng
+    wbDest.Save
+    wbSource.Close SaveChanges:=False
+    wbDest.Close SaveChanges:=False
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    sErrorLog = "VBA Error: " & Err.Description
+    CopyDataByColumnName = "Fatal Error: " & sErrorLog
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+' ------------------------------------------------------------------------------------------
+' FUNCTION 2: FILL DEFAULT VALUE (Điền giá trị mặc định vào cột đích)
+' ------------------------------------------------------------------------------------------
+Public Function FillDefaultValue(ByVal DestinationPath As String, _
+                                 ByVal DefaultMapping As String) As String
+
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim lDestIndex As Long
+    Dim vDefaultValue As Variant
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+
+    FillDefaultValue = "Success"
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    Set wbDest = Workbooks.Open(DestinationPath)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' Tìm dòng cuối cùng có dữ liệu của toàn bộ sheet (để biết cần fill đến đâu)
+    On Error Resume Next
+    lLastRow = wsDest.Cells.Find(What:="*", After:=wsDest.Range("A1"), _
+               LookIn:=xlValues, LookAt:=xlPart, SearchOrder:=xlByRows, _
+               SearchDirection:=xlPrevious).Row
+    On Error GoTo ErrorHandler
+
+    If lLastRow <= lHeaderRow Then
+        FillDefaultValue = "Success (No Data)"
+        GoTo Finalize
+    End If
+
+    ' --- Xử lý Mapping (Dùng dấu #) ---
+    arrMapping = Split(DefaultMapping, "#")
+
+    ' --- Bắt đầu Fill ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Tách cặp bằng dấu |
+            arrPair = Split(arrMapping(i), "|")
+            
+            If UBound(arrPair) = 1 Then
+                ' Lấy Index cột
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(0)))
+                On Error GoTo ErrorHandler
+                
+                ' Lấy giá trị mặc định
+                vDefaultValue = Trim(arrPair(1))
+                
+                If lDestIndex > 0 Then
+                    ' Điền dữ liệu từ dòng 2 đến dòng cuối cùng
+                    wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = vDefaultValue
+                End If
+            End If
+        End If
+    Next
+
+    wbDest.Save
+
+Finalize:
+    wbDest.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    Dim sErrorLog As String
+    sErrorLog = "VBA Error: " & Err.Description
+    FillDefaultValue = "Fatal Error: " & sErrorLog
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+2. 🤖 HƯỚNG DẪN CHI TIẾT TRONG POWER AUTOMATE DESKTOP (PAD)
+Dưới đây là từng bước để cấu hình Flow trong PAD sao cho không bị lỗi tham số.
+Bước 1: Khai báo biến (Set Variables)
+Tạo các biến để chứa đường dẫn file và chuỗi mapping. Lưu ý kỹ định dạng chuỗi mới.
+ * Action: Set variable
+   * Variable: %SourcePath%
+   * Value: C:\Users\YourName\Documents\Source.xlsx
+ * Action: Set variable
+   * Variable: %DestPath%
+   * Value: C:\Users\YourName\Documents\Destination.xlsx
+ * Action: Set variable (Biến Mapping cho Copy)
+   * Variable: %CopyMapping%
+   * Value: Product Name|1#Price|3#Quantity|5
+   * (Nghĩa là: Copy cột "Product Name" vào cột 1, "Price" vào cột 3, "Quantity" vào cột 5)
+ * Action: Set variable (Biến Mapping cho Default Value)
+   * Variable: %DefaultMapping%
+   * Value: 8|Pending#9|2024
+   * (Nghĩa là: Điền "Pending" vào cột 8, "2024" vào cột 9 cho tất cả các dòng)
+Bước 2: Mở file chứa Code Macro (Launcher)
+Để chạy Macro, PAD cần mở file Excel chứa module code trên.
+ * Action: Launch Excel
+   * Launch mode: Open the following document
+   * Document path: Đường dẫn đến file .xlsm chứa code VBA bạn vừa lưu.
+   * Variables produced: %ExcelInstance%
+Bước 3: Chạy Function 1 - Copy Data
+ * Action: Run Excel macro
+   * Excel instance: %ExcelInstance%
+   * Macro name: CopyDataByColumnName
+   * Macro arguments: %SourcePath%; %DestPath%; %CopyMapping%
+     * Lưu ý: PAD dùng dấu chấm phẩy và khoảng trắng (; ) để ngăn cách các biến khi nhập vào ô input, nhưng bên trong biến %CopyMapping% chúng ta đã dùng # nên sẽ an toàn.
+     * Cách nhập đúng: Bạn chỉ cần chọn biến từ danh sách biến của PAD, không tự gõ dấu nháy kép "".
+   * Variables produced: %ResultCopy%
+Bước 4: Kiểm tra kết quả Copy và Chạy Function 2 - Fill Default
+ * Action: If
+   * First operand: %ResultCopy%
+   * Operator: Contains
+   * Second operand: Success
+ *  **Action:** `Run Excel macro` (Chạy tiếp function thứ 2)
+ * **Excel instance:** `%ExcelInstance%`
+ * **Macro name:** `FillDefaultValue`
+ * **Macro arguments:** `%DestPath%; %DefaultMapping%`
+ * **Variables produced:** `%ResultFill%`
+
+ * Action: Else
+   * Action: Display message (Thông báo lỗi nếu Copy thất bại)
+   * Message to display: Lỗi Copy: %ResultCopy%
+ * Action: End
+Bước 5: Đóng Excel Launcher
+ * Action: Close Excel
+   * Excel instance: %ExcelInstance%
+   * Before closing: Do not save document (File chứa macro không thay đổi gì nên không cần lưu).
+💡 Lưu ý quan trọng:
+ * Trong mục Macro arguments của PAD, bạn TUYỆT ĐỐI KHÔNG bao quanh tên biến bằng dấu nháy kép.
+   * Sai: "%SourcePath%"
+   * Đúng: %SourcePath%
+ * Hãy đảm bảo file Excel đích (%DestPath%) đang ĐÓNG trước khi chạy Flow, vì VBA sẽ cố gắng mở nó. Nếu nó đang mở sẵn, có thể gây lỗi Permission denied hoặc Read-only.
