@@ -1,0 +1,264 @@
+Chào bạn, đây là phiên bản cập nhật toàn bộ Code VBA và Comment sang Tiếng Anh hoàn chỉnh.
+Code này đã bao gồm:
+ * Chuyển ngữ toàn bộ: Comment, thông báo lỗi, và biến nội bộ sang tiếng Anh.
+ * Cấu trúc an toàn cho PAD: Sử dụng ký tự phân cách | và # để tránh lỗi cú pháp trong Power Automate Desktop.
+ * Khai báo đầy đủ: Đã khắc phục lỗi "Variable not defined".
+1. 📄 FULL VBA CODE (English Version)
+Copy toàn bộ nội dung dưới đây vào một Module trong file Excel (ví dụ: MacroMaster.xlsm).
+Option Explicit
+
+' ==========================================================================================
+' CONFIGURATION: MAPPING STRING FORMAT FOR POWER AUTOMATE DESKTOP (PAD)
+' ==========================================================================================
+' To avoid parsing errors in PAD caused by commas (,) and semicolons (;), we use:
+' - Hash (#) to separate data pairs.
+' - Vertical Bar (|) to separate values within a pair.
+'
+' Example Copy Mapping:    "ProductName|1#Price|3"
+' Example Default Mapping: "5|Processed#6|2025"
+' ==========================================================================================
+
+' ------------------------------------------------------------------------------------------
+' FUNCTION 1: COPY DATA (Source Column Name -> Destination Column Index)
+' ------------------------------------------------------------------------------------------
+Public Function CopyDataByColumnName(ByVal SourcePath As String, _
+                                     ByVal DestinationPath As String, _
+                                     ByVal ColumnMapping As String) As String
+
+    Dim wbSource As Workbook
+    Dim wbDest As Workbook
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim sSourceName As String
+    Dim lDestIndex As Long
+    Dim lSourceCol As Long
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+    Dim lCol As Long ' Column counter variable
+    Dim sErrorLog As String
+
+    ' Initialize return value
+    CopyDataByColumnName = "Success"
+
+    On Error GoTo ErrorHandler
+
+    ' Optimize performance
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' Open Workbooks
+    Set wbSource = Workbooks.Open(SourcePath)
+    Set wbDest = Workbooks.Open(DestinationPath)
+
+    ' Assume Data is on Sheet 1 (Modify if needed)
+    Set wsSource = wbSource.Sheets(1)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' --- Process Mapping (Using "#" delimiter) ---
+    arrMapping = Split(ColumnMapping, "#")
+
+    ' --- Start Copy Process ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split pair using "|" delimiter
+            arrPair = Split(arrMapping(i), "|")
+            
+            ' Ensure valid pair (Name|Index)
+            If UBound(arrPair) = 1 Then
+                sSourceName = Trim(arrPair(0))
+                
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(1)))
+                On Error GoTo ErrorHandler
+
+                ' Find Source Column by Name
+                lSourceCol = 0
+                For lCol = 1 To wsSource.Cells(lHeaderRow, Columns.Count).End(xlToLeft).Column
+                    If StrComp(Trim(wsSource.Cells(lHeaderRow, lCol).Value), sSourceName, vbTextCompare) = 0 Then
+                        lSourceCol = lCol
+                        Exit For
+                    End If
+                Next lCol
+
+                ' Execute Copy if column found and index valid
+                If lSourceCol > 0 And lDestIndex > 0 Then
+                    lLastRow = wsSource.Cells(Rows.Count, lSourceCol).End(xlUp).Row
+                    
+                    If lLastRow > lHeaderRow Then
+                        ' Copy Values (Excluding Header)
+                        wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = _
+                        wsSource.Range(wsSource.Cells(lHeaderRow + 1, lSourceCol), wsSource.Cells(lLastRow, lSourceCol)).Value
+                    Else
+                        sErrorLog = sErrorLog & "Warn: Column '" & sSourceName & "' is empty. "
+                    End If
+                ElseIf lSourceCol = 0 Then
+                    sErrorLog = sErrorLog & "Err: Source column '" & sSourceName & "' not found. "
+                    CopyDataByColumnName = "Error: Missing Column"
+                End If
+            End If
+        End If
+    Next
+
+    ' Append warnings to success message if any
+    If Len(sErrorLog) > 0 And CopyDataByColumnName = "Success" Then
+        CopyDataByColumnName = "Success with Warnings: " & sErrorLog
+    End If
+
+    ' Save and Close
+    wbDest.Save
+    wbSource.Close SaveChanges:=False
+    wbDest.Close SaveChanges:=False
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    CopyDataByColumnName = "Fatal Error: " & sErrorLog
+    
+    ' Reset settings and close files gracefully
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+' ------------------------------------------------------------------------------------------
+' FUNCTION 2: FILL DEFAULT VALUE (Fill destination columns with specific values)
+' ------------------------------------------------------------------------------------------
+Public Function FillDefaultValue(ByVal DestinationPath As String, _
+                                 ByVal DefaultMapping As String) As String
+
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim lDestIndex As Long
+    Dim vDefaultValue As Variant
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+
+    FillDefaultValue = "Success"
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' Open Destination Workbook
+    Set wbDest = Workbooks.Open(DestinationPath)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' Determine the last used row across the entire sheet
+    On Error Resume Next
+    lLastRow = wsDest.Cells.Find(What:="*", After:=wsDest.Range("A1"), _
+               LookIn:=xlValues, LookAt:=xlPart, SearchOrder:=xlByRows, _
+               SearchDirection:=xlPrevious).Row
+    On Error GoTo ErrorHandler
+
+    ' Stop if no data found
+    If lLastRow <= lHeaderRow Then
+        FillDefaultValue = "Success (No Data Rows Found)"
+        GoTo Finalize
+    End If
+
+    ' --- Process Mapping (Using "#" delimiter) ---
+    arrMapping = Split(DefaultMapping, "#")
+
+    ' --- Start Fill Process ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split pair using "|" delimiter
+            arrPair = Split(arrMapping(i), "|")
+            
+            If UBound(arrPair) = 1 Then
+                ' Get Column Index
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(0)))
+                On Error GoTo ErrorHandler
+                
+                ' Get Default Value
+                vDefaultValue = Trim(arrPair(1))
+                
+                If lDestIndex > 0 Then
+                    ' Fill range from row 2 to last row
+                    wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = vDefaultValue
+                End If
+            End If
+        End If
+    Next
+
+    ' Save changes
+    wbDest.Save
+
+Finalize:
+    wbDest.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    Dim sErrorLog As String
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    FillDefaultValue = "Fatal Error: " & sErrorLog
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+2. 🤖 POWER AUTOMATE DESKTOP GUIDE (PAD)
+Dưới đây là hướng dẫn thiết lập PAD tương ứng với code tiếng Anh mới.
+Step 1: Set Variables (Define Paths and Mappings)
+Bạn cần định nghĩa các biến chứa đường dẫn và chuỗi mapping theo đúng format mới.
+ * Variable 1: %SourcePath%
+   * Value: C:\Data\SourceData.xlsx
+ * Variable 2: %DestPath%
+   * Value: C:\Data\Report.xlsx
+ * Variable 3: %CopyMapping% (Format: Name|Index#Name|Index)
+   * Value: Product Name|1#Sale Price|3#Quantity|5
+ * Variable 4: %DefaultMapping% (Format: Index|Value#Index|Value)
+   * Value: 8|Pending Review#9|2025
+Step 2: Launch Excel (To Run Macros)
+ * Action: Launch Excel
+ * Parameters:
+   * Launch mode: Open the following document
+   * Document path: [Path to your .xlsm file containing the VBA code]
+   * Variables produced: %ExcelInstance%
+Step 3: Run "CopyDataByColumnName" Function
+ * Action: Run Excel macro
+ * Parameters:
+   * Excel instance: %ExcelInstance%
+   * Macro name: CopyDataByColumnName
+   * Macro arguments: %SourcePath%; %DestPath%; %CopyMapping%
+   * Variables produced: %CopyResult%
+Step 4: Validate & Run "FillDefaultValue" Function
+ * Action: If
+   * Operand A: %CopyResult%
+   * Operator: Contains
+   * Operand B: Success
+ * Inside IF block:
+   * Action: Run Excel macro
+     * Excel instance: %ExcelInstance%
+     * Macro name: FillDefaultValue
+     * Macro arguments: %DestPath%; %DefaultMapping%
+     * Variables produced: %FillResult%
+   * Action: Display message (Optional)
+     * Message: Job Complete. Copy Status: %CopyResult% | Fill Status: %FillResult%
+ * Else block:
+   * Action: Display message
+     * Message: Job Failed. Error: %CopyResult%
+ * End IF
+Step 5: Close Excel
+ * Action: Close Excel
+ * Parameters:
+   * Excel instance: %ExcelInstance%
+   * Before closing: Do not save document (Vì macro đã tự save file đích rồi).
