@@ -1,0 +1,174 @@
+Chào bạn,
+Tôi đã chuyển toàn bộ comment trong code VBA sang tiếng Anh và thêm một cơ chế để macro có thể trả về một giá trị/trạng thái (ví dụ: Success hoặc Error) để Power Automate Desktop (PAD) có thể lấy được kết quả thực thi.
+💻 Updated VBA Code with English Comments and Return Value
+Trong VBA, để trả về giá trị cho ứng dụng gọi (như PAD), ta sẽ cần thay đổi Sub thành Function.
+Option Explicit
+
+' Function to copy data from specified columns in a source Excel file
+' to specified column indices in a destination Excel file.
+' This function is designed to be executed via Power Automate Desktop (PAD)
+' and returns a string indicating the execution status.
+
+Public Function CopyDataByColumnName(ByVal SourcePath As String, _
+                                     ByVal DestinationPath As String, _
+                                     ByVal ColumnMapping As String) As String
+
+    Dim wbSource As Workbook
+    Dim wbDest As Workbook
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim sSourceName As String
+    Dim lDestIndex As Long
+    Dim lSourceCol As Long
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+    Dim sErrorLog As String ' To capture error messages or missed columns
+
+    ' Initialize return value to Success
+    CopyDataByColumnName = "Success"
+
+    On Error GoTo ErrorHandler
+
+    ' --- 1. Open Workbooks and Setup ---
+    ' Disable screen updating and alerts for performance optimization
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    Set wbSource = Workbooks.Open(SourcePath)
+    Set wbDest = Workbooks.Open(DestinationPath)
+
+    ' Assume data is on Sheet 1 (Modify if needed)
+    Set wsSource = wbSource.Sheets(1)
+    Set wsDest = wbDest.Sheets(1)
+    
+    ' Assume the Header row is the first row (Modify if needed)
+    lHeaderRow = 1 
+
+    ' --- 2. Process Column Mapping ---
+    ' Split the mapping string by semicolon (;)
+    arrMapping = Split(ColumnMapping, ";")
+
+    ' --- 3. Start Copy/Paste Process ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split each pair by comma (,)
+            arrPair = Split(arrMapping(i), ",")
+            
+            ' Ensure we have both source column name and destination index
+            If UBound(arrPair) = 1 Then
+                sSourceName = Trim(arrPair(0))
+                
+                ' Convert Destination Column Index to Long integer
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(1)))
+                On Error GoTo ErrorHandler ' Reset Error Handler
+
+                ' --- Find Source Column by Name ---
+                lSourceCol = 0 ' Reset source column index
+                For lCol = 1 To wsSource.Cells(lHeaderRow, Columns.Count).End(xlToLeft).Column
+                    ' Case-insensitive comparison of header names
+                    If StrComp(Trim(wsSource.Cells(lHeaderRow, lCol).Value), sSourceName, vbTextCompare) = 0 Then
+                        lSourceCol = lCol
+                        Exit For
+                    End If
+                Next lCol
+
+                If lSourceCol > 0 And lDestIndex > 0 Then
+                    
+                    ' --- Determine the last row with data in the source column ---
+                    lLastRow = wsSource.Cells(Rows.Count, lSourceCol).End(xlUp).Row
+                    
+                    If lLastRow > lHeaderRow Then
+                        ' Copy Data (excluding header row)
+                        ' Source Range: From the cell below the Header to the last row
+                        ' Destination Range: Starting from the cell below the Header
+                        
+                        ' Copy Values
+                        wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).Value = _
+                        wsSource.Range(wsSource.Cells(lHeaderRow + 1, lSourceCol), wsSource.Cells(lLastRow, lSourceCol)).Value
+                    Else
+                        ' Log if no data is found for this column
+                        sErrorLog = sErrorLog & "Warning: No data found for column '" & sSourceName & "'. "
+                    End If
+                ElseIf lSourceCol = 0 Then
+                    ' Log if source column is not found
+                    sErrorLog = sErrorLog & "Error: Source column not found: '" & sSourceName & "'. "
+                    CopyDataByColumnName = "Error: Missing Source Column" ' Set error status
+                ElseIf lDestIndex = 0 Then
+                     ' Log if destination index is invalid
+                    sErrorLog = sErrorLog & "Error: Invalid destination index for '" & sSourceName & "'. "
+                    CopyDataByColumnName = "Error: Invalid Dest Index" ' Set error status
+                End If
+            End If
+        End If
+    Next
+    
+    ' If there were non-critical warnings, append them to the success message
+    If Len(sErrorLog) > 0 And CopyDataByColumnName = "Success" Then
+        CopyDataByColumnName = "Success with Warnings: " & sErrorLog
+    End If
+
+    ' --- 4. Save and Close ---
+    wbDest.Save
+    ' Close source and destination files without showing alerts
+    wbSource.Close SaveChanges:=False
+    wbDest.Close SaveChanges:=False
+
+    ' --- 5. Cleanup ---
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    ' Handle runtime errors
+    sErrorLog = sErrorLog & "Runtime Error: " & Err.Description & " (" & Err.Number & ") on line " & Erl & ". "
+    CopyDataByColumnName = "Fatal Error: " & sErrorLog ' Set error status with details
+    
+    ' Ensure settings are reset even on error
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    
+    ' Close open workbooks (attempt gracefully)
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+
+End Function
+
+' Example of calling the function (for internal testing):
+' Sub TestCopy()
+'     Dim result As String
+'     result = CopyDataByColumnName "C:\Data\SourceFile.xlsx", _
+'                                   "C:\Data\DestinationFile.xlsx", _
+'                                   "Product Name,1;Sale Price,3;Code,5;NonExistentColumn,10"
+'     MsgBox "Macro Result: " & result
+' End Sub
+
+⚙️ Hướng dẫn Lấy Giá trị Trả về trong Power Automate Desktop (PAD)
+Vì bạn đã thay đổi Sub thành Function, PAD có thể lấy được giá trị trả về.
+1. Thiết lập trong PAD
+Sử dụng hành động "Run Excel macro" và cấu hình như sau:
+| Thuộc tính | Cấu hình | Ghi chú |
+|---|---|---|
+| Excel instance | %ExcelInstance% | Phiên bản Excel đã mở |
+| Macro name | CopyDataByColumnName | Tên của Function |
+| Macro arguments | 3 đối số (SourcePath, DestPath, MappingString) | Như đã giải thích trước đó |
+| Macro result | %MacroResult% | Đây là biến quan trọng! PAD sẽ lưu trữ giá trị trả về (Success, Fatal Error: ..., hoặc Success with Warnings: ...) của Function vào biến này. |
+2. Xử lý Kết quả Trả về trong PAD
+Sau khi chạy macro, bạn có thể sử dụng hành động If (Điều kiện) để kiểm tra biến %MacroResult%:
+... (Các bước Mở Excel và Chạy Macro)
+
+IF %MacroResult% CONTAINS 'Fatal Error:'
+    DISPLAY MESSAGE "Lỗi nghiêm trọng khi chạy Macro: %MacroResult%"
+    STOP FLOW
+ELSE IF %MacroResult% CONTAINS 'Success'
+    DISPLAY MESSAGE "Macro chạy thành công!"
+    LOG MESSAGE "Kết quả: %MacroResult%" (Nếu có Warnings, log sẽ ghi lại)
+ELSE
+    ' Xử lý các trường hợp khác (thường không xảy ra nếu ErrorHandler hoạt động tốt)
+END
+
+Bạn có muốn tôi giúp bạn tạo một chuỗi Mapping (ánh xạ) cụ thể dựa trên tên cột và index cột mà bạn có không?
