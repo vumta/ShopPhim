@@ -1,0 +1,349 @@
+Chào bạn, để Power Automate Desktop (PAD) có thể nhận kết quả từ VBA, chúng ta cần sử dụng một Macro Function thay vì một Sub thông thường. Function có khả năng trả về một giá trị duy nhất (chuỗi, số, boolean) mà PAD có thể lưu vào một biến.
+Tôi sẽ chuyển Run_CopyProcess_FromPAD thành một Function trả về chuỗi thông báo kết quả (success/error message) và cập nhật tất cả các MsgBox thành việc gán giá trị vào biến trả về.
+📝 Toàn bộ Code VBA Đã Cập Nhật (Sử dụng Function trả về kết quả)
+Bạn thay thế toàn bộ code trong Module của mình bằng đoạn dưới đây. Tên hàm chính đã được đổi thành Run_CopyProcess_Function.
+Option Explicit
+
+' Global Configuration for the entire Module: Destination File Header Row
+Const HEADER_ROW_DEST As Integer = 2
+' Data Start Row in Destination File (Immediately below the Header)
+Const DATA_START_ROW_DEST As Integer = HEADER_ROW_DEST + 1
+
+' ==============================================================================
+' HELPER FUNCTION 1: NORMALIZE HEADER NAME (REMOVES LINE BREAKS)
+' ==============================================================================
+Function CleanHeader(ByVal headerName As String) As String
+    ' Remove Line Feed character (Alt+Enter)
+    headerName = Replace(headerName, Chr(10), " ")
+    ' Remove Carriage Return character
+    headerName = Replace(headerName, Chr(13), " ")
+    ' Remove leading/trailing spaces
+    headerName = Trim(headerName)
+    CleanHeader = headerName
+End Function
+
+' ==============================================================================
+' HELPER FUNCTION 2: CONVERT JSON STRING TO 2D ARRAY FOR DEFAULT VALUES
+' (Assumes simple JSON structure: [{"Header":"X","Value":"Y"},...])
+' ==============================================================================
+Function JsonToDefaultArray(jsonString As String) As Variant
+    
+    Dim items() As String
+    Dim resultArr() As Variant
+    Dim i As Long
+    Dim headerStr As String, valueStr As String
+    
+    ' 1. Remove brackets and unnecessary spaces
+    jsonString = Trim(Replace(Replace(jsonString, "[", ""), "]", ""))
+    
+    ' 2. Split objects by "},{"
+    items = Split(jsonString, "},{")
+    
+    ' Initialize result array
+    If UBound(items) < LBound(items) Then Exit Function ' Handle empty array
+    ReDim resultArr(0 To UBound(items), 0 To 1)
+    
+    For i = 0 To UBound(items)
+        Dim currentItem As String
+        currentItem = items(i)
+        
+        ' Handle brackets removed during Split process
+        If i > 0 Then currentItem = "{" & currentItem
+        If i < UBound(items) Then currentItem = currentItem & "}"
+        
+        ' 3. Parse Header and Value pairs by finding string positions
+        ' Find Header
+        headerStr = Mid(currentItem, InStr(currentItem, Chr(34) & "Header" & Chr(34) & ":") + 9)
+        headerStr = Left(headerStr, InStr(headerStr, Chr(34) & ",") - 1)
+        
+        ' Find Value
+        valueStr = Mid(currentItem, InStr(currentItem, Chr(34) & "Value" & Chr(34) & ":") + 8)
+        valueStr = Left(valueStr, InStr(valueStr, Chr(34) & "}") - 1)
+        
+        ' Clean strings (remove quotes)
+        headerStr = Replace(headerStr, Chr(34), "")
+        valueStr = Replace(valueStr, Chr(34), "")
+        
+        ' Handle special Placeholder Value (e.g., CURRENT_DATE)
+        If valueStr = "CURRENT_DATE" Then
+            valueStr = Date ' Convert placeholder string to actual Date value
+        End If
+        
+        resultArr(i, 0) = headerStr ' Column 0: Header Name
+        resultArr(i, 1) = valueStr  ' Column 1: Value
+    Next i
+    
+    JsonToDefaultArray = resultArr
+End Function
+
+
+' ==============================================================================
+' FUNCTION TO FILL DEFAULT VALUES IN DESTINATION COLUMNS (Handles opening/closing)
+' ==============================================================================
+Function FillDefaultValues(dFilePath As String, dSheetName As String, arrDefaultValues As Variant) As String
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim destHeader As String
+    Dim defaultValue As Variant
+    Dim colIndx As Range
+    Dim lastRowDest As Long
+    Dim i As Integer
+    Dim fillRange As Range
+    Dim isDestOpenedHere As Boolean
+    Dim successCount As Long
+    
+    FillDefaultValues = "Success" ' Default return value
+    
+    ' --- OPEN DESTINATION FILE ---
+    On Error Resume Next
+    Set wbDest = Workbooks(Dir(dFilePath))
+    If wbDest Is Nothing Then
+        Set wbDest = Workbooks.Open(dFilePath)
+        isDestOpenedHere = True
+    End If
+    On Error GoTo 0
+    
+    If wbDest Is Nothing Then
+        FillDefaultValues = "Error: Cannot open destination file: " & dFilePath
+        Exit Function
+    End If
+    
+    On Error Resume Next
+    Set wsDest = wbDest.Sheets(dSheetName)
+    If wsDest Is Nothing Then
+        FillDefaultValues = "Error: Destination sheet '" & dSheetName & "' does not exist."
+        GoTo ExitHandler
+    End If
+    On Error GoTo 0
+    
+    ' --- FIND RANGE TO FILL ---
+    lastRowDest = wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRowDest < DATA_START_ROW_DEST Then
+        Debug.Print "No new data found in destination file to fill default values."
+        GoTo ExitHandler
+    End If
+    
+    ' --- START FILLING VALUES ---
+    For i = LBound(arrDefaultValues) To UBound(arrDefaultValues)
+        destHeader = arrDefaultValues(i)(0)
+        defaultValue = arrDefaultValues(i)(1)
+        
+        ' 1. FIND DESTINATION COLUMN POSITION (Search in HEADER_ROW_DEST = Row 2)
+        Set colIndx = Nothing
+        For Each colIndx In wsDest.Rows(HEADER_ROW_DEST).Cells
+            If Trim(colIndx.Value) = "" Then Exit For
+            If CleanHeader(colIndx.Value) = CleanHeader(destHeader) Then
+                Exit For
+            End If
+        Next colIndx
+        
+        ' 2. ASSIGN VALUE IF FOUND
+        If Not colIndx Is Nothing And CleanHeader(colIndx.Value) = CleanHeader(destHeader) Then
+            Set fillRange = wsDest.Range(wsDest.Cells(DATA_START_ROW_DEST, colIndx.Column), wsDest.Cells(lastRowDest, colIndx.Column))
+            fillRange.Value = defaultValue
+            successCount = successCount + 1
+        Else
+            Debug.Print "Could not find destination column '" & destHeader & "' to fill default value."
+        End If
+    Next i
+
+    If successCount = 0 Then FillDefaultValues = "Warning: No default values were filled successfully."
+
+ExitHandler:
+    ' Save and close if opened by this code
+    If Not wbDest Is Nothing Then
+        If isDestOpenedHere Then
+            wbDest.Close SaveChanges:=True
+        Else
+            wbDest.Save
+        End If
+    End If
+
+End Function
+
+' ==============================================================================
+' CORE LOGIC: COPY DATA & FORMAT (Xử lý mở/đóng file)
+' ==============================================================================
+Function CopyColumnsByParams(sFilePath As String, dFilePath As String, _
+                        sSheetName As String, dSheetName As String, _
+                        sCols As Variant, dCols As Variant) As String
+                        
+    Dim wbSource As Workbook, wbDest As Workbook
+    Dim wsSource As Worksheet, wsDest As Worksheet
+    Dim i As Integer, lastRowS As Long, lastRowD As Long
+    Dim colIndxS As Range, colIndxD As Range
+    Dim dataRng As Range
+    Dim isDestOpenedHere As Boolean
+    Dim cellHeader As Range
+    Dim cleanSHeader As String, cleanDHeader As String
+    
+    CopyColumnsByParams = "Success" ' Default return value
+    Const HEADER_ROW_SOURCE As Integer = 1
+    
+    ' --- START OPENING/PROCESSING ---
+    
+    If UBound(sCols) <> UBound(dCols) Then
+        CopyColumnsByParams = "Error: The number of source columns and destination columns do not match!"
+        GoTo ExitHandler
+    End If
+    
+    ' OPEN SOURCE FILE
+    On Error Resume Next
+    Set wbSource = Workbooks.Open(sFilePath, ReadOnly:=True)
+    If wbSource Is Nothing Then
+        CopyColumnsByParams = "Error: Cannot find source file: " & sFilePath
+        GoTo ExitHandler_Error
+    End If
+    Set wsSource = wbSource.Sheets(sSheetName)
+    On Error GoTo 0
+    
+    ' OPEN DESTINATION FILE
+    On Error Resume Next
+    Set wbDest = Workbooks(Dir(dFilePath))
+    If wbDest Is Nothing Then
+        Set wbDest = Workbooks.Open(dFilePath)
+        isDestOpenedHere = True
+    Else
+        isDestOpenedHere = False
+    End If
+    On Error GoTo 0
+    
+    On Error Resume Next
+    Set wsDest = wbDest.Sheets(dSheetName)
+    If wsDest Is Nothing Then
+        CopyColumnsByParams = "Error: Destination sheet '" & dSheetName & "' does not exist in destination file."
+        GoTo ExitHandler_Error
+    End If
+    On Error GoTo 0
+    
+    ' --- COPY PROCESSING ---
+    lastRowS = wsSource.Cells(wsSource.Rows.Count, 1).End(xlUp).Row
+    
+    For i = LBound(sCols) To UBound(sCols)
+        Dim sHeader As String, dHeader As String
+        sHeader = sCols(i)
+        dHeader = dCols(i)
+        cleanSHeader = CleanHeader(sHeader)
+        cleanDHeader = CleanHeader(dHeader)
+        
+        ' 1. FIND SOURCE COLUMN (ROW 1)
+        Set colIndxS = Nothing
+        For Each cellHeader In wsSource.Rows(HEADER_ROW_SOURCE).Cells
+            If Trim(cellHeader.Value) = "" Then Exit For
+            If CleanHeader(cellHeader.Value) = cleanSHeader Then
+                Set colIndxS = cellHeader
+                Exit For
+            End If
+        Next cellHeader
+        
+        ' 2. FIND DESTINATION COLUMN (ROW 2)
+        Set colIndxD = Nothing
+        For Each cellHeader In wsDest.Rows(HEADER_ROW_DEST).Cells
+            If Trim(cellHeader.Value) = "" Then Exit For
+            If CleanHeader(cellHeader.Value) = cleanDHeader Then
+                Set colIndxD = cellHeader
+                Exit For
+            End If
+        Next cellHeader
+        
+        ' 3. COPY IF FOUND
+        If Not colIndxS Is Nothing And Not colIndxD Is Nothing Then
+            If lastRowS >= HEADER_ROW_SOURCE + 1 Then
+                Set dataRng = wsSource.Range(wsSource.Cells(HEADER_ROW_SOURCE + 1, colIndxS.Column), wsSource.Cells(lastRowS, colIndxS.Column))
+                
+                lastRowD = wsDest.Cells(wsDest.Rows.Count, colIndxD.Column).End(xlUp).Row
+                If lastRowD < DATA_START_ROW_DEST Then lastRowD = DATA_START_ROW_DEST - 1
+                
+                dataRng.Copy Destination:=wsDest.Cells(lastRowD + 1, colIndxD.Column)
+            End If
+        Else
+            Debug.Print "Could not find column pair: " & sHeader & " -> " & dHeader
+        End If
+    Next i
+    
+    ' --- CLEANUP & SAVE ---
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    
+    If Not wbDest Is Nothing Then
+        If isDestOpenedHere Then
+            wbDest.Close SaveChanges:=True
+        Else
+            wbDest.Save
+        End If
+    End If
+    Application.CutCopyMode = False
+    Exit Function
+
+ExitHandler_Error:
+    If Left(CopyColumnsByParams, 5) <> "Error" Then ' Avoid overwriting specific errors
+        CopyColumnsByParams = "Error: An unknown error occurred during the Copy process."
+    End If
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing And isDestOpenedHere Then wbDest.Close SaveChanges:=False
+    Application.CutCopyMode = False
+End Function
+
+' ==============================================================================
+' MAIN FUNCTION: RECEIVES PARAMETERS FROM POWER AUTOMATE DESKTOP AND RUNS
+' This function returns the final execution status message (string) to PAD.
+' ==============================================================================
+Function Run_CopyProcess_Function(sourcePath As String, destPath As String, _
+                           sourceSheetName As String, destSheetName As String, _
+                           jsonSourceCols As String, jsonDestCols As String, _
+                           jsonDefaults As String) As String
+    
+    Dim arrSourceCols As Variant
+    Dim arrDestCols As Variant
+    Dim arrDefaults As Variant
+    Dim copyStatus As String
+    Dim fillStatus As String
+    
+    ' Set initial return value
+    Run_CopyProcess_Function = "Processing failed."
+
+    ' Disable screen updating for speed
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ' --- 1. CONVERT JSON STRING TO CONFIGURATION ARRAYS ---
+    
+    ' NOTE: Source/Dest columns are hardcoded for simplicity. Adjust if needed.
+    arrSourceCols = Array("Ten KH", "Ngay Sinh", "Doanh So")
+    arrDestCols = Array("Khach Hang", "Ngay De", "Tong Tien")
+    
+    ' Convert JSON Defaults to array
+    On Error Resume Next
+    arrDefaults = JsonToDefaultArray(jsonDefaults)
+    If IsEmpty(arrDefaults) Then
+        Run_CopyProcess_Function = "Error: JSON parsing failed for default values. Check JSON format."
+        GoTo ExitHandler
+    End If
+    On Error GoTo 0
+    
+    ' --- 2. CALL COPY FUNCTION ---
+    copyStatus = CopyColumnsByParams(sourcePath, destPath, sourceSheetName, destSheetName, arrSourceCols, arrDestCols)
+    
+    If Left(copyStatus, 5) = "Error" Then
+        Run_CopyProcess_Function = "Copy failed: " & copyStatus
+        GoTo ExitHandler
+    End If
+    
+    ' --- 3. CALL FILL DEFAULT VALUES FUNCTION ---
+    fillStatus = FillDefaultValues(destPath, destSheetName, arrDefaults)
+    
+    If Left(fillStatus, 5) = "Error" Then
+        Run_CopyProcess_Function = "Copy successful, but Fill Default failed: " & fillStatus
+        GoTo ExitHandler
+    End If
+    
+    ' --- FINAL SUCCESS MESSAGE ---
+    Run_CopyProcess_Function = "Success: Data copied and default values filled. Status: " & fillStatus
+
+ExitHandler:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    ' The result is returned via the function name (Run_CopyProcess_Function)
+
+End Function
+
