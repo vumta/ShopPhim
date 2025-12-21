@@ -1,0 +1,39 @@
+Tóm tắt nhanh: Nếu bạn muốn truy cập theo path giống drive/root:/path: của Microsoft Graph, trong SharePoint REST tương đương là dùng _api/web/GetFolderByServerRelativeUrl('<serverRelativePath>') hoặc endpoint Folders/add('NewFolder') để tạo; kiểm tra tồn tại bằng GET và dựa vào HTTP 200/404. Sử dụng ResourcePath API khi đường dẫn chứa ký tự % hoặc #.
+
+---
+
+1) So sánh ngắn: Graph root:/path: vs SharePoint REST _api
+- Microsoft Graph: GET /sites/{site-id}/drive/root:/path/to/folder: — thao tác theo kiểu drive/path (dễ với OneDrive/Drive).  
+- SharePoint REST: dùng ServerRelativeUrl hoặc ResourcePath:  
+  - /_api/web/GetFolderByServerRelativeUrl('/sites/YourSite/Shared Documents/Folder') để lấy folder;  
+  - /_api/web/GetFolderByServerRelativeUrl('/sites/YourSite/Shared Documents')/Folders/add('NewFolder') để tạo folder. Đây là cách chuẩn với REST SharePoint.  
+
+Nguồn: hướng dẫn làm việc với folders/files bằng REST của Microsoft.
+
+---
+
+2) Ví dụ thực tế (GET kiểm tra tồn tại)
+- Request:  
+  GET https://<tenant>.sharepoint.com/sites/YourSite/_api/web/GetFolderByServerRelativeUrl('/sites/YourSite/Shared Documents/FolderName')  
+- Kết quả: HTTP 200 + JSON nếu tồn tại; HTTP 404 nếu không tồn tại. Dùng điều kiện trong flow để quyết định tạo folder nếu 404.
+
+---
+
+3) Tạo folder (REST)
+- Cách 1 (Folders/add) — đơn giản, body rỗng:  
+  POST https://<tenant>.sharepoint.com/sites/YourSite/_api/web/GetFolderByServerRelativeUrl('/sites/YourSite/Shared Documents')/Folders/add('NewFolder')  
+  Headers: Accept: application/json;odata=verbose và Content-Type: application/json;odata=verbose (cloud action thường xử lý xác thực).
+- Cách 2 (POST vào /folders) — dùng JSON body:  
+  POST .../api/web/folders với body {"_metadata":{"type":"SP.Folder"},"ServerRelativeUrl":"/sites/YourSite/Shared Documents/NewFolder"}.
+
+---
+
+4) Lưu ý quan trọng và mẹo
+- Escape/encode đường dẫn: khoảng trắng → %20; ký tự % và # có thể gây lỗi với ví dụ cũ — nếu gặp, dùng ResourcePath API theo tài liệu để hỗ trợ % và # trong tên file/folder.  
+- Quyền: token/credential phải có quyền đọc/ghi trên site/library; nếu dùng app registration, cấp permission phù hợp và admin consent.  
+- PAD vs Cloud: Power Automate cloud có action Send an HTTP request to SharePoint xử lý xác thực; Power Automate Desktop cần bạn lấy access token (Azure AD) và truyền Authorization: Bearer <token> khi gọi REST.  
+- Hiệu suất: nếu cần lấy cả Files và Folders trong một lần gọi, có thể dùng $expand=Folders,Files trên GetFolder endpoint để giảm số request.
+
+---
+
+Nếu bạn muốn, tôi có thể viết mẫu HTTP request sẵn (URL, headers, body) cho site/library cụ thể của bạn để dán vào Power Automate (cloud hoặc PAD). Cho tôi biết Site URL, Library name và bạn dùng cloud hay Desktop — tôi sẽ cung cấp mẫu chi tiết.
