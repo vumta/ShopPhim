@@ -1,0 +1,32 @@
+Tóm tắt nhanh: Để kiểm tra xem một folder đã tồn tại trên SharePoint hay chưa, gọi GET tới endpoint REST GetFolderByServerRelativeUrl(...) và kiểm tra HTTP status (200 = tồn tại, 404 = không tồn tại). Nếu gọi từ Power Automate Desktop cần truyền Authorization: Bearer <token>; từ Power Automate cloud dùng action Send an HTTP request to SharePoint để tự xử lý xác thực.
+
+Kiểm tra nhanh (endpoint và kết quả)
+- Endpoint mẫu:  
+  GET https://<tenant>.sharepoint.com/sites/<SiteName>/_api/web/GetFolderByServerRelativeUrl('/sites/<SiteName>/Shared Documents/FolderName')  
+- Kết quả mong đợi: 200 OK + JSON folder nếu tồn tại; 404 Not Found nếu không tồn tại.  
+- Header khuyến nghị: Accept: application/json;odata=verbose hoặc application/json;odata=nometadata tùy nhu cầu parsing.
+
+Ví dụ trong Power Automate (cloud)
+- Dùng action Send an HTTP request to SharePoint: chọn Site Address, Method = GET, Uri = /_api/web/GetFolderByServerRelativeUrl('/sites/YourSite/Shared Documents/FolderName'). Action sẽ trả body JSON khi folder tồn tại và lỗi khi không có.
+
+Ví dụ trong Power Automate Desktop (PAD)
+- Action: Invoke Web Service / HTTP request  
+- URL: đầy đủ như mẫu ở trên.  
+- Header: Authorization: Bearer <access_token>; Accept: application/json;odata=verbose.  
+- Lưu ý: PAD không tự lấy token; bạn phải lấy access token từ Azure AD (client credentials hoặc delegated) và truyền vào header Authorization trước khi gọi API.
+
+Xử lý ký tự đặc biệt và encoding
+- Escape khoảng trắng thành %20 trong URL hoặc dùng single quotes đúng chỗ; ký tự như # hoặc % có thể gây lỗi Bad Request nếu không escape đúng — kiểm tra và encode ServerRelativeUrl trước khi gọi.  
+- Nếu gặp lỗi 400 khi có ký tự đặc biệt, thử encode toàn bộ đường dẫn hoặc dùng API ResourcePath thay thế theo tài liệu Microsoft.
+
+Kiểm tra bằng logic trong flow
+- Gọi GET → nếu status = 200 thì folder tồn tại; nếu status = 404 thì không tồn tại. Trong cloud flow bạn có thể dùng điều kiện (Condition) dựa trên statusCode() hoặc kiểm tra body() để xử lý tiếp (tạo folder nếu chưa có). Tạo folder có thể dùng POST .../Folders/add('NewFolder') như đã mô tả trước đó.
+
+Những điểm quan trọng và rủi ro
+- Quyền truy cập: account/app phải có quyền tạo/đọc folder; thiếu quyền trả 403.  
+- Throttling: gọi nhiều lần có thể bị throttled — implement retry/backoff.  
+- Encoding: luôn encode ServerRelativeUrl để tránh lỗi 400 với ký tự đặc biệt.
+
+---
+
+Tóm tắt hành động: gọi GET _api/web/GetFolderByServerRelativeUrl(...) và kiểm tra HTTP status; dùng action cloud để tránh tự xử lý token, hoặc nếu dùng PAD thì lấy token Azure AD và truyền Authorization: Bearer <token> trong header.
