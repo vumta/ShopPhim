@@ -1,0 +1,164 @@
+Chào bạn,
+Yêu cầu này của bạn không chỉ đơn thuần là Format (thay đổi cách hiển thị) mà là Transformation (thay đổi giá trị dữ liệu thực tế).
+ * Cột K, L, M (Format '005): Bạn muốn chuyển số 5 thành chuỗi ký tự "005". Trong Excel, nếu chỉ Format 000 thì nó vẫn là số. Để thành Text '005, ta cần đổi định dạng ô thành Text và dùng hàm format lại giá trị.
+ * Cột N (2025 -> 5): Đây là xử lý logic lấy ký tự cuối cùng. Format thông thường không làm được việc này (Format y trong Excel ra 2 số cuối hoặc ngày trong năm, không ra 1 số cuối).
+Vì vậy, tôi viết thêm một Function mới là TransformColumnData. Function này mạnh mẽ hơn, cho phép xử lý logic dữ liệu.
+1. 📄 Function VBA Mới: TransformColumnData
+Bạn copy Function này dán vào Module cùng với các Function trước đó.
+Logic hỗ trợ:
+ * TEXT_000: Chuyển số thành chuỗi 3 ký tự (ví dụ: 5 -> "005"). Áp dụng cho K, L, M.
+ * YEAR_LAST_DIGIT: Lấy số cuối cùng của năm (ví dụ: 2025 -> 5). Áp dụng cho N.
+<!-- end list -->
+' ------------------------------------------------------------------------------------------
+' FUNCTION 4: TRANSFORM DATA (Apply logic to change values)
+' ------------------------------------------------------------------------------------------
+' Mapping Format: "ColIndex|OperationCode"
+' Supported Codes:
+' - TEXT_000        : Converts 5 -> "005" (Text format)
+' - YEAR_LAST_DIGIT : Converts 2025 -> 5, 2026 -> 6
+' ------------------------------------------------------------------------------------------
+Public Function TransformColumnData(ByVal DestinationPath As String, _
+                                    ByVal TransformMapping As String) As String
+
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim lDestIndex As Long
+    Dim sOperation As String
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+    Dim rng As Range, cell As Range
+    Dim vValue As Variant
+
+    TransformColumnData = "Success"
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' Open Destination Workbook
+    Set wbDest = Workbooks.Open(DestinationPath)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' Determine the last used row
+    On Error Resume Next
+    lLastRow = wsDest.Cells.Find(What:="*", After:=wsDest.Range("A1"), _
+               LookIn:=xlValues, LookAt:=xlPart, SearchOrder:=xlByRows, _
+               SearchDirection:=xlPrevious).Row
+    On Error GoTo ErrorHandler
+
+    If lLastRow <= lHeaderRow Then
+        TransformColumnData = "Success (No Data Rows Found)"
+        GoTo Finalize
+    End If
+
+    ' --- Process Mapping (Using "#" delimiter) ---
+    arrMapping = Split(TransformMapping, "#")
+
+    ' --- Start Transformation Process ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split pair using "|" delimiter
+            arrPair = Split(arrMapping(i), "|")
+            
+            If UBound(arrPair) = 1 Then
+                ' Get Column Index
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(0)))
+                On Error GoTo ErrorHandler
+                
+                ' Get Operation Code
+                sOperation = UCase(Trim(arrPair(1))) ' Convert to Uppercase for check
+                
+                If lDestIndex > 0 Then
+                    ' Define Range to process
+                    Set rng = wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex))
+                    
+                    ' Loop through each cell to apply logic
+                    ' (Looping is necessary for value transformation based on logic)
+                    For Each cell In rng
+                        vValue = cell.Value
+                        
+                        If Not IsError(vValue) And Len(CStr(vValue)) > 0 Then
+                            Select Case sOperation
+                                Case "TEXT_000"
+                                    ' Force Cell to Text Format first
+                                    cell.NumberFormat = "@"
+                                    ' Format value to 000 (e.g., 5 -> "005")
+                                    If IsNumeric(vValue) Then
+                                        cell.Value = Format(vValue, "000")
+                                    End If
+                                    
+                                Case "YEAR_LAST_DIGIT"
+                                    ' Logic: Take the last character of the year
+                                    ' Handle 2025 (number) or Date format
+                                    Dim sYear As String
+                                    If IsDate(vValue) Then
+                                        sYear = CStr(Year(vValue))
+                                    Else
+                                        sYear = CStr(vValue)
+                                    End If
+                                    
+                                    ' Take rightmost character
+                                    If Len(sYear) > 0 Then
+                                        cell.Value = Right(sYear, 1)
+                                    End If
+                            End Select
+                        End If
+                    Next cell
+                End If
+            End If
+        End If
+    Next
+
+    ' Save changes
+    wbDest.Save
+
+Finalize:
+    wbDest.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    Dim sErrorLog As String
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    TransformColumnData = "Fatal Error: " & sErrorLog
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+2. 🤖 Cấu hình trong Power Automate Desktop (PAD)
+Bạn cần xác định Index của các cột K, L, M, N:
+ * K = 11
+ * L = 12
+ * M = 13
+ * N = 14
+Bước 1: Tạo biến Mapping cho Transform (%TransformMapping%)
+Trong PAD, bạn tạo biến Set variable với giá trị sau:
+ * Variable Name: %TransformMapping%
+ * Value:
+   11|TEXT_000#12|TEXT_000#13|TEXT_000#14|YEAR_LAST_DIGIT
+   (Giải thích: Cột 11, 12, 13 dùng logic format 3 số 0. Cột 14 dùng logic lấy số cuối của năm).
+Bước 2: Gọi Macro Transform (Sau khi Copy/Fill)
+Thêm hành động này vào Flow của bạn (sau bước Fill Default):
+ * Action: Run Excel macro
+   * Excel instance: %ExcelInstance%
+   * Macro name: TransformColumnData
+   * Macro arguments: %DestPath%; %TransformMapping%
+   * Variables produced: %TransformResult%
+ * Action: If (Kiểm tra lỗi)
+   * If %TransformResult% Not Contains Success -> Display Message Error.
+Tóm tắt luồng xử lý dữ liệu của bạn hiện tại:
+ * Copy Data: Lấy dữ liệu thô từ nguồn.
+ * Fill Default: Điền các giá trị mặc định cho cột trống.
+ * Format (Tùy chọn): Format ngày tháng thông thường (dd/mm/yyyy).
+ * Transform (Mới): Biến đổi dữ liệu phức tạp (2025 -> 5, 5 -> "005").
+Code này đã được tối ưu để xử lý chính xác yêu cầu "2025 thành 5" và "'005" dạng Text của bạn.
+                       
