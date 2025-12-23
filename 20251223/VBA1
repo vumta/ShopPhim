@@ -1,0 +1,143 @@
+Chào bạn,
+Để định dạng số thành 2 chữ số (ví dụ: 5 thành 05, 12 giữ nguyên 12), bạn có 2 lựa chọn tùy thuộc vào nhu cầu sử dụng kết quả đó:
+Lựa chọn 1: Chỉ thay đổi hiển thị (Dùng hàm FormatDestinationColumns)
+Nếu bạn chỉ cần nhìn thấy số 05 trên Excel nhưng bản chất nó vẫn là số (Number) để tính toán cộng trừ được:
+Bạn không cần sửa code VBA, chỉ cần thay đổi tham số trong PAD:
+ * Action: Set variable (%FormatMapping%)
+ * Value: IndexCột|00
+   * Ví dụ cho cột P (Index 16): 16|00
+Lựa chọn 2: Chuyển hẳn thành Text (Dùng hàm TransformColumnData)
+Nếu bạn muốn giá trị thực sự biến thành Text (có dấu nháy ' ẩn, ví dụ '05), giống như yêu cầu '005 trước đó, bạn cần cập nhật Function TransformColumnData.
+Tôi đã thêm case TEXT_00 vào code dưới đây.
+1. 📄 Cập nhật Code VBA: TransformColumnData
+Bạn hãy thay thế toàn bộ Function TransformColumnData cũ bằng đoạn code mới này (đã thêm phần xử lý TEXT_00):
+' ------------------------------------------------------------------------------------------
+' FUNCTION 4: TRANSFORM DATA (Apply logic to change values)
+' ------------------------------------------------------------------------------------------
+' Mapping Format: "ColIndex|OperationCode"
+' Supported Codes:
+' - TEXT_00         : Converts 5 -> "05" (Text format)  <-- MỚI THÊM
+' - TEXT_000        : Converts 5 -> "005" (Text format)
+' - YEAR_LAST_DIGIT : Converts 2025 -> 5, 2026 -> 6
+' ------------------------------------------------------------------------------------------
+Public Function TransformColumnData(ByVal DestinationPath As String, _
+                                    ByVal TransformMapping As String) As String
+
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim lDestIndex As Long
+    Dim sOperation As String
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+    Dim rng As Range, cell As Range
+    Dim vValue As Variant
+
+    TransformColumnData = "Success"
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' Open Destination Workbook
+    Set wbDest = Workbooks.Open(DestinationPath)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' Determine the last used row
+    On Error Resume Next
+    lLastRow = wsDest.Cells.Find(What:="*", After:=wsDest.Range("A1"), _
+               LookIn:=xlValues, LookAt:=xlPart, SearchOrder:=xlByRows, _
+               SearchDirection:=xlPrevious).Row
+    On Error GoTo ErrorHandler
+
+    If lLastRow <= lHeaderRow Then
+        TransformColumnData = "Success (No Data Rows Found)"
+        GoTo Finalize
+    End If
+
+    ' --- Process Mapping (Using "#" delimiter) ---
+    arrMapping = Split(TransformMapping, "#")
+
+    ' --- Start Transformation Process ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split pair using "|" delimiter
+            arrPair = Split(arrMapping(i), "|")
+            
+            If UBound(arrPair) = 1 Then
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(0)))
+                On Error GoTo ErrorHandler
+                
+                sOperation = UCase(Trim(arrPair(1))) ' Convert to Uppercase
+                
+                If lDestIndex > 0 Then
+                    Set rng = wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex))
+                    
+                    For Each cell In rng
+                        vValue = cell.Value
+                        
+                        If Not IsError(vValue) And Len(CStr(vValue)) > 0 Then
+                            Select Case sOperation
+                            
+                                ' --- CASE MỚI: 2 CHỮ SỐ (05) ---
+                                Case "TEXT_00"
+                                    cell.NumberFormat = "@" ' Text format
+                                    If IsNumeric(vValue) Then
+                                        cell.Value = Format(vValue, "00")
+                                    End If
+
+                                ' --- CASE CŨ: 3 CHỮ SỐ (005) ---
+                                Case "TEXT_000"
+                                    cell.NumberFormat = "@"
+                                    If IsNumeric(vValue) Then
+                                        cell.Value = Format(vValue, "000")
+                                    End If
+                                    
+                                ' --- CASE CŨ: LẤY SỐ CUỐI NĂM (2025 -> 5) ---
+                                Case "YEAR_LAST_DIGIT"
+                                    Dim sYear As String
+                                    If IsDate(vValue) Then
+                                        sYear = CStr(Year(vValue))
+                                    Else
+                                        sYear = CStr(vValue)
+                                    End If
+                                    If Len(sYear) > 0 Then
+                                        cell.Value = Right(sYear, 1)
+                                    End If
+                            End Select
+                        End If
+                    Next cell
+                End If
+            End If
+        End If
+    Next
+
+    wbDest.Save
+
+Finalize:
+    wbDest.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    Dim sErrorLog As String
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    TransformColumnData = "Fatal Error: " & sErrorLog
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+2. 🤖 Cấu hình trong PAD
+Bạn cập nhật biến %TransformMapping% để sử dụng mã lệnh mới là TEXT_00.
+Ví dụ: Bạn muốn cột 15 (Cột O) hiển thị 2 chữ số.
+ * Variable: %TransformMapping%
+ * Value: 15|TEXT_00
+Nếu kết hợp với các yêu cầu trước (Cột 11,12,13 là 005, Cột 14 là Năm, Cột 15 là 05):
+ * Value: 11|TEXT_000#12|TEXT_000#13|TEXT_000#14|YEAR_LAST_DIGIT#15|TEXT_00
