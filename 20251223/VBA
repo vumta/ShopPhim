@@ -1,0 +1,118 @@
+Chào bạn,
+Để format cột B (hoặc bất kỳ cột nào khác) theo định dạng YYYYMMDD, giải pháp tốt nhất là thêm một Function thứ 3 chuyên biệt cho việc định dạng (Formatting). Việc tách riêng này giúp code gọn gàng và bạn có thể tái sử dụng để format các cột khác (ví dụ: định dạng tiền tệ, số thập phân) sau này.
+Dưới đây là Code VBA bổ sung và hướng dẫn cấu hình trong Power Automate Desktop (PAD).
+1. 📄 VBA Code bổ sung (Thêm vào Module hiện tại)
+Function này tên là FormatDestinationColumns. Nó hoạt động tương tự như 2 function trước, nhận vào chuỗi Mapping để biết cột nào cần format gì.
+ * Format Mapping: Index|FormatString (Ví dụ: 2|yyyymmdd cho cột B).
+<!-- end list -->
+' ------------------------------------------------------------------------------------------
+' FUNCTION 3: FORMAT DESTINATION COLUMNS (Apply number/date formats)
+' ------------------------------------------------------------------------------------------
+Public Function FormatDestinationColumns(ByVal DestinationPath As String, _
+                                         ByVal FormatMapping As String) As String
+
+    Dim wbDest As Workbook
+    Dim wsDest As Worksheet
+    Dim arrMapping As Variant
+    Dim arrPair As Variant
+    Dim lDestIndex As Long
+    Dim sFormatString As String
+    Dim lLastRow As Long
+    Dim lHeaderRow As Long
+    Dim i As Long
+
+    FormatDestinationColumns = "Success"
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    ' Open Destination Workbook
+    Set wbDest = Workbooks.Open(DestinationPath)
+    Set wsDest = wbDest.Sheets(1)
+    lHeaderRow = 1
+
+    ' Determine the last used row
+    On Error Resume Next
+    lLastRow = wsDest.Cells.Find(What:="*", After:=wsDest.Range("A1"), _
+               LookIn:=xlValues, LookAt:=xlPart, SearchOrder:=xlByRows, _
+               SearchDirection:=xlPrevious).Row
+    On Error GoTo ErrorHandler
+
+    If lLastRow <= lHeaderRow Then
+        FormatDestinationColumns = "Success (No Data Rows Found)"
+        GoTo Finalize
+    End If
+
+    ' --- Process Mapping (Using "#" delimiter) ---
+    arrMapping = Split(FormatMapping, "#")
+
+    ' --- Start Formatting Process ---
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            ' Split pair using "|" delimiter
+            arrPair = Split(arrMapping(i), "|")
+            
+            If UBound(arrPair) = 1 Then
+                ' Get Column Index
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(0)))
+                On Error GoTo ErrorHandler
+                
+                ' Get Format String (e.g., "yyyymmdd", "#,##0", etc.)
+                sFormatString = Trim(arrPair(1))
+                
+                If lDestIndex > 0 Then
+                    ' Apply format to the range (excluding header)
+                    ' Note: Using .NumberFormat applies the custom format
+                    wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), wsDest.Cells(lLastRow, lDestIndex)).NumberFormat = sFormatString
+                End If
+            End If
+        End If
+    Next
+
+    ' Save changes
+    wbDest.Save
+
+Finalize:
+    wbDest.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Function
+
+ErrorHandler:
+    Dim sErrorLog As String
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    FormatDestinationColumns = "Fatal Error: " & sErrorLog
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+End Function
+
+2. 🤖 Hướng dẫn cập nhật Power Automate Desktop (PAD)
+Bạn cần thêm bước chạy Function thứ 3 này vào Flow của mình.
+Bước 1: Tạo biến Mapping cho Format
+Cột B trong Excel tương ứng với Index = 2. Định dạng bạn cần là yyyymmdd.
+ * Action: Set variable
+ * Variable: %FormatMapping%
+ * Value: 2|yyyymmdd
+   * Giải thích: Cột 2 (B) sẽ được format là "yyyymmdd".
+   * Mở rộng: Nếu muốn format thêm cột C (Index 3) là số tiền, bạn viết: 2|yyyymmdd#3|#,##0.
+Bước 2: Gọi Macro Format (Sau khi Copy và Fill Default xong)
+Thêm đoạn này vào cuối Flow (hoặc lồng vào trong các điều kiện If Success):
+ * Action: Run Excel macro
+   * Excel instance: %ExcelInstance%
+   * Macro name: FormatDestinationColumns
+   * Macro arguments: %DestPath%; %FormatMapping%
+   * Variables produced: %FormatResult%
+ * Action: Display message (Kiểm tra kết quả)
+   * Message: Format Status: %FormatResult%
+Tóm tắt luồng chạy hoàn chỉnh trong PAD:
+ * Variables: Khai báo %SourcePath%, %DestPath%, %CopyMapping%, %DefaultMapping%, %FormatMapping%.
+ * Launch Excel: Mở file chứa Macro.
+ * Run Macro 1: CopyDataByColumnName -> Kiểm tra Success.
+ * Run Macro 2: FillDefaultValue -> Kiểm tra Success.
+ * Run Macro 3: FormatDestinationColumns (Dùng %DestPath% và %FormatMapping%).
+ * Close Excel: Đóng file chứa Macro.
