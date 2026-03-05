@@ -1,0 +1,146 @@
+Mô tả
+Đoạn mã VBA dưới đây thực hiện đầy đủ các bước bạn yêu cầu:  
+1. Mở file CSV; 2. Lấy toàn bộ dữ liệu; 3. Lấy danh sách giá trị không trùng ở cột A; 4. Với mỗi giá trị duy nhất, lọc các hàng tương ứng và lưu ra file .xlsx riêng; 5. Lưu các file kết quả vào thư mục con Output cùng thư mục chứa CSV.
+
+---
+
+Hướng dẫn sử dụng
+- Dán mã vào ThisWorkbook hoặc một Module trong VBA editor (Alt+F11).  
+- Chạy SplitCsvByColumnA_SaveXLSX — macro sẽ yêu cầu bạn chọn file CSV.  
+- Kết quả sẽ được lưu vào thư mục Output nằm cùng thư mục với file CSV. Tên file kết quả được tạo từ giá trị cột A (đã loại bỏ ký tự không hợp lệ).
+
+---
+
+Mã VBA
+`vba
+Option Explicit
+
+Sub SplitCsvByColumnA_SaveXLSX()
+    Dim fd As FileDialog
+    Dim csvPath As String
+    Dim csvWb As Workbook
+    Dim srcWs As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim dict As Object ' Scripting.Dictionary
+    Dim i As Long
+    Dim key As Variant
+    Dim outFolder As String
+    Dim outWb As Workbook
+    Dim outWs As Worksheet
+    Dim rng As Range
+    Dim headerRange As Range
+    Dim sanitizeName As String
+    
+    ' Chọn file CSV
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .Title = "Chọn file CSV"
+        .Filters.Clear
+        .Filters.Add "CSV Files", "*.csv"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+        csvPath = .SelectedItems(1)
+    End With
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ' Mở CSV (read-only)
+    Set csvWb = Workbooks.Open(Filename:=csvPath, ReadOnly:=True)
+    Set srcWs = csvWb.Worksheets(1)
+    
+    ' Xác định vùng dữ liệu
+    lastRow = srcWs.Cells(srcWs.Rows.Count, "A").End(xlUp).Row
+    lastCol = srcWs.Cells(1, srcWs.Columns.Count).End(xlToLeft).Column
+    
+    ' Lấy header (giả sử header ở row 1)
+    Set headerRange = srcWs.Range(srcWs.Cells(1, 1), srcWs.Cells(1, lastCol))
+    
+    ' Tạo dictionary để lưu giá trị duy nhất ở cột A
+    Set dict = CreateObject("Scripting.Dictionary")
+    dict.CompareMode = vbTextCompare ' không phân biệt hoa thường
+    
+    For i = 2 To lastRow ' bắt đầu từ row 2 nếu có header
+        Dim v As String
+        v = Trim(CStr(srcWs.Cells(i, "A").Value))
+        If Len(v) > 0 Then
+            If Not dict.Exists(v) Then dict.Add v, 1
+        End If
+    Next i
+    
+    ' Tạo thư mục Output cùng thư mục CSV nếu chưa có
+    outFolder = CreateObject("Scripting.FileSystemObject").GetParentFolderName(csvPath) & Application.PathSeparator & "Output"
+    If Dir(outFolder, vbDirectory) = "" Then MkDir outFolder
+    
+    ' Với mỗi giá trị duy nhất, lọc và lưu file xlsx
+    For Each key In dict.Keys
+        ' Tạo workbook mới
+        Set outWb = Workbooks.Add(xlWBATWorksheet)
+        Set outWs = outWb.Worksheets(1)
+        
+        ' Copy header
+        headerRange.Copy Destination:=outWs.Range("A1")
+        
+        ' Lọc và copy các hàng có cột A = key
+        Dim outRow As Long
+        outRow = 2
+        For i = 2 To lastRow
+            If StrComp(Trim(CStr(srcWs.Cells(i, "A").Value)), CStr(key), vbTextCompare) = 0 Then
+                srcWs.Range(srcWs.Cells(i, 1), srcWs.Cells(i, lastCol)).Copy Destination:=outWs.Cells(outRow, 1)
+                outRow = outRow + 1
+            End If
+        Next i
+        
+        ' Nếu chỉ có header (không có hàng dữ liệu), vẫn lưu file (tuỳ bạn có muốn bỏ qua)
+        ' Chuẩn hóa tên file (loại ký tự không hợp lệ)
+        sanitizeName = SanitizeFileName(CStr(key))
+        If Len(sanitizeName) = 0 Then sanitizeName = "EmptyName"
+        
+        Dim savePath As String
+        savePath = outFolder & Application.PathSeparator & sanitizeName & ".xlsx"
+        
+        ' Nếu file đã tồn tại, thêm số để tránh ghi đè
+        Dim idx As Long: idx = 1
+        Do While Dir(savePath) <> ""
+            savePath = outFolder & Application.PathSeparator & sanitizeName & "_" & idx & ".xlsx"
+            idx = idx + 1
+        Loop
+        
+        ' Lưu và đóng
+        outWb.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
+        outWb.Close SaveChanges:=False
+    Next key
+    
+    ' Đóng CSV
+    csvWb.Close SaveChanges:=False
+    
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    
+    MsgBox "Hoàn tất. File kết quả nằm trong: " & vbCrLf & outFolder, vbInformation
+End Sub
+
+' Hàm phụ để loại bỏ ký tự không hợp lệ trong tên file
+Private Function SanitizeFileName(ByVal s As String) As String
+    Dim invalidChars As Variant
+    invalidChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    Dim i As Long
+    For i = LBound(invalidChars) To UBound(invalidChars)
+        s = Replace(s, invalidChars(i), "_")
+    Next i
+    s = Trim(s)
+    ' Nếu quá dài, cắt xuống 100 ký tự
+    If Len(s) > 100 Then s = Left(s, 100)
+    SanitizeFileName = s
+End Function
+`
+
+---
+
+Ghi chú và tùy biến
+- Header: Mã giả sử dòng 1 là header. Nếu CSV không có header, thay For i = 2 To lastRow bằng For i = 1 To lastRow và copy header bỏ đi.  
+- So sánh: Hiện dùng vbTextCompare (không phân biệt hoa thường). Nếu cần phân biệt, đổi vbTextCompare thành vbBinaryCompare.  
+- Thư mục lưu: Mặc định là Output cùng thư mục CSV. Bạn có thể sửa outFolder thành đường dẫn khác.  
+- Hiệu năng: Với file rất lớn, có thể cải thiện bằng cách đọc toàn bộ vùng vào mảng rồi xử lý mảng thay vì thao tác ô từng ô. Nếu cần, tôi có thể cung cấp phiên bản dùng mảng.
+
+Nếu bạn muốn phiên bản xử lý bằng mảng (tốc độ nhanh hơn cho file lớn) hoặc muốn lọc theo cột khác thay vì cột A, tôi sẽ chỉnh mã tương ứng.
