@@ -1,0 +1,77 @@
+Trong Power Automate Desktop, nếu bạn chỉ muốn trả về True / False để kiểm tra một giá trị trong List có tồn tại trong DataTable hay không, bạn có thể viết trực tiếp trong Set Variable bằng LINQ.
+
+Giả sử:
+
+DataTable: %dtAreas%
+
+List: %areaList%
+
+Cột trong DataTable: "Area"
+
+
+
+---
+
+1️⃣ Kiểm tra một value có trong DataTable
+
+Ví dụ biến %currentArea% là giá trị cần kiểm tra.
+
+Set Variable → Value
+
+%dtAreas.AsEnumerable().Any(r => r["Area"].ToString() == currentArea)%
+
+Kết quả
+
+currentArea	DataTable	Result
+
+UQJP	có	True
+FRCN	có	True
+ABCD	không	False
+
+
+
+---
+
+2️⃣ Kiểm tra List có value tồn tại trong DataTable không
+
+%areaList.Any(a => dtAreas.AsEnumerable().Any(r => r["Area"].ToString() == a))%
+
+Ý nghĩa:
+
+Nếu ít nhất 1 area trong list có trong DataTable → True
+
+Không có cái nào → False
+
+
+
+---
+
+3️⃣ Cách dùng phổ biến trong PAD
+
+Trong Loop từng Area
+
+FOR EACH area IN areaList
+
+Set variable:
+
+%dtAreas.AsEnumerable().Any(r => r["Area"].ToString() == area)%
+
+Nếu False → bỏ qua
+Nếu True → xử lý tiếp
+
+
+---
+
+✅ Cách này rất phổ biến khi xử lý Excel/DataTable trong PAD vì:
+
+Không cần filter DataTable
+
+Chỉ kiểm tra tồn tại
+
+Nhanh hơn nhiều
+
+
+
+---
+
+💡 Nếu DataTable rất lớn (50k–200k rows) mình có thể chỉ bạn cách viết LINQ nhanh hơn ~20 lần để check tồn tại area.
