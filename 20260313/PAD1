@@ -1,0 +1,89 @@
+Có. Trong Power Automate Desktop, bạn có thể viết LINQ trực tiếp trong Set Variable bằng expression C#.
+
+Giả sử:
+
+DataTable: %dtAreas%
+
+List Area: %areaList%
+
+Tên cột: "Area"
+
+
+
+---
+
+1️⃣ Lọc DataTable chỉ giữ những Area có trong List
+
+Set Variable → Value
+
+%dtAreas.AsEnumerable().Where(r => areaList.Contains(r["Area"].ToString())).CopyToDataTable()%
+
+Variable mới (ví dụ):
+
+filteredTable
+
+
+---
+
+2️⃣ Lấy List Area có data trong DataTable
+
+Nếu bạn muốn bỏ những area không có data:
+
+%areaList.Where(a => dtAreas.AsEnumerable().Any(r => r["Area"].ToString() == a)).ToList()%
+
+
+---
+
+3️⃣ Lấy List Area không có data
+
+%areaList.Where(a => !dtAreas.AsEnumerable().Any(r => r["Area"].ToString() == a)).ToList()%
+
+
+---
+
+4️⃣ Ví dụ thực tế
+
+areaList
+
+UQJP
+FRCN
+ABCD
+XYZ
+
+DataTable
+
+UQJP
+UQJP
+FRCN
+
+Sau LINQ:
+
+validAreas = UQJP
+validAreas = FRCN
+
+ABCD và XYZ bị loại
+
+
+---
+
+⚠️ Lưu ý quan trọng trong PAD
+
+Nếu DataTable rỗng, .CopyToDataTable() sẽ bị lỗi.
+
+Phiên bản an toàn hơn:
+
+%dtAreas.AsEnumerable().Where(r => areaList.Contains(r["Area"].ToString())).Any() 
+? dtAreas.AsEnumerable().Where(r => areaList.Contains(r["Area"].ToString())).CopyToDataTable() 
+: dtAreas.Clone()%
+
+
+---
+
+💡 Nếu bạn nói rõ thêm:
+
+DataTable có bao nhiêu dòng (~10k, 50k, 200k?)
+
+areaList có bao nhiêu phần tử
+
+
+Mình có thể viết LINQ tối ưu cho PAD chạy nhanh hơn 10-30 lần (rất quan trọng khi xử lý Excel lớn).
