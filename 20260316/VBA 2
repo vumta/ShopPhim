@@ -1,0 +1,223 @@
+Vì bạn muốn Power Automate Desktop (PAD) gọi VBA bằng Run Excel Macro và truyền path + parameter, cách ổn định nhất là:
+
+PAD mở file Excel macro (.xlsm)
+
+PAD gọi Run Excel Macro
+
+truyền parameter vào macro
+
+VBA xử lý file raw → xuất nhiều file template
+
+
+Tôi sẽ viết VBA chuẩn cho automation (ổn định khi chạy từ PAD).
+
+
+---
+
+1. Macro chính để PAD gọi
+
+Macro này nhận 3 parameter:
+
+rawFilePath → file raw data
+
+templatePath → file template
+
+outputFolder → folder lưu file
+
+
+Public Sub ExportProductFiles(rawFilePath As String, templatePath As String, outputFolder As String)
+
+    Dim wbRaw As Workbook
+    Dim wsRaw As Worksheet
+    Dim arrData As Variant
+    Dim dict As Object
+    
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim i As Long
+    Dim id As String
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.Calculation = xlCalculationManual
+    
+    
+    'Open raw data
+    Set wbRaw = Workbooks.Open(rawFilePath)
+    Set wsRaw = wbRaw.Sheets(1)
+    
+    
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, 1).End(xlUp).Row
+    lastCol = wsRaw.Cells(1, wsRaw.Columns.Count).End(xlToLeft).Column
+    
+    
+    'Load data vào array
+    arrData = wsRaw.Range(wsRaw.Cells(2, 1), wsRaw.Cells(lastRow, lastCol)).Value
+    
+    
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    
+    'Group theo ID
+    For i = 1 To UBound(arrData, 1)
+    
+        id = arrData(i, 1)
+        
+        If Not dict.exists(id) Then
+            dict.Add id, New Collection
+        End If
+        
+        dict(id).Add i
+        
+    Next i
+    
+    
+    'Loop từng ID
+    Dim key As Variant
+    
+    For Each key In dict.Keys
+    
+        ExportOneID key, dict(key), arrData, lastCol, templatePath, outputFolder
+        
+    Next key
+    
+    
+    wbRaw.Close False
+    
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Application.Calculation = xlCalculationAutomatic
+
+End Sub
+
+
+---
+
+2. Function export từng ID
+
+Private Sub ExportOneID(productID As String, rows As Collection, arrData As Variant, lastCol As Long, templatePath As String, outputFolder As String)
+
+    Dim wbTemplate As Workbook
+    Dim wsTarget As Worksheet
+    
+    Dim arrOut() As Variant
+    Dim i As Long
+    Dim j As Long
+    
+    
+    ReDim arrOut(1 To rows.Count, 1 To lastCol)
+    
+    
+    For i = 1 To rows.Count
+    
+        For j = 1 To lastCol
+        
+            arrOut(i, j) = arrData(rows(i), j)
+            
+        Next j
+        
+    Next i
+    
+    
+    Set wbTemplate = Workbooks.Open(templatePath)
+    
+    Set wsTarget = wbTemplate.Sheets(1)
+    
+    
+    wsTarget.Range("A2").Resize(rows.Count, lastCol).Value = arrOut
+    
+    
+    wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+    
+    wbTemplate.Close False
+
+End Sub
+
+
+---
+
+3. Cách gọi Macro từ Power Automate Desktop
+
+Action:
+
+Run Excel Macro
+
+Macro name:
+
+ExportProductFiles
+
+Parameters:
+
+%RawFilePath%
+%TemplatePath%
+%OutputFolder%
+
+Ví dụ:
+
+C:\Data\RawData.xlsx
+C:\Data\Template.xlsx
+C:\Data\Output
+
+
+---
+
+4. Flow PAD chuẩn
+
+Thường flow sẽ là:
+
+Launch Excel
+     ↓
+Open Excel Document (macro file)
+     ↓
+Run Excel Macro
+     Macro: ExportProductFiles
+     Parameters:
+          RawFilePath
+          TemplatePath
+          OutputFolder
+     ↓
+Close Excel
+
+
+---
+
+5. Lưu ý quan trọng (hay lỗi khi chạy PAD)
+
+Macro file phải là:
+
+.xlsm
+
+và trong Excel:
+
+Trust Center
+→ Enable VBA macros
+
+
+---
+
+6. Tối ưu thêm (rất đáng làm)
+
+Code trên mỗi ID open template 1 lần.
+
+Nếu có:
+
+1000 ID
+
+1000 file output
+
+
+thì mở template 1000 lần → hơi chậm.
+
+Tôi có thể viết Ultra Fast version:
+
+mở template 1 lần
+
+clone workbook
+
+save nhanh
+
+
+tốc độ có thể nhanh hơn 5–10 lần.
+
+Nếu bạn muốn tôi sẽ viết luôn version tối ưu nhất cho PAD automation (khoảng 120 dòng VBA nhưng chạy cực nhanh).
