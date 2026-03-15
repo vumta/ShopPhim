@@ -1,0 +1,102 @@
+Lỗi bạn ghi “Run-time error: Not supported method” (có thể bạn gõ nhầm thành menthol) thường xảy ra khi VBA gọi AutoFilter nhưng object không hỗ trợ hoặc cách gọi sai.
+
+Trong code tôi gửi trước, dòng dễ gây lỗi nhất là:
+
+wsRaw.Range("A1").AutoFilter Field:=1, Criteria1:=productID
+
+Nếu sheet chưa có AutoFilter, hoặc Range không đúng header, Excel có thể báo lỗi.
+
+
+---
+
+Cách sửa ổn định hơn
+
+Bạn nên filter trên toàn bộ bảng dữ liệu thay vì chỉ A1.
+
+Thay bằng:
+
+wsRaw.Range("A1").CurrentRegion.AutoFilter Field:=1, Criteria1:=productID
+
+hoặc cách an toàn hơn:
+
+wsRaw.Range("A1").Resize(wsRaw.Cells(wsRaw.Rows.Count,1).End(xlUp).Row, _
+wsRaw.Cells(1, wsRaw.Columns.Count).End(xlToLeft).Column).AutoFilter _
+Field:=1, Criteria1:=productID
+
+
+---
+
+Version ProcessOneID ổn định
+
+Private Sub ProcessOneID(productID As String, wsRaw As Worksheet, templatePath As String, outputFolder As String)
+
+    Dim wbTemplate As Workbook
+    Dim lastRow As Long
+    Dim lastCol As Long
+    
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, 1).End(xlUp).Row
+    lastCol = wsRaw.Cells(1, wsRaw.Columns.Count).End(xlToLeft).Column
+    
+    'Filter ID
+    wsRaw.Range(wsRaw.Cells(1, 1), wsRaw.Cells(lastRow, lastCol)).AutoFilter _
+        Field:=1, Criteria1:=productID
+    
+    'Open template
+    Set wbTemplate = Workbooks.Open(templatePath)
+    
+    'Gọi function copy của bạn
+    Call CopyData(wsRaw, wbTemplate)
+    
+    'Save file
+    wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+    
+    wbTemplate.Close False
+    
+    wsRaw.AutoFilterMode = False
+
+End Sub
+
+
+---
+
+Một lỗi khác cũng rất hay gặp
+
+Nếu dòng này:
+
+Call CopyData(wsRaw, wbTemplate)
+
+báo lỗi Method not supported thì nguyên nhân là:
+
+Function CopyData của bạn không nhận parameter
+
+
+ví dụ function bạn viết:
+
+Sub CopyData()
+
+thì phải gọi:
+
+Call CopyData
+
+không truyền parameter.
+
+
+---
+
+Bạn thử kiểm tra 3 điểm này
+
+1️⃣ Dòng nào báo lỗi (F8 debug sẽ thấy)
+2️⃣ Function CopyData của bạn có parameter không
+3️⃣ Sheet raw có header ở dòng 1 không
+
+
+---
+
+💡 Nếu bạn gửi tôi:
+
+function CopyData hiện tại
+
+cột ID trong raw data
+
+
+tôi có thể chỉnh lại code cho chạy đúng 100% với code của bạn, vì hiện tại tôi đang phải đoán cấu trúc function copy của bạn.
