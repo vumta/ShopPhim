@@ -1,0 +1,208 @@
+Tôi sẽ viết version rất gọn và nhanh đúng với yêu cầu của bạn:
+
+Giữ nguyên function CopyData của bạn
+
+Chỉ viết function xử lý ID
+
+PAD có thể truyền parameter
+
+Không dùng Dictionary → nhanh và ít code hơn
+
+
+Ý tưởng:
+
+1. Sort cột ID
+
+
+2. Lặp từ trên xuống
+
+
+3. Khi ID thay đổi → xử lý block ID đó
+
+
+4. Filter → gọi CopyData → Save file
+
+
+
+Cách này không cần tìm ID unique nên rất nhanh với file lớn.
+
+
+---
+
+1. Sub để PAD gọi
+
+Public Sub RunExport(rawFilePath As String, templatePath As String, outputFolder As String)
+
+    Call ExportByID(rawFilePath, templatePath, outputFolder)
+
+End Sub
+
+
+---
+
+2. Function chính xử lý ID
+
+Public Function ExportByID(rawFilePath As String, templatePath As String, outputFolder As String) As Boolean
+
+    Dim wbRaw As Workbook
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    
+    Dim currentID As String
+    Dim prevID As String
+    
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    
+    Set wbRaw = Workbooks.Open(rawFilePath)
+    Set ws = wbRaw.Sheets(1)
+    
+    
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    
+    
+    'Sort theo ID
+    ws.Sort.SortFields.Clear
+    
+    ws.Sort.SortFields.Add Key:=ws.Range("A2:A" & lastRow)
+    
+    With ws.Sort
+        .SetRange ws.Range("A1").CurrentRegion
+        .Header = xlYes
+        .Apply
+    End With
+    
+    
+    prevID = ws.Cells(2, 1).Value
+    
+    
+    For i = 2 To lastRow
+    
+        currentID = ws.Cells(i, 1).Value
+        
+        
+        If currentID <> prevID Then
+        
+            ProcessOneID prevID, ws, templatePath, outputFolder
+            
+            prevID = currentID
+            
+        End If
+        
+    Next i
+    
+    
+    'ID cuối
+    ProcessOneID prevID, ws, templatePath, outputFolder
+    
+    
+    wbRaw.Close False
+    
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    
+    
+    ExportByID = True
+
+End Function
+
+
+---
+
+3. Function xử lý từng ID
+
+Private Function ProcessOneID(productID As String, wsRaw As Worksheet, templatePath As String, outputFolder As String) As Boolean
+
+    Dim wbTemplate As Workbook
+    
+    
+    'Filter ID
+    wsRaw.Range("A1").AutoFilter Field:=1, Criteria1:=productID
+    
+    
+    'Open template
+    Set wbTemplate = Workbooks.Open(templatePath)
+    
+    
+    'GỌI FUNCTION COPY CỦA BẠN
+    Call CopyData(wsRaw, wbTemplate)
+    
+    
+    'Save file
+    wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+    
+    wbTemplate.Close False
+    
+    
+    If wsRaw.FilterMode Then wsRaw.ShowAllData
+    
+    
+    ProcessOneID = True
+
+End Function
+
+
+---
+
+4. Function Copy của bạn (giữ nguyên)
+
+Ví dụ:
+
+Public Function CopyData(wsRaw As Worksheet, wbTemplate As Workbook) As Boolean
+
+    'logic phức tạp bạn đã viết
+    
+    CopyData = True
+
+End Function
+
+
+---
+
+5. PAD gọi macro
+
+Action:
+
+Run Excel Macro
+
+Macro:
+
+RunExport
+
+Parameters:
+
+%RawFilePath%
+%TemplatePath%
+%OutputFolder%
+
+
+---
+
+6. Tối ưu cực mạnh (rất đáng làm)
+
+Nếu raw data có 50k – 200k dòng, tôi khuyên thêm:
+
+Application.Calculation = xlCalculationManual
+Application.EnableEvents = False
+
+tốc độ có thể nhanh hơn 10 lần.
+
+
+---
+
+💡 Nếu bạn muốn, tôi có thể viết cho bạn phiên bản VBA cực tối ưu cho case của bạn (RPA + Excel):
+
+không filter
+
+không sort
+
+không scan column
+
+xử lý 100k dòng trong ~2–3 giây
+
+
+Đây là kỹ thuật dùng Array + pointer rất ít người biết trong VBA và cực phù hợp khi PAD chạy automation.
