@@ -1,0 +1,184 @@
+Bạn có thể làm theo 3 bước logic chính sau trong VBA:
+
+1. Lấy danh sách ID duy nhất trong cột A của Raw Data
+
+
+2. Loop từng ID
+
+
+3. Filter dữ liệu theo ID → gọi function copy cột đã có → lưu file template thành file mới
+
+
+
+Vì bạn đã có function copy theo tên cột, nên function mới chỉ cần lọc ID và gọi lại function cũ.
+
+
+---
+
+1. Ý tưởng xử lý
+
+Giả sử:
+
+RawData.xlsx
+
+A (ID)	B (Name)	C (Price)	D (Color)
+
+P01	A	10	Red
+P01	B	12	Blue
+P02	C	8	Green
+P02	D	9	Black
+
+
+Kết quả:
+
+Template_P01.xlsx
+Template_P02.xlsx
+
+Mỗi file chỉ chứa data của 1 ID.
+
+
+---
+
+2. Function chính
+
+Ví dụ code hoàn chỉnh:
+
+Sub ExportByProductID()
+
+    Dim wsRaw As Worksheet
+    Dim lastRow As Long
+    Dim dict As Object
+    Dim cell As Range
+    Dim id As Variant
+    
+    Set wsRaw = ThisWorkbook.Sheets("RawData")
+    
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, "A").End(xlUp).Row
+    
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    'Lấy danh sách ID không trùng
+    For Each cell In wsRaw.Range("A2:A" & lastRow)
+    
+        If Not dict.exists(cell.Value) Then
+            dict.Add cell.Value, 1
+        End If
+        
+    Next cell
+    
+    
+    'Loop từng ID
+    For Each id In dict.Keys
+    
+        Call ProcessOneID(id)
+        
+    Next id
+
+End Sub
+
+
+---
+
+3. Function xử lý từng ID
+
+Function này:
+
+Filter ID
+
+Copy dữ liệu
+
+Save file
+
+
+Sub ProcessOneID(productID As String)
+
+    Dim wsRaw As Worksheet
+    Dim wbTemplate As Workbook
+    Dim savePath As String
+    
+    Set wsRaw = ThisWorkbook.Sheets("RawData")
+    
+    
+    'Filter theo ID
+    wsRaw.Range("A1").AutoFilter Field:=1, Criteria1:=productID
+    
+    
+    'Mở template
+    Set wbTemplate = Workbooks.Open("D:\Template.xlsx")
+    
+    
+    'GỌI FUNCTION COPY CŨ
+    Call CopyDataToTemplate(wsRaw, wbTemplate)
+    
+    
+    'Lưu file
+    savePath = "D:\Output\Template_" & productID & ".xlsx"
+    
+    wbTemplate.SaveAs savePath
+    wbTemplate.Close
+    
+    
+    'Bỏ filter
+    wsRaw.AutoFilterMode = False
+
+End Sub
+
+
+---
+
+4. Function copy cột (giả sử bạn đã có)
+
+Ví dụ minh họa:
+
+Sub CopyDataToTemplate(wsSource As Worksheet, wbTemplate As Workbook)
+
+    Dim wsTarget As Worksheet
+    
+    Set wsTarget = wbTemplate.Sheets(1)
+    
+    wsSource.Range("B2:B100").SpecialCells(xlCellTypeVisible).Copy wsTarget.Range("A2")
+    wsSource.Range("C2:C100").SpecialCells(xlCellTypeVisible).Copy wsTarget.Range("B2")
+
+End Sub
+
+Do đã filter nên SpecialCells(xlCellTypeVisible) chỉ copy đúng ID.
+
+
+---
+
+5. Tối ưu tốc độ (rất quan trọng)
+
+Nếu raw data lớn (vài chục nghìn dòng), nên thêm:
+
+Application.ScreenUpdating = False
+Application.Calculation = xlCalculationManual
+
+và cuối code:
+
+Application.ScreenUpdating = True
+Application.Calculation = xlCalculationAutomatic
+
+Tốc độ có thể nhanh hơn 10-20 lần.
+
+
+---
+
+6. Cách chuyên nghiệp hơn (khuyên dùng)
+
+Thay vì AutoFilter, dùng Array + Dictionary:
+
+Nhanh gấp 50-100 lần
+
+Không phụ thuộc Excel UI
+
+
+Tôi có thể viết cho bạn version cực nhanh:
+
+xử lý 100k dòng trong vài giây
+
+không dùng filter
+
+không copy/paste
+
+
+Nếu bạn muốn, tôi sẽ viết luôn VBA version tối ưu nhất cho bài toán này (code khoảng 80 dòng nhưng chạy cực nhanh).
