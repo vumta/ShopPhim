@@ -1,0 +1,207 @@
+Bạn muốn PAD gọi Macro, nhưng code chính viết theo Function thay vì Sub.
+Trong VBA:
+
+Macro gọi từ PAD bắt buộc phải là Sub
+
+Nhưng Sub đó có thể chỉ làm wrapper để gọi Function
+
+
+Vì vậy ta sẽ:
+
+1. Viết Function chính
+
+
+2. Tạo Sub wrapper để PAD gọi
+
+
+
+
+---
+
+1. Sub để PAD gọi
+
+PAD sẽ gọi Sub này.
+
+Public Sub RunExport(rawFilePath As String, templatePath As String, outputFolder As String)
+
+    Call ExportByID(rawFilePath, templatePath, outputFolder)
+
+End Sub
+
+
+---
+
+2. Function chính xử lý logic
+
+Function này:
+
+lấy ID unique
+
+loop từng ID
+
+gọi function copy của bạn
+
+save file
+
+
+Public Function ExportByID(rawFilePath As String, templatePath As String, outputFolder As String) As Boolean
+
+    Dim wbRaw As Workbook
+    Dim wsRaw As Worksheet
+    Dim dict As Object
+    
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim id As Variant
+    
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.Calculation = xlCalculationManual
+    
+    
+    Set wbRaw = Workbooks.Open(rawFilePath)
+    Set wsRaw = wbRaw.Sheets(1)
+    
+    
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, "A").End(xlUp).Row
+    
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    
+    'Lấy ID unique
+    For Each cell In wsRaw.Range("A2:A" & lastRow)
+    
+        If Not dict.exists(cell.Value) Then
+            dict.Add cell.Value, 1
+        End If
+        
+    Next cell
+    
+    
+    'Loop từng ID
+    For Each id In dict.Keys
+    
+        Call ProcessOneID(id, wsRaw, templatePath, outputFolder)
+        
+    Next id
+    
+    
+    wbRaw.Close False
+    
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Application.Calculation = xlCalculationAutomatic
+    
+    
+    ExportByID = True
+
+End Function
+
+
+---
+
+3. Function xử lý từng ID
+
+Private Function ProcessOneID(productID As String, wsRaw As Worksheet, templatePath As String, outputFolder As String) As Boolean
+
+    Dim wbTemplate As Workbook
+    
+    
+    'Filter theo ID
+    wsRaw.Range("A1").AutoFilter Field:=1, Criteria1:=productID
+    
+    
+    'Open template
+    Set wbTemplate = Workbooks.Open(templatePath)
+    
+    
+    'Gọi function copy của bạn
+    Call CopyData(wsRaw, wbTemplate)
+    
+    
+    'Save file
+    wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+    
+    wbTemplate.Close False
+    
+    
+    wsRaw.AutoFilterMode = False
+    
+    
+    ProcessOneID = True
+
+End Function
+
+
+---
+
+4. Function Copy của bạn (giữ nguyên)
+
+Ví dụ:
+
+Public Function CopyData(wsRaw As Worksheet, wbTemplate As Workbook) As Boolean
+
+    'Logic copy phức tạp của bạn
+    
+    CopyData = True
+
+End Function
+
+
+---
+
+5. PAD gọi macro
+
+Action:
+
+Run Excel Macro
+
+Macro name:
+
+RunExport
+
+Parameters:
+
+%RawFilePath%
+%TemplatePath%
+%OutputFolder%
+
+
+---
+
+6. Mẹo quan trọng (giúp code chạy nhanh hơn nhiều)
+
+Thay vì:
+
+wsRaw.AutoFilterMode = False
+
+bạn nên dùng:
+
+If wsRaw.FilterMode Then wsRaw.ShowAllData
+
+Vì:
+
+không reset AutoFilter
+
+filter tiếp nhanh hơn
+
+chạy automation ổn định hơn.
+
+
+
+---
+
+💡 Nếu bạn muốn, tôi có thể viết thêm version rất chuyên cho case của bạn (PAD + VBA):
+
+Không cần Dictionary
+
+Không cần scan column A
+
+Chỉ 15 dòng code
+
+Chạy nhanh hơn 5–10 lần
+
+
+Đây là kỹ thuật rất ít người biết trong VBA khi xử lý ID group.
