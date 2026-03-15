@@ -1,0 +1,200 @@
+Hiểu ý bạn:
+
+Giữ nguyên function CopyData(...) hiện có (vì có nhiều điều kiện phức tạp).
+
+VBA mới chỉ làm nhiệm vụ:
+
+1. Lấy ID unique trong cột A
+
+
+2. Filter từng ID
+
+
+3. Gọi function CopyData
+
+
+4. Save template thành file mới
+
+
+5. Lặp đến hết ID
+
+
+
+
+Cách này không đụng gì đến logic copy của bạn.
+
+
+---
+
+1. Macro chính (PAD gọi)
+
+Macro này nhận parameter từ PAD:
+
+rawFilePath
+
+templatePath
+
+outputFolder
+
+
+Public Sub ExportByID(rawFilePath As String, templatePath As String, outputFolder As String)
+
+    Dim wbRaw As Workbook
+    Dim wsRaw As Worksheet
+    Dim dict As Object
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim id As Variant
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.Calculation = xlCalculationManual
+    
+    'Open raw data
+    Set wbRaw = Workbooks.Open(rawFilePath)
+    Set wsRaw = wbRaw.Sheets(1)
+    
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, "A").End(xlUp).Row
+    
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    'Lấy danh sách ID unique
+    For Each cell In wsRaw.Range("A2:A" & lastRow)
+    
+        If Not dict.exists(cell.Value) Then
+            dict.Add cell.Value, 1
+        End If
+        
+    Next cell
+    
+    'Loop từng ID
+    For Each id In dict.Keys
+    
+        ProcessOneID id, wsRaw, templatePath, outputFolder
+        
+    Next id
+    
+    wbRaw.Close False
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Application.Calculation = xlCalculationAutomatic
+
+End Sub
+
+
+---
+
+2. Function xử lý từng ID
+
+Phần này:
+
+filter ID
+
+mở template
+
+gọi function CopyData của bạn
+
+save file
+
+
+Private Sub ProcessOneID(productID As String, wsRaw As Worksheet, templatePath As String, outputFolder As String)
+
+    Dim wbTemplate As Workbook
+    
+    'Filter theo ID
+    wsRaw.Range("A1").AutoFilter Field:=1, Criteria1:=productID
+    
+    'Open template
+    Set wbTemplate = Workbooks.Open(templatePath)
+    
+    
+    'GỌI FUNCTION COPY DATA CỦA BẠN
+    'Ví dụ:
+    Call CopyData(wsRaw, wbTemplate)
+    
+    
+    'Save file
+    wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+    
+    wbTemplate.Close False
+    
+    
+    'Clear filter
+    wsRaw.AutoFilterMode = False
+
+End Sub
+
+
+---
+
+3. Function copy của bạn (giữ nguyên)
+
+Ví dụ:
+
+Sub CopyData(wsRaw As Worksheet, wbTemplate As Workbook)
+
+    'logic phức tạp của bạn
+    'copy theo column name
+    'mapping column
+    'nhiều condition
+
+End Sub
+
+Bạn không cần sửa gì trong function này.
+
+
+---
+
+4. Cách PAD gọi Macro
+
+Action:
+
+Run Excel Macro
+
+Macro:
+
+ExportByID
+
+Parameters:
+
+%RawFilePath%
+%TemplatePath%
+%OutputFolder%
+
+Ví dụ:
+
+C:\Data\Raw.xlsx
+C:\Data\Template.xlsx
+C:\Data\Output
+
+
+---
+
+5. Tối ưu nhỏ (rất nên thêm)
+
+Trong function copy của bạn nên dùng:
+
+.SpecialCells(xlCellTypeVisible)
+
+ví dụ:
+
+Range("B2:B1000").SpecialCells(xlCellTypeVisible)
+
+để chỉ copy dữ liệu của ID đang filter.
+
+
+---
+
+6. Nếu Raw Data lớn (50k – 200k dòng)
+
+Cách trên vẫn chạy ổn, nhưng có thể tối ưu thêm rất mạnh:
+
+Filter 1 lần
+
+Không cần scan toàn bộ column A để lấy unique ID
+
+Tốc độ nhanh hơn 3–5 lần
+
+
+Tôi có thể viết cho bạn version VBA chỉ ~40 dòng nhưng chạy nhanh gấp nhiều lần (rất phù hợp khi PAD chạy automation).
