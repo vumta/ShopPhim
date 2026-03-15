@@ -1,0 +1,134 @@
+Bạn muốn:
+
+Tên file template ví dụ:
+
+
+Template_ASN_Number_YYMMDDHHMMSS.xlsx
+
+Khi chạy:
+
+ASN_Number → replace bằng ID cột A
+
+YYMMDDHHMMSS → replace bằng thời gian hiện tại
+
+
+Ví dụ kết quả:
+
+Template_P001_260315221530.xlsx
+
+
+---
+
+Cập nhật phần lưu file trong function ProcessOneID
+
+Thay đoạn:
+
+wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+
+bằng đoạn sau.
+
+Dim templateName As String
+Dim newFileName As String
+Dim timeStr As String
+
+'Tên file template
+templateName = wbTemplate.Name
+
+'Tạo timestamp
+timeStr = Format(Now, "yymmddhhnnss")
+
+'Replace placeholder
+newFileName = Replace(templateName, "ASN_Number", productID)
+newFileName = Replace(newFileName, "YYMMDDHHMMSS", timeStr)
+
+'Lưu file
+wbTemplate.SaveAs outputFolder & "\" & newFileName
+
+
+---
+
+Function ProcessOneID hoàn chỉnh sau khi update
+
+Private Function ProcessOneID(productID As String, wsRaw As Worksheet, templatePath As String, outputFolder As String) As Boolean
+
+    Dim wbTemplate As Workbook
+    Dim templateName As String
+    Dim newFileName As String
+    Dim timeStr As String
+    
+    
+    wsRaw.Range("A1").AutoFilter Field:=1, Criteria1:=productID
+    
+    
+    Set wbTemplate = Workbooks.Open(templatePath)
+    
+    
+    Call CopyData(wsRaw, wbTemplate)
+    
+    
+    templateName = wbTemplate.Name
+    
+    timeStr = Format(Now, "yymmddhhnnss")
+    
+    newFileName = Replace(templateName, "ASN_Number", productID)
+    newFileName = Replace(newFileName, "YYMMDDHHMMSS", timeStr)
+    
+    
+    wbTemplate.SaveAs outputFolder & "\" & newFileName
+    
+    
+    wbTemplate.Close False
+    
+    
+    If wsRaw.FilterMode Then wsRaw.ShowAllData
+    
+    
+    ProcessOneID = True
+
+End Function
+
+
+---
+
+Ví dụ thực tế
+
+Template file:
+
+ASN_Template_ASN_Number_YYMMDDHHMMSS.xlsx
+
+ID:
+
+A10025
+
+File output:
+
+ASN_Template_A10025_260315221530.xlsx
+
+
+---
+
+💡 Mẹo rất quan trọng cho automation (PAD)
+
+Nếu có nhiều ID trong cùng 1 giây, timestamp có thể trùng.
+
+Bạn nên dùng:
+
+Format(Now, "yymmddhhnnss") & "_" & Format(Timer * 1000, "000")
+
+để đảm bảo không bao giờ trùng file.
+
+
+---
+
+Nếu bạn muốn, tôi có thể viết thêm 1 phiên bản code rất mạnh cho case của bạn:
+
+không cần sort
+
+không cần dictionary
+
+không cần filter
+
+copy theo ID nhanh hơn 10–30 lần
+
+
+Đây là kỹ thuật array pointer grouping rất ít người biết trong VBA và cực hợp với PAD automation.
