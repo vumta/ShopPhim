@@ -1,0 +1,43 @@
+Write-Host "=== STOP UIPATH PROCESSES ==="
+Get-Process *UiPath* -ErrorAction SilentlyContinue | Stop-Process -Force
+
+Write-Host "=== REMOVE SERVICES ==="
+$services = Get-Service | Where-Object {$_.Name -like "*UiPath*"}
+foreach ($s in $services) {
+    sc.exe stop $s.Name
+    sc.exe delete $s.Name
+}
+
+Write-Host "=== DELETE FOLDERS ==="
+$paths = @(
+    "$env:LOCALAPPDATA\UiPath",
+    "$env:APPDATA\UiPath",
+    "C:\Program Files\UiPath",
+    "C:\ProgramData\UiPath"
+)
+
+foreach ($path in $paths) {
+    if (Test-Path $path) {
+        Remove-Item -Recurse -Force -Path $path
+        Write-Host "Deleted: $path"
+    }
+}
+
+Write-Host "=== CLEAN REGISTRY ==="
+$regPaths = @(
+    "HKCU:\Software\UiPath",
+    "HKLM:\SOFTWARE\UiPath",
+    "HKLM:\SOFTWARE\WOW6432Node\UiPath"
+)
+
+foreach ($reg in $regPaths) {
+    if (Test-Path $reg) {
+        Remove-Item -Recurse -Force -Path $reg
+        Write-Host "Removed registry: $reg"
+    }
+}
+
+Write-Host "=== CLEAR TEMP ==="
+Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host "=== DONE CLEANING UIPATH ==="
