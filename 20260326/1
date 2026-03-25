@@ -1,0 +1,3 @@
+Get-WmiObject -Class Win32_Product | Where-Object {$_.Name -like "*UiPath*"} | ForEach-Object {
+    $_.Uninstall()
+}
