@@ -1,0 +1,145 @@
+Lỗi:
+
+> “UiPath installation is already advertised on this machine”
+
+
+
+👉 Đây là lỗi MSI (Windows Installer), nghĩa là:
+
+Máy bạn vẫn còn dấu vết cài đặt UiPath trong Windows Installer cache
+
+Dù bạn đã xóa folder + registry, nhưng MSI product vẫn còn “đăng ký ngầm”
+
+
+
+---
+
+🎯 Nguyên nhân thật sự
+
+Khi cài UiPath Studio:
+
+Windows lưu thông tin trong MSI database
+
+Khi uninstall không sạch → vẫn còn trạng thái “advertised”
+
+
+=> Khi cài lại → bị chặn
+
+
+---
+
+✅ Cách fix chuẩn (chắc chắn hết)
+
+🔥 Cách 1 (Nhanh nhất – khuyên dùng)
+
+Dùng tool chính chủ Microsoft:
+
+👉 Microsoft Program Install and Uninstall Troubleshooter
+
+Cách làm:
+
+1. Tải tool
+
+
+2. Chọn:
+
+Uninstalling
+
+
+
+3. Tìm:
+
+UiPath Studio / UiPath Robot / UiPath Assistant
+
+
+
+4. Remove hết
+
+
+
+
+---
+
+🔥 Cách 2 (PowerShell – xử lý MSI trực tiếp)
+
+Mở PowerShell (Admin), chạy:
+
+Get-WmiObject -Class Win32_Product | Where-Object {$_.Name -like "*UiPath*"} | ForEach-Object {
+    $_.Uninstall()
+}
+
+👉 Nếu thấy UiPath → uninstall sạch bằng MSI
+
+
+---
+
+🔥 Cách 3 (Hardcore – nếu vẫn chưa hết)
+
+Dùng lệnh:
+
+wmic product where "name like 'UiPath%%'" call uninstall
+
+
+---
+
+🔥 Cách 4 (Ultimate Fix – 99% thành công)
+
+Dùng tool:
+
+Revo Uninstaller (Advanced scan)
+
+IObit Uninstaller
+
+
+👉 Nó sẽ quét:
+
+MSI cache
+
+Registry ẩn
+
+leftover hidden
+
+
+
+---
+
+⚠️ Sau khi fix
+
+Làm đúng thứ tự:
+
+1. Restart máy
+
+
+2. Cài lại UiPath 2022.10.5 (Run as Admin)
+
+
+3. Nếu vẫn lỗi:
+
+Gửi mình log file
+
+Hoặc ảnh lỗi
+
+
+
+
+
+---
+
+💡 Kinh nghiệm thực tế
+
+Lỗi này thường xảy ra khi:
+
+Downgrade version (2026 → 2022)
+
+Cài Enterprise rồi chuyển Community (hoặc ngược lại)
+
+Crash khi uninstall
+
+
+
+---
+
+Nếu bạn muốn: 👉 Mình có thể viết cho bạn script deep clean MSI (xoá cả hidden product code)
+👉 Hoặc debug trực tiếp theo log để xử lý trong 1 lần duy nhất (không trial & error)
+
+Bạn muốn đi hướng fix nhanh 5 phút hay clean triệt để 100%?
