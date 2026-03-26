@@ -1,0 +1,149 @@
+Chuẩn rồi 👍 — chạy bot thì không bao giờ dùng MsgBox, phải trả về giá trị để UiPath bắt log.
+
+Mình sửa lại code cho bạn theo đúng kiểu return string (Function thay vì Sub) 👇
+
+
+---
+
+✅ VBA: Enable COM Add-in + trả về kết quả
+
+Public Function EnableCOMAddIn(addinName As String) As String
+
+    On Error GoTo ErrorHandler
+
+    Dim comAddIn As Object
+    Dim found As Boolean
+    found = False
+
+    For Each comAddIn In Application.COMAddIns
+        
+        If LCase(comAddIn.Description) Like "*" & LCase(addinName) & "*" _
+        Or LCase(comAddIn.ProgId) Like "*" & LCase(addinName) & "*" Then
+            
+            comAddIn.Connect = True
+            found = True
+            
+            EnableCOMAddIn = "SUCCESS: Enabled COM Add-in -> " & comAddIn.Description
+            Exit Function
+            
+        End If
+        
+    Next comAddIn
+
+    If Not found Then
+        EnableCOMAddIn = "ERROR: COM Add-in not found -> " & addinName
+    End If
+
+    Exit Function
+
+ErrorHandler:
+    EnableCOMAddIn = "ERROR: " & Err.Description
+
+End Function
+
+
+---
+
+🔥 Version xịn hơn (có check trạng thái trước khi bật)
+
+Public Function EnableCOMAddIn(addinName As String) As String
+
+    On Error GoTo ErrorHandler
+
+    Dim comAddIn As Object
+
+    For Each comAddIn In Application.COMAddIns
+        
+        If LCase(comAddIn.Description) Like "*" & LCase(addinName) & "*" _
+        Or LCase(comAddIn.ProgId) Like "*" & LCase(addinName) & "*" Then
+            
+            If comAddIn.Connect = True Then
+                EnableCOMAddIn = "INFO: Already enabled -> " & comAddIn.Description
+            Else
+                comAddIn.Connect = True
+                EnableCOMAddIn = "SUCCESS: Enabled -> " & comAddIn.Description
+            End If
+            
+            Exit Function
+            
+        End If
+        
+    Next comAddIn
+
+    EnableCOMAddIn = "ERROR: Not found -> " & addinName
+    Exit Function
+
+ErrorHandler:
+    EnableCOMAddIn = "ERROR: " & Err.Number & " - " & Err.Description
+
+End Function
+
+
+---
+
+🤖 Cách dùng trong UiPath (QUAN TRỌNG)
+
+Invoke VBA:
+
+Entry Method: EnableCOMAddIn
+
+Parameters:
+
+
+{"Power Pivot"}
+
+Output → gán vào variable: resultString
+
+
+
+---
+
+🧾 Sau đó log:
+
+Log Message → resultString
+
+
+---
+
+📌 Ví dụ output thực tế
+
+"SUCCESS: Enabled -> Microsoft Power Pivot for Excel"
+
+"INFO: Already enabled -> Adobe PDFMaker Office COM Addin"
+
+"ERROR: Not found -> ABC"
+
+"ERROR: 1004 - Application-defined error"
+
+
+
+---
+
+🚀 Tip cho bot chạy production
+
+Bạn nên chuẩn hóa format:
+
+EnableCOMAddIn = "STATUS=SUCCESS|MESSAGE=Enabled " & comAddIn.Description
+
+👉 UiPath parse cực dễ (Split |)
+
+
+---
+
+👉 Nếu bạn muốn nâng cấp thêm
+
+Mình có thể viết cho bạn:
+
+Enable list nhiều COM Add-in 1 lần
+
+Trả về JSON string (rất hợp với UiPath)
+
+Ghi log ra file .txt / Excel luôn
+
+Wrapper chuẩn để tránh lỗi 0xE0434352
+
+
+
+---
+
+👉 Bạn có muốn mình viết luôn bản trả JSON để UiPath parse đẹp không?
