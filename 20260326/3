@@ -1,0 +1,148 @@
+Ok, mình hiểu mục tiêu của bạn:
+👉 Dùng UiPath (Invoke VBA) để truyền tên Add-in và thực hiện load/add vào Excel.
+
+Dưới đây là cách làm chuẩn + chạy ổn định 👇
+
+
+---
+
+🧩 1. VBA: Load Add-in theo tên
+
+Bạn tạo 1 file .bas (hoặc viết trực tiếp trong macro) như sau:
+
+Public Sub LoadAddIn(addinName As String)
+
+    Dim ai As AddIn
+    Dim found As Boolean
+    found = False
+
+    ' Duyệt tất cả Add-ins
+    For Each ai In Application.AddIns
+        
+        ' So sánh theo tên (có thể là .xlam hoặc tên hiển thị)
+        If LCase(ai.Name) = LCase(addinName) Or LCase(ai.Title) = LCase(addinName) Then
+            ai.Installed = True
+            found = True
+            Exit For
+        End If
+        
+    Next ai
+
+    If found = False Then
+        MsgBox "Add-in không tồn tại: " & addinName, vbCritical
+    Else
+        MsgBox "Đã load Add-in: " & addinName, vbInformation
+    End If
+
+End Sub
+
+
+---
+
+⚡ 2. Trường hợp Add-in chưa có trong list (quan trọng)
+
+Nếu Add-in chưa được add vào Excel, bạn phải load bằng đường dẫn:
+
+Public Sub AddAddInFromPath(addinPath As String)
+
+    Dim ai As AddIn
+    
+    ' Add vào danh sách
+    Set ai = Application.AddIns.Add(addinPath, True)
+    
+    ' Kích hoạt
+    ai.Installed = True
+
+    MsgBox "Đã add và bật Add-in: " & addinPath
+
+End Sub
+
+
+---
+
+🤖 3. Gọi từ UiPath (Invoke VBA)
+
+Cách truyền tham số
+
+Trong UiPath:
+
+Macro Name: LoadAddIn
+
+Parameters:
+
+
+{"Analysis ToolPak"}
+
+Hoặc:
+
+{"MyAddin.xlam"}
+
+
+---
+
+🔥 4. Best Practice (rất quan trọng)
+
+Bạn nên viết 1 function tổng hợp:
+
+Public Sub EnsureAddIn(addinName As String, Optional addinPath As String = "")
+
+    Dim ai As AddIn
+    Dim found As Boolean
+    found = False
+
+    ' Tìm trong danh sách
+    For Each ai In Application.AddIns
+        If LCase(ai.Name) = LCase(addinName) Then
+            ai.Installed = True
+            found = True
+            Exit For
+        End If
+    Next ai
+
+    ' Nếu chưa có → add từ path
+    If found = False And addinPath <> "" Then
+        Set ai = Application.AddIns.Add(addinPath, True)
+        ai.Installed = True
+    End If
+
+End Sub
+
+👉 Gọi từ UiPath:
+
+{"MyAddin.xlam", "C:\Addins\MyAddin.xlam"}
+
+
+---
+
+🚨 5. Lỗi thường gặp (bạn nên check)
+
+❌ Sai tên Add-in (Analysis ToolPak vs Analysis ToolPak - VBA)
+
+❌ File .xlam bị block (Right click → Unblock)
+
+❌ Excel chưa enable macro
+
+❌ UiPath chạy dưới user khác → không thấy Add-in
+
+
+
+---
+
+🎯 Nếu bạn muốn tối ưu thêm
+
+Mình có thể giúp bạn:
+
+Tạo .bas chuẩn để dùng cho UiPath luôn
+
+Log lỗi thay vì MsgBox (để chạy background)
+
+Auto detect Add-in theo keyword
+
+Fix lỗi hay gặp kiểu 0xE0434352 khi chạy bot
+
+
+
+---
+
+👉 Bạn đang dùng Add-in nào? (ToolPak hay custom .xlam?)
+Mình sẽ chỉnh code đúng case thực tế của bạn luôn.
