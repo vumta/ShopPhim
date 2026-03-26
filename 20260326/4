@@ -1,0 +1,153 @@
+Ok, mình hiểu ý bạn 👇
+Bạn muốn mô phỏng thao tác manual trong Excel:
+
+> File → Options → Add-ins → Manage: COM Add-ins → Go → tick chọn tool
+
+
+
+👉 Cái này không dùng Application.AddIns được, vì đó là Excel Add-in (.xlam)
+👉 Trường hợp của bạn là COM Add-in → phải dùng COMAddIns
+
+
+---
+
+✅ VBA: Enable COM Add-in theo tên
+
+Public Sub EnableCOMAddIn(addinName As String)
+
+    Dim comAddIn As Object
+    Dim found As Boolean
+    found = False
+
+    For Each comAddIn In Application.COMAddIns
+        
+        ' So sánh theo Description hoặc ProgId
+        If LCase(comAddIn.Description) Like "*" & LCase(addinName) & "*" _
+        Or LCase(comAddIn.ProgId) Like "*" & LCase(addinName) & "*" Then
+            
+            comAddIn.Connect = True
+            found = True
+            Exit For
+            
+        End If
+        
+    Next comAddIn
+
+    If Not found Then
+        MsgBox "Không tìm thấy COM Add-in: " & addinName, vbCritical
+    Else
+        MsgBox "Đã bật COM Add-in: " & addinName, vbInformation
+    End If
+
+End Sub
+
+
+---
+
+🔍 Ví dụ gọi từ UiPath
+
+Invoke VBA:
+
+{"Power Pivot"}
+
+hoặc:
+
+{"Adobe"}
+
+👉 Vì Description thường là:
+
+"Microsoft Power Pivot for Excel"
+
+"Adobe PDFMaker Office COM Addin"
+
+
+
+---
+
+⚡ Version nâng cao (debug cực mạnh)
+
+Bạn nên dùng đoạn này để list toàn bộ COM Add-in (rất hữu ích khi không biết tên đúng):
+
+Public Sub ListCOMAddIns()
+
+    Dim comAddIn As Object
+    Dim result As String
+
+    For Each comAddIn In Application.COMAddIns
+        result = result & "Description: " & comAddIn.Description & vbCrLf
+        result = result & "ProgId: " & comAddIn.ProgId & vbCrLf
+        result = result & "Connected: " & comAddIn.Connect & vbCrLf
+        result = result & "------------------------" & vbCrLf
+    Next comAddIn
+
+    MsgBox result
+
+End Sub
+
+
+---
+
+🚨 Lưu ý quan trọng (rất hay dính lỗi)
+
+1. COM Add-in không hiện
+
+Do chưa cài phần mềm gốc (VD: Power BI, Adobe, SAP...)
+
+
+
+2. .Connect = True nhưng không bật
+
+Do Excel disable (crash trước đó)
+
+👉 Check:
+
+File → Options → Add-ins → Disabled Items
+
+
+
+3. UiPath chạy không thấy COM Add-in
+
+Do chạy bằng user khác
+
+COM Add-in thường là per-user, không phải global
+
+
+
+4. Tên không match
+
+Luôn nên dùng LIKE "*keyword*" (đã xử lý trong code)
+
+
+
+
+
+---
+
+🎯 Kết luận
+
+Excel Add-in (.xlam) → Application.AddIns
+
+COM Add-in (như bạn đang dùng) → Application.COMAddIns ✅
+
+
+
+---
+
+👉 Nếu bạn cần nâng cấp thêm
+
+Mình có thể giúp bạn:
+
+Auto enable nhiều COM Add-in cùng lúc
+
+Check trạng thái trước khi bật (tránh lỗi)
+
+Log ra file để UiPath đọc (không dùng MsgBox)
+
+Fix lỗi bot chạy trên Orchestrator không thấy Add-in
+
+
+
+---
+
+👉 Bạn đang muốn bật COM Add-in nào cụ thể?
+(Mình sẽ viết đúng ProgId chuẩn cho bạn luôn, đảm bảo chạy 100%)
