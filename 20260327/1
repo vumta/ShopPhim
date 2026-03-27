@@ -1,0 +1,172 @@
+Chuẩn bài luôn 👍 — .Connect = True/False đôi khi fail ngẫu nhiên (đặc biệt khi chạy bot qua Orchestrator).
+Mình nâng cấp cho bạn auto retry + delay + verify sau khi set 👇
+
+
+---
+
+✅ VBA: Toggle COM Add-in + Auto Retry (chuẩn production)
+
+Public Function ToggleCOMAddIn(addinName As String, isEnable As Boolean, _
+                              Optional maxRetry As Integer = 3, _
+                              Optional delayMs As Integer = 1000) As String
+
+    On Error GoTo ErrorHandler
+
+    Dim comAddIn As Object
+    Dim attempt As Integer
+    Dim success As Boolean
+    Dim lastError As String
+
+    For Each comAddIn In Application.COMAddIns
+        
+        If LCase(comAddIn.Description) Like "*" & LCase(addinName) & "*" _
+        Or LCase(comAddIn.ProgId) Like "*" & LCase(addinName) & "*" Then
+            
+            ' Nếu trạng thái đã đúng
+            If comAddIn.Connect = isEnable Then
+                ToggleCOMAddIn = "STATUS=INFO|ADDIN=" & comAddIn.Description & "|MESSAGE=Already " & IIf(isEnable, "ENABLED", "DISABLED")
+                Exit Function
+            End If
+
+            ' Retry loop
+            For attempt = 1 To maxRetry
+                
+                On Error Resume Next
+                Err.Clear
+                
+                comAddIn.Connect = isEnable
+                
+                ' Delay để Excel load Add-in
+                Call SleepMilliseconds(delayMs)
+                
+                ' Verify lại trạng thái
+                If Err.Number = 0 And comAddIn.Connect = isEnable Then
+                    success = True
+                    Exit For
+                Else
+                    lastError = Err.Number & " - " & Err.Description
+                End If
+                
+                On Error GoTo ErrorHandler
+            Next attempt
+
+            ' Kết quả sau retry
+            If success Then
+                ToggleCOMAddIn = "STATUS=SUCCESS|ADDIN=" & comAddIn.Description & "|ATTEMPT=" & attempt
+            Else
+                ToggleCOMAddIn = "STATUS=ERROR|ADDIN=" & comAddIn.Description & "|MESSAGE=Failed after " & maxRetry & " retries|LAST_ERROR=" & lastError
+            End If
+
+            Exit Function
+            
+        End If
+        
+    Next comAddIn
+
+    ToggleCOMAddIn = "STATUS=ERROR|ADDIN=" & addinName & "|MESSAGE=Not found"
+    Exit Function
+
+ErrorHandler:
+    ToggleCOMAddIn = "STATUS=ERROR|MESSAGE=" & Err.Number & " - " & Err.Description
+
+End Function
+
+
+---
+
+⏱️ Hàm Sleep (delay chuẩn cho VBA)
+
+#If VBA7 Then
+    Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal ms As LongPtr)
+#Else
+    Private Declare Sub Sleep Lib "kernel32" (ByVal ms As Long)
+#End If
+
+Public Sub SleepMilliseconds(ms As Long)
+    Sleep ms
+End Sub
+
+
+---
+
+🤖 Cách gọi từ UiPath
+
+Ví dụ bật Add-in với retry:
+
+{"Power Pivot", True, 5, 1500}
+
+👉 Nghĩa là:
+
+Retry tối đa: 5 lần
+
+Delay mỗi lần: 1.5 giây
+
+
+
+---
+
+📌 Output ví dụ
+
+Thành công:
+
+
+STATUS=SUCCESS|ADDIN=Microsoft Power Pivot for Excel|ATTEMPT=2
+
+Fail:
+
+
+STATUS=ERROR|ADDIN=Power Pivot|MESSAGE=Failed after 5 retries|LAST_ERROR=1004 - Application-defined error
+
+Đã bật sẵn:
+
+
+STATUS=INFO|ADDIN=Microsoft Power Pivot for Excel|MESSAGE=Already ENABLED
+
+
+---
+
+🚨 Kinh nghiệm thực tế (quan trọng)
+
+Nếu retry vẫn fail → thường do:
+
+1. Excel chưa load xong UI 👉 Fix: tăng delayMs lên 2000–3000
+
+
+2. COM Add-in bị disable (crash trước đó) 👉 Check:
+
+File → Options → Add-ins → Disabled Items
+
+
+3. Chạy qua Orchestrator 👉 Add-in không load vì:
+
+Không có UI session
+
+User khác với lúc cài Add-in
+
+
+
+4. Add-in cần quyền admin / registry 👉 .Connect=True nhưng không có effect
+
+
+
+
+---
+
+🚀 Nâng cấp thêm (nếu bạn muốn level cao hơn)
+
+Mình có thể build thêm cho bạn:
+
+Retry + re-open Excel nếu fail
+
+Detect & enable lại từ Disabled Items (registry)
+
+Batch enable nhiều Add-in
+
+Trả về JSON chuẩn để parse trong UiPath
+
+
+
+---
+
+👉 Nếu bot của bạn chạy trên Orchestrator mà vẫn fail, nói mình biết loại Add-in (Power BI / SAP / Adobe / Oracle…)
+Mình sẽ chỉ đúng nguyên nhân luôn (case này rất hay dính 👍)
