@@ -1,0 +1,149 @@
+Ok, mình nâng cấp code đúng theo yêu cầu của bạn 👇
+👉 Thêm parameter để bật / tắt COM Add-in
+👉 Vẫn trả về string để UiPath log
+
+
+---
+
+✅ VBA: Enable / Disable COM Add-in (dynamic)
+
+Public Function ToggleCOMAddIn(addinName As String, isEnable As Boolean) As String
+
+    On Error GoTo ErrorHandler
+
+    Dim comAddIn As Object
+
+    For Each comAddIn In Application.COMAddIns
+        
+        If LCase(comAddIn.Description) Like "*" & LCase(addinName) & "*" _
+        Or LCase(comAddIn.ProgId) Like "*" & LCase(addinName) & "*" Then
+            
+            ' Nếu trạng thái đã đúng rồi
+            If comAddIn.Connect = isEnable Then
+                
+                If isEnable Then
+                    ToggleCOMAddIn = "INFO: Already ENABLED -> " & comAddIn.Description
+                Else
+                    ToggleCOMAddIn = "INFO: Already DISABLED -> " & comAddIn.Description
+                End If
+                
+            Else
+                ' Thực hiện bật/tắt
+                comAddIn.Connect = isEnable
+                
+                If isEnable Then
+                    ToggleCOMAddIn = "SUCCESS: ENABLED -> " & comAddIn.Description
+                Else
+                    ToggleCOMAddIn = "SUCCESS: DISABLED -> " & comAddIn.Description
+                End If
+                
+            End If
+            
+            Exit Function
+            
+        End If
+        
+    Next comAddIn
+
+    ToggleCOMAddIn = "ERROR: Not found -> " & addinName
+    Exit Function
+
+ErrorHandler:
+    ToggleCOMAddIn = "ERROR: " & Err.Number & " - " & Err.Description
+
+End Function
+
+
+---
+
+🤖 Cách gọi từ UiPath
+
+Bật Add-in
+
+{"Power Pivot", True}
+
+
+---
+
+Tắt Add-in
+
+{"Power Pivot", False}
+
+
+---
+
+📌 Output trả về
+
+Ví dụ:
+
+"SUCCESS: ENABLED -> Microsoft Power Pivot for Excel"
+
+"SUCCESS: DISABLED -> Microsoft Power Pivot for Excel"
+
+"INFO: Already ENABLED -> ..."
+
+"ERROR: Not found -> ..."
+
+
+
+---
+
+🔥 Version PRO (chuẩn cho production – dễ parse log)
+
+Nếu bạn muốn parse dễ hơn trong UiPath:
+
+Public Function ToggleCOMAddIn(addinName As String, isEnable As Boolean) As String
+
+    On Error GoTo ErrorHandler
+
+    Dim comAddIn As Object
+    Dim status As String
+    Dim message As String
+
+    For Each comAddIn In Application.COMAddIns
+        
+        If LCase(comAddIn.Description) Like "*" & LCase(addinName) & "*" _
+        Or LCase(comAddIn.ProgId) Like "*" & LCase(addinName) & "*" Then
+            
+            If comAddIn.Connect = isEnable Then
+                status = "INFO"
+                message = "Already " & IIf(isEnable, "ENABLED", "DISABLED")
+            Else
+                comAddIn.Connect = isEnable
+                status = "SUCCESS"
+                message = IIf(isEnable, "ENABLED", "DISABLED")
+            End If
+            
+            ToggleCOMAddIn = "STATUS=" & status & "|ADDIN=" & comAddIn.Description & "|MESSAGE=" & message
+            Exit Function
+            
+        End If
+        
+    Next comAddIn
+
+    ToggleCOMAddIn = "STATUS=ERROR|ADDIN=" & addinName & "|MESSAGE=Not found"
+    Exit Function
+
+ErrorHandler:
+    ToggleCOMAddIn = "STATUS=ERROR|MESSAGE=" & Err.Number & " - " & Err.Description
+
+End Function
+
+
+---
+
+🚀 Gợi ý nâng cấp thêm (nếu bạn cần)
+
+Enable/Disable nhiều Add-in cùng lúc (array)
+
+Auto retry nếu .Connect fail
+
+Check Add-in bị disable trong registry
+
+Log ra file cho Orchestrator
+
+
+
+---
+
+👉 Nếu bạn đang dùng Add-in cụ thể (Power BI, SAP, Adobe, Oracle…), mình có thể viết luôn bản match chính xác theo ProgID để tránh fail ngẫu nhiên khi chạy bot.
