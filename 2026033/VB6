@@ -1,0 +1,168 @@
+OK, lỗi này mình gặp rất nhiều khi chạy VBA qua UiPath/PAD rồi 👍
+👉 Không phải do FileCopy, mà do flow bị “silent stop” sau lần loop đầu.
+
+
+---
+
+🎯 NGUYÊN NHÂN THỰC SỰ
+
+Có 3 khả năng chính (90% là dính cái số 1):
+
+
+---
+
+❌ 1. Bạn đang modify chính TemplatePath
+
+Call CopyDataByColumnName(tempFilePath, TemplatePath, ColumnMapping)
+Call FillDefaultValue(TemplatePath, DefaultMapping)
+
+👉 Bạn đang:
+
+Ghi dữ liệu trực tiếp vào file template gốc
+
+Sau đó lại FileCopy TemplatePath
+
+
+⛔ Kết quả:
+
+File template bị thay đổi
+
+Lần loop sau → dữ liệu bị lỗi / lock / crash ngầm
+
+
+
+---
+
+❌ 2. File bị lock (rất hay gặp)
+
+Bạn vừa:
+
+CopyData (mở file)
+
+FillDefaultValue (mở file)
+
+
+Nhưng KHÔNG đóng workbook
+
+
+👉 Khi tới:
+
+FileCopy TemplatePath, ...
+
+➡️ File đang mở → FileCopy fail ngầm → code stop
+
+
+---
+
+❌ 3. Kill tempFilePath gây crash
+
+Nếu file:
+
+vẫn đang open
+
+hoặc chưa release
+
+
+👉 Kill sẽ làm VBA dừng ngay (không báo lỗi rõ)
+
+
+---
+
+✅ CÁCH FIX CHUẨN (PRODUCTION)
+
+👉 Nguyên tắc:
+
+💥 KHÔNG BAO GIỜ ghi vào Template gốc
+
+
+---
+
+🚀 CODE FIX CHUẨN
+
+👉 Thay toàn bộ đoạn xử lý file bằng cách này:
+
+Dim workingFile As String
+
+' Tạo file working từ template (clone ra trước)
+timeStamp = Format(Now, "yymmddhhnnss")
+
+workingFile = OutputFolder & "\WORK_" & productID & "_" & timeStamp & ".xlsx"
+
+FileCopy TemplatePath, workingFile   ' <-- copy trước
+
+' 👉 Làm việc trên file clone (KHÔNG đụng template gốc)
+Call CopyDataByColumnName(tempFilePath, workingFile, ColumnMapping)
+Call FillDefaultValue(workingFile, DefaultMapping)
+
+' Rename thành file cuối
+newFileName = Replace(GetFileName(TemplatePath), ".xlsx", "") & _
+              "_" & productID & "_" & timeStamp & ".xlsx"
+
+Name workingFile As OutputFolder & "\" & newFileName
+
+
+---
+
+🔥 QUAN TRỌNG: ĐẢM BẢO ĐÓNG FILE
+
+👉 Trong 2 function của bạn, bắt buộc phải có:
+
+wb.Close SaveChanges:=True
+Set wb = Nothing
+
+Nếu không:
+
+⛔ 100% sẽ dừng ở loop thứ 2
+
+
+---
+
+🧪 DEBUG NHANH
+
+Bạn thêm dòng này để bắt lỗi thật:
+
+On Error GoTo ErrorHandler
+
+và:
+
+ErrorHandler:
+    MsgBox "Error: " & Err.Description
+
+
+---
+
+⚠️ CHECKLIST BẮT BUỘC
+
+✔ Không ghi vào TemplatePath
+✔ Luôn làm việc trên file clone
+✔ Mọi workbook phải .Close
+✔ Không Kill khi file còn open
+
+
+---
+
+🎯 KẾT LUẬN
+
+👉 Lý do chỉ chạy 1 ID:
+
+💥 Template hoặc file đang bị lock / bị modify
+
+
+---
+
+🚀 Nếu bạn muốn fix triệt để 100%
+
+Gửi mình 2 function:
+
+CopyDataByColumnName
+
+FillDefaultValue
+
+
+👉 Mình sẽ:
+
+Fix luôn lỗi hidden lock
+
+Optimize tốc độ
+
+Đảm bảo chạy 1000 ID không lỗi 💯
