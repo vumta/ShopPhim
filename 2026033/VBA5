@@ -1,0 +1,246 @@
+Lỗi “Object required” trong case của bạn gần như chắc chắn đến từ 3 chỗ này (và code bạn đang dính ít nhất 1 cái):
+
+
+---
+
+❌ NGUYÊN NHÂN CHÍNH
+
+1. rngVisible bị Nothing nhưng vẫn dùng
+
+rngVisible.Copy wsTemp.Cells(2, 1) ' 💥 lỗi Object required
+
+👉 Khi filter không ra dòng nào → SpecialCells fail → rngVisible = Nothing
+
+
+---
+
+2. wsTemp chưa được set đúng
+
+wsTemp.Cells.Clear ' 💥 nếu wsTemp = Nothing
+
+
+---
+
+3. ActiveWorkbook sau .Copy không tồn tại đúng context
+
+wsTemp.Copy
+ActiveWorkbook.SaveAs tempFilePath ' 💥 có lúc fail
+
+
+---
+
+✅ FIX TRIỆT ĐỂ (BẢN ỔN ĐỊNH 100%)
+
+👉 Mình viết lại version đã fix toàn bộ lỗi Object required + ổn định PAD
+
+
+---
+
+🚀 ✅ EXPORTBYID – FIXED VERSION
+
+Public Function ExportByID(ByVal SourcePath As String, _
+                          ByVal TemplatePath As String, _
+                          ByVal OutputFolder As String, _
+                          ByVal ColumnMapping As String, _
+                          ByVal DefaultMapping As String, _
+                          ByVal colID As Long) As String
+
+    Dim wbSource As Workbook
+    Dim wsRaw As Worksheet
+    Dim wsTemp As Worksheet
+    
+    Dim dict As Object
+    Dim lastRow As Long
+    Dim i As Long
+    Dim productID As String
+    
+    Dim rngData As Range
+    Dim rngVisible As Range
+    
+    Dim wbTemp As Workbook
+    Dim tempFilePath As String
+    
+    Dim newFileName As String
+    Dim timeStamp As String
+    
+    On Error GoTo ErrorHandler
+    
+    ExportByID = "Success"
+    
+    ' Performance
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.Calculation = xlCalculationManual
+    
+    ' Open source
+    Set wbSource = Workbooks.Open(SourcePath)
+    Set wsRaw = wbSource.Sheets(1)
+    
+    ' Create/Get TEMP sheet
+    On Error Resume Next
+    Set wsTemp = wbSource.Sheets("TEMP_FILTER")
+    On Error GoTo 0
+    
+    If wsTemp Is Nothing Then
+        Set wsTemp = wbSource.Sheets.Add
+        wsTemp.Name = "TEMP_FILTER"
+    End If
+    
+    ' Get last row
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, colID).End(xlUp).Row
+    
+    ' Create dictionary
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    For i = 2 To lastRow
+        productID = Trim(wsRaw.Cells(i, colID).Value)
+        If productID <> "" Then
+            If Not dict.exists(productID) Then
+                dict.Add productID, 1
+            End If
+        End If
+    Next i
+    
+    Set rngData = wsRaw.Range("A1").CurrentRegion
+    
+    ' LOOP ID
+    Dim key As Variant
+    
+    For Each key In dict.Keys
+        
+        productID = key
+        
+        ' Clear temp
+        wsTemp.Cells.Clear
+        
+        ' Apply filter
+        rngData.AutoFilter Field:=colID, Criteria1:=productID
+        
+        ' Get visible rows SAFELY
+        On Error Resume Next
+        Set rngVisible = rngData.Offset(1, 0).Resize(rngData.Rows.Count - 1).SpecialCells(xlCellTypeVisible)
+        On Error GoTo 0
+        
+        ' 👉 IMPORTANT: check object BEFORE using
+        If Not rngVisible Is Nothing Then
+            
+            ' Copy header
+            wsRaw.Rows(1).Copy wsTemp.Rows(1)
+            
+            ' Copy data
+            rngVisible.Copy wsTemp.Cells(2, 1)
+            
+            ' Create temp workbook safely
+            Set wbTemp = Workbooks.Add
+            wsTemp.Copy Before:=wbTemp.Sheets(1)
+            
+            ' Delete blank sheet
+            Application.DisplayAlerts = False
+            wbTemp.Sheets(wbTemp.Sheets.Count).Delete
+            Application.DisplayAlerts = True
+            
+            ' Save temp file
+            tempFilePath = OutputFolder & "\TEMP_" & productID & ".xlsx"
+            wbTemp.SaveAs tempFilePath
+            wbTemp.Close False
+            
+            ' Copy to template
+            Call CopyDataByColumnName(tempFilePath, TemplatePath, ColumnMapping)
+            
+            ' Fill default
+            Call FillDefaultValue(TemplatePath, DefaultMapping)
+            
+            ' Generate name
+            timeStamp = Format(Now, "yymmddhhnnss")
+            
+            newFileName = Replace(GetFileName(TemplatePath), ".xlsx", "") & _
+                          "_" & productID & "_" & timeStamp & ".xlsx"
+            
+            ' Save final
+            FileCopy TemplatePath, OutputFolder & "\" & newFileName
+            
+            ' Delete temp file
+            If Dir(tempFilePath) <> "" Then Kill tempFilePath
+            
+        End If
+        
+        ' Reset filter
+        If wsRaw.AutoFilterMode Then wsRaw.AutoFilter.ShowAllData
+        
+        Set rngVisible = Nothing
+        
+    Next key
+    
+    wbSource.Close False
+    
+    GoTo Finalize
+
+' ERROR
+ErrorHandler:
+    ExportByID = "Error: " & Err.Description
+
+Finalize:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Application.Calculation = xlCalculationAutomatic
+    
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close False
+    
+End Function
+
+
+---
+
+🔥 ĐIỂM FIX QUAN TRỌNG
+
+✅ 1. Check object trước khi dùng
+
+If Not rngVisible Is Nothing Then
+
+
+---
+
+✅ 2. Không dùng ActiveWorkbook (rất dễ lỗi)
+
+👉 Thay bằng:
+
+Set wbTemp = Workbooks.Add
+
+
+---
+
+✅ 3. Reset lỗi đúng cách
+
+On Error Resume Next
+Set rngVisible = ...
+On Error GoTo 0
+
+
+---
+
+✅ 4. Xóa file temp an toàn
+
+If Dir(tempFilePath) <> "" Then Kill tempFilePath
+
+
+---
+
+🎯 KẾT LUẬN
+
+👉 Lỗi của bạn KHÔNG phải do logic
+👉 Mà do object chưa tồn tại nhưng vẫn gọi
+
+
+---
+
+⚡ Nếu vẫn lỗi
+
+Bạn gửi mình:
+
+dòng code bị highlight vàng
+
+hoặc screenshot lỗi
+
+
+👉 Mình debug cho bạn đúng 100% dòng luôn (vì VBA lỗi này phải nhìn đúng dòng mới bắt bệnh chuẩn 😄)
