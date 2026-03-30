@@ -1,0 +1,361 @@
+Mình đã phân tích xong `CopyDataByColumnName`. Có một vấn đề quan trọng cần lưu ý:
+
+**Root cause của lỗi chỉ chạy 1 ID:**
+`CopyDataByColumnName` gọi `Workbooks.Open(DestinationPath)` — nhưng `ExportByID` đang **mở cùng file đó** ở vòng lặp trước chưa đóng hẳn → Excel bị conflict → crash ngầm.
+
+Fix: `ProcessOneID` phải **Save & Close dest trước**, rồi mới gọi `CopyDataByColumnName`. Code mới đảm bảo điều này.
+
+Ngoài ra mình cũng fix thêm bug nhỏ trong `CopyDataByColumnName`: `Rows.Count` và `Columns.Count` không có sheet reference → sẽ dùng active sheet thay vì đúng sheet. Đã sửa thành `wsSource.Rows.Count`.
+
+---
+
+## Full Code — `modExportByID`
+
+```vba
+Option Explicit
+
+' ============================================================
+'  PUBLIC ENTRY POINT — gọi từ PAD
+'  Returns: "Success" | "Error: <message>"
+' ============================================================
+Public Function ExportByID(ByVal SourcePath     As String, _
+                           ByVal TemplatePath   As String, _
+                           ByVal OutputFolder   As String, _
+                           ByVal ColumnMapping  As String, _
+                           ByVal colID          As Long) As String
+
+    Dim wbSrc   As Workbook
+    Dim wsSrc   As Worksheet
+    Dim arr     As Variant
+    Dim dict    As Object
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim i       As Long
+    Dim pid     As String
+
+    On Error GoTo ErrHandler
+
+    ExportByID = "Success"
+
+    With Application
+        .ScreenUpdating = False
+        .DisplayAlerts  = False
+        .Calculation    = xlCalculationManual
+        .EnableEvents   = False
+    End With
+
+    ' --- Mở source, đọc 1 lần vào array, đóng ngay ---
+    Set wbSrc = Workbooks.Open(Filename:=SourcePath, _
+                               ReadOnly:=True, _
+                               UpdateLinks:=False)
+    Set wsSrc = wbSrc.Sheets(1)
+
+    lastRow = wsSrc.Cells(wsSrc.Rows.Count, colID).End(xlUp).Row
+    lastCol = wsSrc.Cells(1, wsSrc.Columns.Count).End(xlToLeft).Column
+
+    If lastRow < 2 Then
+        wbSrc.Close False
+        ExportByID = "Error: Source không có dữ liệu"
+        GoTo Finalize
+    End If
+
+    arr = wsSrc.Range(wsSrc.Cells(1, 1), _
+                      wsSrc.Cells(lastRow, lastCol)).Value
+
+    wbSrc.Close False
+    Set wbSrc = Nothing
+
+    ' --- Collect unique ID ---
+    Set dict = CreateObject("Scripting.Dictionary")
+    dict.CompareMode = vbTextCompare
+
+    For i = 2 To lastRow
+        pid = Trim(CStr(arr(i, colID)))
+        If pid <> "" And Not dict.Exists(pid) Then
+            dict.Add pid, Empty
+        End If
+    Next i
+
+    If dict.Count = 0 Then
+        ExportByID = "Error: Không tìm thấy ID nào"
+        GoTo Finalize
+    End If
+
+    ' --- Loop từng ID — lỗi 1 ID không dừng loop ---
+    Dim key As Variant
+    For Each key In dict.Keys
+        Call ProcessOneID(arr, CStr(key), TemplatePath, _
+                          OutputFolder, ColumnMapping, colID)
+        DoEvents
+    Next key
+
+    GoTo Finalize
+
+ErrHandler:
+    ExportByID = "Error [" & Err.Number & "]: " & Err.Description
+
+Finalize:
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts  = True
+        .Calculation    = xlCalculationAutomatic
+        .EnableEvents   = True
+    End With
+
+End Function
+
+
+' ============================================================
+'  XỬ LÝ TỪNG ID — ghi thẳng vào dest, không tạo temp file
+'  Save & Close TRƯỚC khi gọi CopyDataByColumnName
+'  (vì Copy tự Open/Close file bên trong)
+' ============================================================
+Private Sub ProcessOneID(ByRef arrData       As Variant, _
+                         ByVal productID     As String, _
+                         ByVal TemplatePath  As String, _
+                         ByVal OutputFolder  As String, _
+                         ByVal ColumnMapping As String, _
+                         ByVal colID         As Long)
+
+    Dim wbDest   As Workbook
+    Dim wsDest   As Worksheet
+    Dim destFile As String
+    Dim lastCol  As Long
+    Dim i        As Long
+    Dim j        As Long
+    Dim destRow  As Long
+    Dim hasData  As Boolean
+
+    On Error GoTo ExitSub
+
+    lastCol = UBound(arrData, 2)
+    hasData = False
+
+    ' --- Kiểm tra có data không trước khi tạo file ---
+    For i = 2 To UBound(arrData, 1)
+        If Trim(CStr(arrData(i, colID))) = productID Then
+            hasData = True
+            Exit For
+        End If
+    Next i
+
+    If Not hasData Then Exit Sub
+
+    ' --- Tạo dest file từ template ---
+    If Len(Dir(OutputFolder, vbDirectory)) = 0 Then MkDir OutputFolder
+
+    destFile = OutputFolder & "\Report_" & productID & "_" & _
+               Format(Now, "yymmddhhnnss") & ".xlsx"
+
+    FileCopy TemplatePath, destFile
+
+    ' --- Mở dest, ghi data trực tiếp từ array ---
+    Set wbDest = Workbooks.Open(Filename:=destFile, UpdateLinks:=False)
+    Set wsDest = wbDest.Sheets(1)
+
+    ' Xác định dòng bắt đầu ghi
+    If wsDest.Cells(1, 1).Value = "" Then
+        ' Template trống — ghi header dòng 1
+        For j = 1 To lastCol
+            wsDest.Cells(1, j).Value = arrData(1, j)
+        Next j
+        destRow = 2
+    Else
+        ' Template đã có header — ghi tiếp sau dòng cuối
+        destRow = wsDest.Cells(wsDest.Rows.Count, 1).End(xlUp).Row + 1
+    End If
+
+    ' Ghi từng dòng khớp productID
+    For i = 2 To UBound(arrData, 1)
+        If Trim(CStr(arrData(i, colID))) = productID Then
+            For j = 1 To lastCol
+                wsDest.Cells(destRow, j).Value = arrData(i, j)
+            Next j
+            destRow = destRow + 1
+        End If
+    Next i
+
+    ' *** CRITICAL: Save & Close TRƯỚC khi gọi CopyDataByColumnName ***
+    ' Nếu không đóng ở đây, CopyDataByColumnName.Open() sẽ conflict
+    ' → Excel trả về file đang mở → data bị overwrite → loop crash
+    wbDest.Save
+    wbDest.Close False
+    Set wbDest = Nothing
+
+    ' --- Gọi CopyDataByColumnName (tự open/close bên trong) ---
+    ' Source = dest (copy nội bộ trong cùng file theo mapping)
+    Dim copyResult As String
+    copyResult = CopyDataByColumnName(destFile, destFile, ColumnMapping)
+
+    ' Log warning nếu có nhưng không dừng loop
+    If Left(copyResult, 5) <> "Succe" Then
+        Call WriteLog(OutputFolder, productID, "CopyData: " & copyResult)
+    End If
+
+    Exit Sub
+
+ExitSub:
+    ' Lỗi 1 ID → log, KHÔNG stop loop
+    Dim errDesc As String
+    errDesc = "Err " & Err.Number & ": " & Err.Description
+
+    On Error Resume Next
+    If Not wbDest Is Nothing Then
+        wbDest.Close False
+        Set wbDest = Nothing
+    End If
+
+    Call WriteLog(OutputFolder, productID, errDesc)
+    On Error GoTo 0
+
+End Sub
+
+
+' ============================================================
+'  GHI LOG — tách riêng để dùng nhiều chỗ
+' ============================================================
+Private Sub WriteLog(ByVal OutputFolder As String, _
+                     ByVal productID    As String, _
+                     ByVal message      As String)
+    On Error Resume Next
+    Dim fNum As Integer
+    fNum = FreeFile
+    Open OutputFolder & "\export_errors.log" For Append As #fNum
+    Print #fNum, Format(Now, "yyyy-mm-dd hh:nn:ss") & _
+                 " | ID=" & productID & " | " & message
+    Close #fNum
+End Sub
+
+
+' ============================================================
+'  COPY DATA BY COLUMN NAME
+'  Fixed: thêm sheet reference cho Rows.Count / Columns.Count
+' ============================================================
+Public Function CopyDataByColumnName(ByVal SourcePath      As String, _
+                                     ByVal DestinationPath As String, _
+                                     ByVal ColumnMapping   As String) As String
+
+    Dim wbSource    As Workbook
+    Dim wbDest      As Workbook
+    Dim wsSource    As Worksheet
+    Dim wsDest      As Worksheet
+    Dim arrMapping  As Variant
+    Dim arrPair     As Variant
+    Dim sSourceName As String
+    Dim lDestIndex  As Long
+    Dim lSourceCol  As Long
+    Dim lLastRow    As Long
+    Dim lHeaderRow  As Long
+    Dim i           As Long
+    Dim lCol        As Long
+    Dim sErrorLog   As String
+
+    CopyDataByColumnName = "Success"
+
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts  = False
+
+    ' --- Mở 2 workbook ---
+    ' Nếu Source = Dest (cùng file), chỉ mở 1 lần
+    Set wbSource = Workbooks.Open(SourcePath)
+
+    If LCase(SourcePath) = LCase(DestinationPath) Then
+        Set wbDest = wbSource
+    Else
+        Set wbDest = Workbooks.Open(DestinationPath)
+    End If
+
+    Set wsSource = wbSource.Sheets(1)
+    Set wsDest   = wbDest.Sheets(1)
+    lHeaderRow   = 1
+
+    ' --- Process Mapping (dùng "#" delimiter) ---
+    arrMapping = Split(ColumnMapping, "#")
+
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            arrPair = Split(arrMapping(i), "|")
+
+            If UBound(arrPair) = 1 Then
+                sSourceName = Trim(arrPair(0))
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(1)))
+                On Error GoTo ErrorHandler
+
+                ' Tìm cột source theo tên header
+                lSourceCol = 0
+                For lCol = 1 To wsSource.Cells(lHeaderRow, wsSource.Columns.Count).End(xlToLeft).Column
+                    If StrComp(Trim(wsSource.Cells(lHeaderRow, lCol).Value), _
+                               sSourceName, vbTextCompare) = 0 Then
+                        lSourceCol = lCol
+                        Exit For
+                    End If
+                Next lCol
+
+                If lSourceCol > 0 And lDestIndex > 0 Then
+                    ' FIX: dùng wsSource.Rows.Count thay vì Rows.Count (không có sheet ref)
+                    lLastRow = wsSource.Cells(wsSource.Rows.Count, lSourceCol).End(xlUp).Row
+
+                    If lLastRow > lHeaderRow Then
+                        wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), _
+                                     wsDest.Cells(lLastRow, lDestIndex)).Value = _
+                        wsSource.Range(wsSource.Cells(lHeaderRow + 1, lSourceCol), _
+                                       wsSource.Cells(lLastRow, lSourceCol)).Value
+                    Else
+                        sErrorLog = sErrorLog & "Warn: Column '" & sSourceName & "' is empty. "
+                    End If
+
+                ElseIf lSourceCol = 0 Then
+                    sErrorLog = sErrorLog & "Err: Source column '" & sSourceName & "' not found. "
+                    CopyDataByColumnName = "Error: Missing Column"
+                End If
+            End If
+        End If
+    Next i
+
+    If Len(sErrorLog) > 0 And CopyDataByColumnName = "Success" Then
+        CopyDataByColumnName = "Success with Warnings: " & sErrorLog
+    End If
+
+    ' --- Save & Close ---
+    If LCase(SourcePath) = LCase(DestinationPath) Then
+        ' Cùng file — chỉ close 1 lần
+        wbDest.Save
+        wbDest.Close SaveChanges:=False
+    Else
+        wbDest.Save
+        wbSource.Close SaveChanges:=False
+        wbDest.Close SaveChanges:=False
+    End If
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts  = True
+    Exit Function
+
+ErrorHandler:
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    CopyDataByColumnName = "Fatal Error: " & sErrorLog
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts  = True
+
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+
+End Function
+```
+
+---
+
+## Tóm tắt thay đổi
+
+| | Vấn đề | Fix |
+|---|---|---|
+| **ExportByID** | `FillDefaultValue` đã bỏ, PAD tự gọi sau | Removed |
+| **ProcessOneID** | Dest file bị lock khi `CopyDataByColumnName` mở lại | `wbDest.Close` trước khi gọi Copy |
+| **CopyDataByColumnName** | `Rows.Count` không có sheet ref → dùng ActiveSheet | Đổi thành `wsSource.Rows.Count` |
+| **CopyDataByColumnName** | Source = Dest → mở 2 lần cùng 1 file → conflict | Detect và chỉ mở 1 lần nếu path giống nhau |
+| **Log** | Tách ra `WriteLog` riêng | Dễ maintain, dùng lại nhiều chỗ |
