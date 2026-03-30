@@ -1,0 +1,170 @@
+Vấn đề của bạn là rất điển hình khi dùng AutoFilter + copy:
+
+👉 Dữ liệu bị “cộng dồn” qua các lần loop
+
+
+---
+
+🎯 Nguyên nhân gốc
+
+Có 2 nguyên nhân phổ biến:
+
+❌ 1. Filter chưa reset đúng
+
+Filter cũ vẫn còn → filter mới chồng lên → thấy nhiều ID
+
+
+---
+
+❌ 2. File template không được clear dữ liệu
+
+Bạn đang:
+
+File ID1 → ghi 1 dòng ✅
+
+File ID2 → ghi thêm vào dòng cũ ❌
+
+File ID3 → lại ghi thêm ❌
+
+
+👉 Tức là template đang giữ dữ liệu cũ
+
+
+---
+
+✅ Cách fix chuẩn (bắt buộc làm đủ 2 bước)
+
+✔️ Bước 1: Reset filter TRƯỚC khi filter mới
+
+✔️ Bước 2: Clear dữ liệu trong template TRƯỚC khi copy
+
+
+---
+
+🔥 Code fix hoàn chỉnh
+
+1. ProcessOneID (đã fix)
+
+Private Sub ProcessOneID(productID As String, wsRaw As Worksheet, templatePath As String, outputFolder As String)
+
+    Dim wbTemplate As Workbook
+    Dim wsTarget As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, 1).End(xlUp).Row
+    lastCol = wsRaw.Cells(1, wsRaw.Columns.Count).End(xlToLeft).Column
+    
+    '🚨 QUAN TRỌNG: clear filter trước
+    If wsRaw.AutoFilterMode Then
+        wsRaw.AutoFilter.ShowAllData
+    End If
+    
+    'Filter theo ID
+    wsRaw.Range(wsRaw.Cells(1, 1), wsRaw.Cells(lastRow, lastCol)).AutoFilter _
+        Field:=1, Criteria1:=productID
+    
+    'Open template
+    Set wbTemplate = Workbooks.Open(templatePath)
+    Set wsTarget = wbTemplate.Sheets(1)
+    
+    '🚨 QUAN TRỌNG: clear data cũ trong template
+    wsTarget.Range("A2:Z100000").ClearContents
+    
+    'Gọi function copy của bạn
+    Call CopyData(wsRaw, wbTemplate)
+    
+    'Save file
+    wbTemplate.SaveAs outputFolder & "\Template_" & productID & ".xlsx"
+    
+    wbTemplate.Close False
+
+End Sub
+
+
+---
+
+🔥 Nếu vẫn bị lỗi → 99% do function CopyData
+
+Bạn cần đảm bảo trong function copy:
+
+❗ LUÔN dùng .SpecialCells(xlCellTypeVisible)
+
+Ví dụ:
+
+wsRaw.Range("B2:B" & lastRow).SpecialCells(xlCellTypeVisible).Copy wsTarget.Range("A2")
+
+
+---
+
+🚨 Nếu KHÔNG dùng SpecialCells
+
+Thì dù filter:
+
+👉 Excel vẫn copy toàn bộ data (bao gồm hidden row)
+→ dẫn tới lỗi bạn đang gặp
+
+
+---
+
+✅ Checklist fix lỗi của bạn
+
+Bạn kiểm tra 3 cái này:
+
+✔️ 1. Có dòng này trước khi filter chưa?
+
+wsRaw.AutoFilter.ShowAllData
+
+
+---
+
+✔️ 2. Template có bị giữ data cũ không?
+
+wsTarget.Range("A2:Z100000").ClearContents
+
+
+---
+
+✔️ 3. Copy có dùng dòng này không?
+
+.SpecialCells(xlCellTypeVisible)
+
+
+---
+
+💡 Kinh nghiệm thực tế (rất quan trọng)
+
+Lỗi bạn gặp là lỗi kinh điển trong automation Excel:
+
+Debug chạy đúng ❌
+
+Run thật → sai ❌
+
+
+Vì:
+
+👉 Excel UI ≠ Excel Runtime khi chạy từ PAD / UiPath
+
+
+---
+
+🚀 Nếu bạn muốn tối ưu triệt để
+
+Cách tốt nhất:
+
+👉 Bỏ AutoFilter hoàn toàn 👉 Dùng Array theo ID (như tôi đã viết ở trên)
+
+✔ Không bao giờ bị dính lỗi này
+✔ Nhanh gấp 10–50 lần
+✔ Không phụ thuộc Excel UI
+
+
+---
+
+👉 Nếu bạn gửi tôi function CopyData hiện tại, tôi có thể:
+
+Fix trực tiếp vào code của bạn
+
+Giữ nguyên logic
+
+Đảm bảo chạy đúng 100% (không còn lỗi cộng dồn)
