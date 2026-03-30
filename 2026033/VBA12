@@ -1,0 +1,349 @@
+Chào bạn, hướng tiếp cận này của bạn rất chuẩn xác và an toàn. Việc tách bạch: (1) Đổ data raw ra sheet Temp \rightarrow (2) Gọi hàm map cột từ Temp sang Template \rightarrow (3) Xóa Temp giúp code rành mạch, tránh ghi đè nhầm và tận dụng tối đa hàm mapping có sẵn.
+Để tối ưu I/O (tránh việc Excel phải Open/Close file tới 3 lần cho 1 ID), mình đã tích hợp luôn bước xóa sheet TempData vào cuối hàm CopyDataByColumnName (khi phát hiện Source = Dest).
+Dưới đây là code đã được update theo đúng logic bạn yêu cầu:
+Full Code — modExportByID
+Option Explicit
+
+' ============================================================
+'  PUBLIC ENTRY POINT — gọi từ PAD
+'  Returns: "Success" | "Error: <message>"
+' ============================================================
+Public Function ExportByID(ByVal SourcePath     As String, _
+                           ByVal TemplatePath   As String, _
+                           ByVal OutputFolder   As String, _
+                           ByVal ColumnMapping  As String, _
+                           ByVal colID          As Long) As String
+
+    Dim wbSrc   As Workbook
+    Dim wsSrc   As Worksheet
+    Dim arr     As Variant
+    Dim dict    As Object
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim i       As Long
+    Dim pid     As String
+
+    On Error GoTo ErrHandler
+
+    ExportByID = "Success"
+
+    With Application
+        .ScreenUpdating = False
+        .DisplayAlerts  = False
+        .Calculation    = xlCalculationManual
+        .EnableEvents   = False
+    End With
+
+    ' --- Mở source, đọc 1 lần vào array, đóng ngay ---
+    Set wbSrc = Workbooks.Open(Filename:=SourcePath, _
+                               ReadOnly:=True, _
+                               UpdateLinks:=False)
+    Set wsSrc = wbSrc.Sheets(1)
+
+    lastRow = wsSrc.Cells(wsSrc.Rows.Count, colID).End(xlUp).Row
+    lastCol = wsSrc.Cells(1, wsSrc.Columns.Count).End(xlToLeft).Column
+
+    If lastRow < 2 Then
+        wbSrc.Close False
+        ExportByID = "Error: Source không có dữ liệu"
+        GoTo Finalize
+    End If
+
+    arr = wsSrc.Range(wsSrc.Cells(1, 1), _
+                      wsSrc.Cells(lastRow, lastCol)).Value
+
+    wbSrc.Close False
+    Set wbSrc = Nothing
+
+    ' --- Collect unique ID ---
+    Set dict = CreateObject("Scripting.Dictionary")
+    dict.CompareMode = vbTextCompare
+
+    For i = 2 To lastRow
+        pid = Trim(CStr(arr(i, colID)))
+        If pid <> "" And Not dict.Exists(pid) Then
+            dict.Add pid, Empty
+        End If
+    Next i
+
+    If dict.Count = 0 Then
+        ExportByID = "Error: Không tìm thấy ID nào"
+        GoTo Finalize
+    End If
+
+    ' --- Loop từng ID — lỗi 1 ID không dừng loop ---
+    Dim key As Variant
+    For Each key In dict.Keys
+        Call ProcessOneID(arr, CStr(key), TemplatePath, _
+                          OutputFolder, ColumnMapping, colID)
+        DoEvents
+    Next key
+
+    GoTo Finalize
+
+ErrHandler:
+    ExportByID = "Error [" & Err.Number & "]: " & Err.Description
+
+Finalize:
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts  = True
+        .Calculation    = xlCalculationAutomatic
+        .EnableEvents   = True
+    End With
+
+End Function
+
+
+' ============================================================
+'  XỬ LÝ TỪNG ID
+'  1. Tạo dest file từ template
+'  2. Tạo sheet TempData, ghi raw data (header + rows)
+'  3. Save & Close dest file
+'  4. Gọi CopyDataByColumnName (tự map, xóa temp, save & close)
+' ============================================================
+Private Sub ProcessOneID(ByRef arrData       As Variant, _
+                         ByVal productID     As String, _
+                         ByVal TemplatePath  As String, _
+                         ByVal OutputFolder  As String, _
+                         ByVal ColumnMapping As String, _
+                         ByVal colID         As Long)
+
+    Dim wbDest   As Workbook
+    Dim wsTemp   As Worksheet
+    Dim destFile As String
+    Dim lastCol  As Long
+    Dim i        As Long
+    Dim j        As Long
+    Dim destRow  As Long
+    Dim hasData  As Boolean
+
+    On Error GoTo ExitSub
+
+    lastCol = UBound(arrData, 2)
+    hasData = False
+
+    ' --- Kiểm tra có data không trước khi tạo file ---
+    For i = 2 To UBound(arrData, 1)
+        If Trim(CStr(arrData(i, colID))) = productID Then
+            hasData = True
+            Exit For
+        End If
+    Next i
+
+    If Not hasData Then Exit Sub
+
+    ' --- Tạo dest file từ template ---
+    If Len(Dir(OutputFolder, vbDirectory)) = 0 Then MkDir OutputFolder
+
+    destFile = OutputFolder & "\Report_" & productID & "_" & _
+               Format(Now, "yymmddhhnnss") & ".xlsx"
+
+    FileCopy TemplatePath, destFile
+
+    ' --- Mở dest, tạo sheet TempData và ghi raw data ---
+    Set wbDest = Workbooks.Open(Filename:=destFile, UpdateLinks:=False)
+    
+    ' Thêm sheet mới để chứa raw data
+    Set wsTemp = wbDest.Sheets.Add(After:=wbDest.Sheets(wbDest.Sheets.Count))
+    wsTemp.Name = "TempData"
+
+    ' Ghi Header dòng 1
+    For j = 1 To lastCol
+        wsTemp.Cells(1, j).Value = arrData(1, j)
+    Next j
+
+    ' Ghi từng dòng khớp productID
+    destRow = 2
+    For i = 2 To UBound(arrData, 1)
+        If Trim(CStr(arrData(i, colID))) = productID Then
+            For j = 1 To lastCol
+                wsTemp.Cells(destRow, j).Value = arrData(i, j)
+            Next j
+            destRow = destRow + 1
+        End If
+    Next i
+
+    ' *** CRITICAL: Save & Close TRƯỚC khi gọi CopyDataByColumnName ***
+    wbDest.Save
+    wbDest.Close False
+    Set wbDest = Nothing
+
+    ' --- Gọi CopyDataByColumnName (Mapping dữ liệu sang sheet Template) ---
+    Dim copyResult As String
+    copyResult = CopyDataByColumnName(destFile, destFile, ColumnMapping)
+
+    ' Log warning nếu có nhưng không dừng loop
+    If Left(copyResult, 5) <> "Succe" Then
+        Call WriteLog(OutputFolder, productID, "CopyData: " & copyResult)
+    End If
+
+    Exit Sub
+
+ExitSub:
+    ' Lỗi 1 ID → log, KHÔNG stop loop
+    Dim errDesc As String
+    errDesc = "Err " & Err.Number & ": " & Err.Description
+
+    On Error Resume Next
+    If Not wbDest Is Nothing Then
+        wbDest.Close False
+        Set wbDest = Nothing
+    End If
+
+    Call WriteLog(OutputFolder, productID, errDesc)
+    On Error GoTo 0
+
+End Sub
+
+
+' ============================================================
+'  GHI LOG
+' ============================================================
+Private Sub WriteLog(ByVal OutputFolder As String, _
+                     ByVal productID    As String, _
+                     ByVal message      As String)
+    On Error Resume Next
+    Dim fNum As Integer
+    fNum = FreeFile
+    Open OutputFolder & "\export_errors.log" For Append As #fNum
+    Print #fNum, Format(Now, "yyyy-mm-dd hh:nn:ss") & _
+                 " | ID=" & productID & " | " & message
+    Close #fNum
+End Sub
+
+
+' ============================================================
+'  COPY DATA BY COLUMN NAME
+'  Update: Trỏ đúng sheet TempData nếu copy nội bộ, tự xóa sheet sau khi xong
+' ============================================================
+Public Function CopyDataByColumnName(ByVal SourcePath      As String, _
+                                     ByVal DestinationPath As String, _
+                                     ByVal ColumnMapping   As String) As String
+
+    Dim wbSource    As Workbook
+    Dim wbDest      As Workbook
+    Dim wsSource    As Worksheet
+    Dim wsDest      As Worksheet
+    Dim arrMapping  As Variant
+    Dim arrPair     As Variant
+    Dim sSourceName As String
+    Dim lDestIndex  As Long
+    Dim lSourceCol  As Long
+    Dim lLastRow    As Long
+    Dim lHeaderRow  As Long
+    Dim i           As Long
+    Dim lCol        As Long
+    Dim sErrorLog   As String
+
+    CopyDataByColumnName = "Success"
+
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts  = False
+
+    ' --- Mở / Trỏ file và sheet ---
+    Set wbSource = Workbooks.Open(SourcePath)
+
+    If LCase(SourcePath) = LCase(DestinationPath) Then
+        Set wbDest = wbSource
+        ' Copy nội bộ: Source là TempData, Dest là Sheet1 (Template)
+        Set wsSource = wbSource.Sheets("TempData")
+        Set wsDest   = wbDest.Sheets(1)
+    Else
+        Set wbDest = Workbooks.Open(DestinationPath)
+        Set wsSource = wbSource.Sheets(1)
+        Set wsDest   = wbDest.Sheets(1)
+    End If
+
+    lHeaderRow = 1
+
+    ' --- Process Mapping ---
+    arrMapping = Split(ColumnMapping, "#")
+
+    For i = LBound(arrMapping) To UBound(arrMapping)
+        If Trim(arrMapping(i)) <> "" Then
+            arrPair = Split(arrMapping(i), "|")
+
+            If UBound(arrPair) = 1 Then
+                sSourceName = Trim(arrPair(0))
+                On Error Resume Next
+                lDestIndex = CLng(Trim(arrPair(1)))
+                On Error GoTo ErrorHandler
+
+                ' Tìm cột source theo tên header
+                lSourceCol = 0
+                For lCol = 1 To wsSource.Cells(lHeaderRow, wsSource.Columns.Count).End(xlToLeft).Column
+                    If StrComp(Trim(wsSource.Cells(lHeaderRow, lCol).Value), _
+                               sSourceName, vbTextCompare) = 0 Then
+                        lSourceCol = lCol
+                        Exit For
+                    End If
+                Next lCol
+
+                If lSourceCol > 0 And lDestIndex > 0 Then
+                    lLastRow = wsSource.Cells(wsSource.Rows.Count, lSourceCol).End(xlUp).Row
+
+                    If lLastRow > lHeaderRow Then
+                        ' Mapping data từ TempData sang Template
+                        wsDest.Range(wsDest.Cells(lHeaderRow + 1, lDestIndex), _
+                                     wsDest.Cells(lLastRow, lDestIndex)).Value = _
+                        wsSource.Range(wsSource.Cells(lHeaderRow + 1, lSourceCol), _
+                                       wsSource.Cells(lLastRow, lSourceCol)).Value
+                    Else
+                        sErrorLog = sErrorLog & "Warn: Column '" & sSourceName & "' is empty. "
+                    End If
+
+                ElseIf lSourceCol = 0 Then
+                    sErrorLog = sErrorLog & "Err: Source column '" & sSourceName & "' not found. "
+                    CopyDataByColumnName = "Error: Missing Column"
+                End If
+            End If
+        End If
+    Next i
+
+    If Len(sErrorLog) > 0 And CopyDataByColumnName = "Success" Then
+        CopyDataByColumnName = "Success with Warnings: " & sErrorLog
+    End If
+
+    ' --- Clean up, Save & Close ---
+    If LCase(SourcePath) = LCase(DestinationPath) Then
+        ' XÓA SHEET TEMP SAU KHI COPY XONG
+        Application.DisplayAlerts = False
+        On Error Resume Next
+        wsSource.Delete
+        On Error GoTo ErrorHandler
+        
+        wbDest.Save
+        wbDest.Close SaveChanges:=False
+    Else
+        wbDest.Save
+        wbSource.Close SaveChanges:=False
+        wbDest.Close SaveChanges:=False
+    End If
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts  = True
+    Exit Function
+
+ErrorHandler:
+    sErrorLog = "VBA Runtime Error: " & Err.Description
+    CopyDataByColumnName = "Fatal Error: " & sErrorLog
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts  = True
+
+    On Error Resume Next
+    If Not wbSource Is Nothing Then wbSource.Close SaveChanges:=False
+    If Not wbDest Is Nothing Then wbDest.Close SaveChanges:=False
+
+End Function
+
+Tóm tắt những thay đổi mới nhất
+| Hàm | Thay đổi chính theo logic mới |
+|---|---|
+| ProcessOneID | Tạo sheet mới wsTemp.Name = "TempData". Ghi Header và Data đã filter vào đây thay vì ghi đè lên Template (Sheets(1)). Vẫn tuân thủ nguyên tắc Save & Close trước khi gọi Copy. |
+| CopyDataByColumnName | Nếu Source = Dest (cùng 1 file), tự động hiểu nguồn là sheet "TempData" và đích là Sheets(1) (Template). |
+| CopyDataByColumnName | Tối ưu I/O: Sau khi mapping xong, xóa luôn sheet TempData trước khi gọi lệnh wbDest.Save. Tránh việc ProcessOneID phải mở lại file lần thứ 3 chỉ để xóa sheet. |
+Bạn check lại cấu trúc này xem đã đúng với flow bạn mong muốn chưa nhé. Bạn có muốn điều chỉnh thêm tên sheet hay logic chèn thêm cột mặc định nào nữa không?
