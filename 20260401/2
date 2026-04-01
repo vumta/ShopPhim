@@ -1,0 +1,40 @@
+Tóm tắt nhanh: Nguyên nhân là khi chạy Power Automate Desktop (PAD) ở chế độ unattended Chrome được khởi tạo bằng profile mới (hoặc chạy dưới account khác) nên extension Power Automate không có trong profile đó, dẫn tới lỗi không điều khiển được trình duyệt. Giải pháp hiệu quả: bắt buộc cài/force‑install extension cho mọi user (machine‑wide) hoặc cấu hình PAD để dùng profile đã có extension; đồng thời kiểm tra native messaging host registry. 
+
+---
+
+1) Kiểm tra nhanh trước khi sửa
+- Mở chrome://extensions trên profile mà PAD đang dùng để xác nhận Power Automate extension có hay không.  
+- Kiểm tra registry native messaging host:  
+  HKEYCURRENTUSER\Software\Google\Chrome\NativeMessagingHosts\com.microsoft.browser_nativehost (hoặc HKLM nếu cài machine‑wide). Nếu thiếu, PAD không thể giao tiếp với Chrome. 
+
+---
+
+2) Cách khắc phục (chi tiết, theo thứ tự ưu tiên)
+
+A. Force‑install extension cho mọi user (khuyến nghị cho unattended)
+- Tạo khóa chính sách Chrome để ép cài extension cho tất cả user:  
+  HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist  
+  Thêm giá trị chuỗi ví dụ:  
+  1 = <extension_id>;https://clients2.google.com/service/update2/crx  
+- Extension ID của Power Automate lấy từ Chrome Web Store trang extension. Sau reboot/chrome restart, extension sẽ tự cài cho mọi profile. Đây là cách ổn định khi PAD chạy dưới service account hoặc user khác. 
+
+B. Cài extension cho user account mà PAD unattended dùng
+- Xác định account (service account / scheduled task user) mà PAD chạy. Đăng nhập bằng account đó, cài extension thủ công từ Chrome Web Store hoặc import profile có extension.  
+- Hoặc copy profile đã cấu hình (user‑data‑dir) sang vị trí mà PAD sẽ dùng.
+
+C. Cấu hình PAD để dùng profile cụ thể
+- Trong action Launch new Chrome hoặc Attach to running Chrome, set user data directory trỏ tới profile đã có extension. Nếu PAD tạo profile mới, extension sẽ không có. 
+
+D. Kiểm tra native messaging host
+- Đảm bảo file manifest BrowserNativeHost và registry key tồn tại và trỏ đúng tới C:\Program Files (x86)\Microsoft Power Automate Desktop\BrowserNativeHost.exe (hoặc đường dẫn tương ứng). Nếu thiếu, cài lại PAD hoặc sửa registry. 
+
+---
+
+3) Lời khuyên thêm và phương án thay thế
+- Dùng Automation browser tích hợp của Power Automate khi có thể — không cần extension và ổn định cho unattended.   
+- Sau thay đổi, khởi động lại Chrome và chạy flow test; kiểm tra log lỗi “Failed to assume control of browser” để xác minh. 
+
+---
+
+4) Nếu cần, tôi có thể giúp
+- Tôi có thể cung cấp mẫu registry .reg để force‑install extension, hoặc các lệnh PowerShell để deploy cho nhiều máy. Nói cho tôi biết bạn muốn deploy cho một máy hay nhiều máy/domain để tôi gửi file mẫu phù hợp.
