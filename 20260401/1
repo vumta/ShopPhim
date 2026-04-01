@@ -1,0 +1,43 @@
+Tóm tắt ngắn: Để PAD chạy Chrome với profile cụ thể, khởi chạy Chrome bằng tham số --user-data-dir và --profile-directory trỏ tới thư mục profile đã cài extension Power Automate; đồng thời bật --remote-debugging-port nếu PAD cần attach. Thao tác này đảm bảo Chrome dùng profile có extension và native messaging host đã cài. 
+
+---
+
+1. Xác định profile Chrome bạn muốn dùng
+- Mở Chrome bằng profile mong muốn, vào chrome://version và đọc Profile Path (ví dụ C:\Users\Anh\AppData\Local\Google\Chrome\User Data\Profile 2). Ghi lại parent folder (User Data) và tên profile (ví dụ Profile 2 hoặc Default). 
+
+---
+
+2. Câu lệnh mẫu để khởi chạy Chrome với profile cụ thể
+- Windows (ví dụ):
+`
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\Users\Anh\AppData\Local\Google\Chrome\User Data" --profile-directory="Profile 2" --remote-debugging-port=9222
+`
+- Giải thích:  
+  - --user-data-dir: đường dẫn tới thư mục chứa tất cả profile.  
+  - --profile-directory: tên thư mục profile con (ví dụ Profile 2 hoặc Default).  
+  - --remote-debugging-port: cần thiết nếu PAD attach qua remote debugging; chọn port không trùng. 
+
+---
+
+3. Cách cấu hình trong Power Automate Desktop
+- Option A — Dùng action Run/Launch application:  
+  - Action: Run application hoặc Run.  
+  - Application path: C:\Program Files\Google\Chrome\Application\chrome.exe.  
+  - Arguments: paste chuỗi --user-data-dir=... --profile-directory=... --remote-debugging-port=....  
+- Option B — Nếu dùng action Launch new Chrome trong PAD:  
+  - Nếu action có trường Additional arguments hoặc User data directory, điền tương tự. Nếu không, dùng Option A để đảm bảo Chrome mở đúng profile. 
+
+---
+
+4. Kiểm tra sau khi cấu hình
+- Đảm bảo extension Power Automate đã cài trong profile đó (mở chrome://extensions khi dùng profile đó). Đảm bảo native messaging host registry tồn tại (theo hướng dẫn Microsoft). Nếu thiếu, cài lại extension/ PAD. 
+
+---
+
+5. Lưu ý quan trọng và rủi ro
+- Không mở cùng lúc một Chrome instance khác dùng cùng user‑data‑dir (Chrome khóa profile); nếu cần chạy song song, tạo user‑data‑dir riêng.   
+- Nếu PAD chạy dưới service account/unattended, bạn phải đảm bảo profile và extension tồn tại cho account đó (đăng nhập hoặc force‑install extension machine‑wide). 
+
+---
+
+Nếu bạn muốn, tôi sẽ gửi lệnh chính xác thay tên Anh bằng user bạn dùng, hoặc viết sẵn action Run trong PAD với tham số hoàn chỉnh để bạn copy‑paste.
