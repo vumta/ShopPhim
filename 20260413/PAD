@@ -1,0 +1,106 @@
+Bạn đang có chuỗi:
+
+Abcd_123445678_Text-01_XYZ_20260413123023
+
+Và muốn lấy ra:
+
+Text-01
+
+
+---
+
+✅ Cách đơn giản nhất trong Power Automate Desktop
+
+✔️ Cách 1: Dùng Split (khuyên dùng)
+
+Bước:
+
+1. Dùng action Split text
+
+Text to split: %YourString%
+
+Separator: _
+
+Output: %Arr%
+
+
+
+2. Kết quả:
+
+
+
+Arr[0] = Abcd
+Arr[1] = 123445678
+Arr[2] = Text-01   ✅ (cái bạn cần)
+Arr[3] = XYZ
+Arr[4] = 20260413123023
+
+3. Lấy giá trị:
+
+
+
+%Arr[2]%
+
+
+---
+
+✔️ Cách 2: Dùng Regex (nâng cao hơn)
+
+Nếu chuỗi có thể thay đổi format, bạn nên dùng regex:
+
+Pattern:
+
+_(.*?)_
+
+Nhưng để lấy đúng Text-01:
+
+_(Text-[^_]+)_
+
+Trong PAD:
+
+Action: Extract text from text
+
+Use Regular Expression: ✅
+
+Pattern:
+
+
+_(Text-[^_]+)_
+
+Output → %Result%
+
+
+
+---
+
+✔️ Cách 3: Substring (ít khuyên dùng)
+
+Vì phải tính vị trí _ → phức tạp hơn:
+
+1. Tìm vị trí _ thứ 2 và thứ 3
+
+
+2. Substring giữa 2 vị trí đó
+
+
+
+→ Không tối ưu bằng Split
+
+
+---
+
+🚀 Kết luận
+
+👉 Tốt nhất: dùng Split
+
+Nhanh
+
+Dễ maintain
+
+Ít lỗi
+
+
+
+---
+
+Nếu bạn muốn mình viết luôn **flow hoàn chỉnh trong PAD (step-by-step + screenshot logic)** hoặc làm **version reusable function**, mình làm cho bạn luôn 👍
