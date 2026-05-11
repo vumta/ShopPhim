@@ -1,0 +1,11 @@
+Chào Vũ, có vẻ như bạn gõ nhầm tên package một chút rồi! Tên chính xác của thư viện này là **db-dtypes** (chứ không phải dt-dttyple).
+Khi bạn gọi hàm query_job.to_dataframe() ở bước kiểm tra dữ liệu, Google BigQuery bắt buộc yêu cầu phải có thư viện db-dtypes này để chuyển đổi các kiểu dữ liệu từ chuẩn SQL của Google sang dạng bảng của Pandas.
+Để cài đặt, bạn thao tác nhanh ngay trong VS Code như sau:
+**Bước 1:** Mở Terminal tích hợp trong VS Code (chọn thanh menu **Terminal > New Terminal** hoặc dùng phím tắt Ctrl + `).
+**Bước 2:** Copy và dán chính xác dòng lệnh dưới đây vào Terminal, sau đó nhấn Enter:
+```bash
+pip install db-dtypes
+
+```
+**Bước 3:** Đợi hệ thống tải và cài đặt. Khi Terminal hiện dòng chữ thông báo Successfully installed db-dtypes-... là đã thành công.
+Bây giờ bạn chỉ cần bấm Run chạy lại file main.py là code sẽ tự động in 5 dòng dữ liệu từ BigQuery ra màn hình Terminal cho bạn xem thử luôn nhé!
