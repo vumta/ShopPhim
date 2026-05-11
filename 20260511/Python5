@@ -1,0 +1,62 @@
+Để kiểm tra xem dữ liệu đã thực sự "lên" BigQuery thành công hay chưa, bạn có thể dùng lệnh SELECT để kéo vài dòng dữ liệu về và in ra màn hình Terminal.
+Bạn hãy thêm hàm verify_inserted_data dưới đây vào file main.py, và gọi nó ở phần chạy thử nghiệm nhé:
+### Bước 1: Thêm hàm này vào trên phần def main_process...
+```python
+def verify_inserted_data(table_id, credentials_path=None):
+    """Truy vấn thử 5 dòng dữ liệu từ BigQuery để kiểm tra."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+    
+    # Câu lệnh SQL lấy 5 dòng dữ liệu từ bảng
+    query = f"SELECT * FROM `{table_id}` LIMIT 5"
+    
+    try:
+        query_job = client.query(query)
+        df_result = query_job.to_dataframe() # Chuyển kết quả về dạng DataFrame của Pandas
+        
+        print(f"\n=== DỮ LIỆU ĐANG CÓ TRÊN BIGQUERY (Bảng: {table_id}) ===")
+        if df_result.empty:
+            print("Bảng hiện đang trống!")
+        else:
+            # Cấu hình Pandas hiển thị hết các cột để dễ nhìn
+            pd.set_option('display.max_columns', None) 
+            print(df_result)
+        print("=========================================================\n")
+    except Exception as e:
+        print(f"Lỗi khi truy vấn kiểm tra dữ liệu: {e}")
+
+```
+### Bước 2: Cập nhật lại phần chạy thử ở cuối file
+Ở khối if __name__ == "__main__": dưới cùng, bạn gọi hàm vừa tạo ra ngay sau khi main_process chạy xong:
+```python
+# ==========================================
+# PHẦN CHẠY THỬ NGHIỆM TRÊN VISUAL STUDIO CODE
+# ==========================================
+if __name__ == "__main__":
+    
+    TEST_FOLDER_PATH = r"C:\Users\xxxxx\Desktop\Data\WorkOrderReport" 
+    TEST_SHEET_NAMES = "Report" 
+    TEST_TABLE_ID = "Work_Order_Report_rpa" 
+    TEST_CREDENTIALS = r"C:\path\to\your\api-key.json" 
+
+    print("--- BẮT ĐẦU CHẠY THỬ NGHIỆM ---")
+    
+    # 1. Gọi hàm chính để Upload dữ liệu
+    result = main_process(
+        folder_path=TEST_FOLDER_PATH, 
+        sheet_names_str=TEST_SHEET_NAMES, 
+        table_id=TEST_TABLE_ID, 
+        credentials_path=TEST_CREDENTIALS
+    )
+    print(f"Kết quả xử lý Upload: {result}")
+
+    # 2. Gọi hàm SELECT để kiểm tra dữ liệu đã vào hay chưa
+    if result == "Success":
+        verify_inserted_data(table_id=TEST_TABLE_ID, credentials_path=TEST_CREDENTIALS)
+
+    print("--- KẾT THÚC ---")
+
+```
+Bây giờ bạn bấm Run lại trên VS Code. Sau khi terminal in ra dòng chữ "Đã Insert thành công...", nó sẽ tự động chạy lệnh SELECT và in ra 5 dòng đầu tiên kèm theo tên các cột (đã được làm sạch) ngay trên Terminal để bạn đối chiếu. Dữ liệu in ra chính xác nghĩa là Bot UiPath của bạn sau này cũng sẽ insert chuẩn xác y như vậy!
