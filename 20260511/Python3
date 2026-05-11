@@ -1,0 +1,87 @@
+Để chạy thử và kiểm tra (debug) đoạn code trên bằng **Visual Studio Code (VS Code)** trước khi đưa vào UiPath, bạn cần làm theo các bước chuẩn bị và thiết lập dưới đây.
+
+Đoạn code ở trên hiện tại chỉ chứa các **hàm (functions)**. Để chạy được độc lập trên VS Code, chúng ta cần thêm một điểm bắt đầu (entry point) để cung cấp các tham số thực tế.
+
+Dưới đây là hướng dẫn từng bước:
+
+### Bước 1: Khởi tạo file trong VS Code
+
+1. Mở VS Code.
+2. Tạo một thư mục làm việc mới (Ví dụ: `C:\BQ_Uploader`) và mở thư mục này trong VS Code (**File > Open Folder**).
+3. Tạo một file mới tên là `main.py`.
+4. **Dán toàn bộ đoạn code** (bao gồm `import`, `clean_column_names`, `union_excel_sheets`, `save_to_bigquery`, và `main_process`) mà mình đã viết cho bạn ở câu trả lời trước vào file này.
+
+### Bước 2: Thêm đoạn code "Chạy thử" (Entry Point)
+
+Kéo xuống **dưới cùng** của file `main.py`, bạn hãy thêm đoạn code sau. Đoạn code này chỉ chạy khi bạn thực thi trực tiếp bằng VS Code, và sẽ bị UiPath bỏ qua khi gọi hàm `main_process`.
+
+```python
+# === THÊM ĐOẠN NÀY VÀO DƯỚI CÙNG CỦA FILE main.py ===
+
+if __name__ == "__main__":
+    # 1. THAY ĐỔI CÁC ĐƯỜNG DẪN DƯỚI ĐÂY THÀNH ĐƯỜNG DẪN THỰC TẾ TRÊN MÁY BẠN
+    # Sử dụng chữ 'r' phía trước chuỗi để tránh lỗi ký tự đặc biệt của Windows (như dấu \)
+    
+    TEST_FOLDER_PATH = r"C:\Users\xxxxx\Desktop\Data\WorkOrderReport" 
+    TEST_SHEET_NAMES = "Report" # Nếu có nhiều sheet, viết cách nhau bằng dấu phẩy: "Report,Sheet2"
+    TEST_TABLE_ID = "your_project.your_dataset.Work_Order_Report_rpa"
+    TEST_CREDENTIALS = r"C:\Users\Admin\Documents\my-gcp-key.json"
+
+    print("--- BẮT ĐẦU CHẠY THỬ NGHIỆM ---")
+    print(f"Thư mục Data: {TEST_FOLDER_PATH}")
+    print(f"Bảng BigQuery: {TEST_TABLE_ID}")
+    print("Đang xử lý dữ liệu, vui lòng đợi...\n")
+
+    # Gọi hàm chính
+    result = main_process(
+        folder_path=TEST_FOLDER_PATH, 
+        sheet_names_str=TEST_SHEET_NAMES, 
+        table_id=TEST_TABLE_ID, 
+        credentials_path=TEST_CREDENTIALS
+    )
+
+    print("\n--- KẾT THÚC ---")
+    print(f"Kết quả trả về: {result}")
+
+```
+
+*Lưu ý: Bạn hãy nhớ sửa lại 4 biến `TEST_...` ở trên cho khớp với cấu trúc thư mục và project BigQuery thực tế của bạn.*
+
+### Bước 3: Cài đặt thư viện (Dependencies)
+
+VS Code cần biết bạn muốn chạy bằng môi trường Python nào và cần cài các thư viện tương ứng.
+
+1. Mở Terminal tích hợp trong VS Code bằng cách chọn trên thanh menu: **Terminal > New Terminal** (hoặc dùng phím tắt `Ctrl + ``).
+2. Đảm bảo bạn đang dùng đúng môi trường Python (góc dưới cùng bên phải của VS Code sẽ hiển thị phiên bản Python, ví dụ `3.10.x`, bạn có thể click vào để chọn phiên bản).
+3. Copy và dán dòng lệnh sau vào Terminal rồi nhấn Enter để cài đặt các thư viện cần thiết:
+```bash
+pip install pandas openpyxl xlrd google-cloud-bigquery db-dtypes
+
+```
+
+
+*(Mẹo: Thêm `db-dtypes` để tránh cảnh báo của BigQuery khi làm việc với Pandas).*
+
+### Bước 4: Chạy Code
+
+Có 2 cách để chạy:
+
+* **Cách 1 (Nhanh nhất):** Nhấn nút **Play** (hình tam giác) ở góc trên cùng bên phải của cửa sổ VS Code.
+* **Cách 2 (Qua Terminal):** Gõ lệnh sau vào Terminal và nhấn Enter:
+```bash
+python main.py
+
+```
+
+
+
+### Bước 5: Đọc kết quả
+
+Nhìn xuống cửa sổ Terminal:
+
+* Nếu in ra `Kết quả trả về: Success`: Code chạy hoàn hảo, dữ liệu đã lên BigQuery. Bạn có thể tự tin đưa file `main.py` này (hoặc copy nội dung) sang máy chạy UiPath.
+* Nếu in ra `Kết quả trả về: Error: ...`: Bạn sẽ đọc được chi tiết lỗi (ví dụ: sai đường dẫn thư mục, sai tên project BigQuery, file JSON không có quyền, v.v.) để tiến hành sửa trực tiếp trên VS Code.
+
+```
+
+```
