@@ -1,0 +1,138 @@
+Chào Vũ,
+Dưới đây là toàn bộ mã nguồn hoàn chỉnh đã được gộp lại. Bạn chỉ cần copy toàn bộ nội dung này, dán vào một file đặt tên là main.py trong VS Code, sửa lại 4 đường dẫn ở phần TEST cho đúng với máy của bạn là có thể nhấn Run (hoặc chạy lệnh python main.py) để kiểm tra ngay lập tức.
+Khi tích hợp vào UiPath, Bot sẽ chỉ gọi hàm main_process và tự động bỏ qua phần chạy thử ở cuối.
+```python
+import pandas as pd
+import os
+from google.cloud import bigquery
+
+def clean_column_names(df):
+    """Làm sạch tên cột để phù hợp với chuẩn BigQuery."""
+    df.columns = df.columns.str.replace(r'[ \u3000()（）/.#-]', '_', regex=True)
+    return df
+
+def union_excel_sheets(folder_path, sheet_names_list):
+    """Đọc và gộp các file Excel trong thư mục."""
+    df_list = []
+    
+    if not os.path.exists(folder_path):
+        raise ValueError(f"Đường dẫn thư mục không tồn tại: {folder_path}")
+
+    for file_name in os.listdir(folder_path):
+        if file_name.endswith('.xlsx') or file_name.endswith('.xls'):
+            file_path = os.path.join(folder_path, file_name)
+            try:
+                # Đọc tất cả các sheet được chỉ định
+                excel_file = pd.read_excel(file_path, sheet_name=sheet_names_list, 
+                                         engine='openpyxl' if file_name.endswith('.xlsx') else 'xlrd')
+                
+                for sheet_name, df in excel_file.items():
+                    if df.empty:
+                        continue
+                    df['Source_File'] = file_name
+                    df = clean_column_names(df)
+                    df_list.append(df)
+            except Exception as e:
+                print(f"Lỗi khi đọc file {file_name}: {e}")
+
+    if not df_list:
+        raise ValueError("Không tìm thấy dữ liệu trong các file Excel hoặc sheet chỉ định.")
+
+    result_df = pd.concat(df_list, ignore_index=True)
+    return result_df
+
+def save_to_bigquery(dataframe, table_id, credentials_path=None):
+    """Thực hiện Delete và Insert dữ liệu vào BigQuery."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+
+    # Chuẩn hóa dữ liệu sang String để tránh lỗi Schema
+    dataframe = dataframe.astype(str)
+    dataframe = dataframe.replace(['NaT', 'NaN', 'nan', 'None'], '')
+
+    schema = [bigquery.SchemaField(name, "STRING") for name in dataframe.columns]
+
+    # Kiểm tra/Tạo bảng
+    try:
+        client.get_table(table_id)
+        print(f"Đã tìm thấy bảng {table_id}.")
+    except Exception:
+        print(f"Bảng {table_id} chưa tồn tại, đang tạo mới...")
+        table_ref = bigquery.Table(table_id, schema=schema)
+        client.create_table(table_ref)
+
+    # Xử lý Delete Insert theo từng Source_File
+    source_files = dataframe['Source_File'].unique()
+    for source_file in source_files:
+        query = f"DELETE FROM `{table_id}` WHERE Source_File = @source_file"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("source_file", "STRING", source_file)
+            ]
+        )
+        client.query(query, job_config=job_config).result()
+        print(f"Đã xóa dữ liệu cũ của Source_File = {source_file}")
+
+    # Upload dữ liệu mới
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition="WRITE_APPEND"
+    )
+    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
+    job.result()
+    print(f"Đã Insert thành công dữ liệu vào {table_id}.")
+    
+    return True
+
+def main_process(folder_path, sheet_names_str, table_id, credentials_path):
+    """
+    Hàm chính để UiPath gọi vào.
+    sheet_names_str: truyền vào dạng chuỗi cách nhau bởi dấu phẩy (ví dụ: "Sheet1,Report")
+    """
+    try:
+        # Chuyển chuỗi sheet names thành list
+        sheet_names = [s.strip() for s in sheet_names_str.split(',')]
+        
+        # 1. Gộp file
+        df = union_excel_sheets(folder_path, sheet_names)
+        
+        # 2. Upload BigQuery
+        save_to_bigquery(df, table_id, credentials_path)
+        
+        return "Success"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+# ==========================================
+# PHẦN CHẠY THỬ NGHIỆM TRÊN VISUAL STUDIO CODE
+# (UiPath sẽ tự động bỏ qua phần này)
+# ==========================================
+if __name__ == "__main__":
+    # ĐIỀN THÔNG TIN THỰC TẾ CỦA BẠN VÀO ĐÂY ĐỂ CHẠY THỬ
+    # Lưu ý: Giữ nguyên chữ 'r' ở đầu chuỗi đường dẫn
+    
+    TEST_FOLDER_PATH = r"/Users/xxxxx/Desktop/Data/WorkOrderReport" 
+    TEST_SHEET_NAMES = "Report" 
+    TEST_TABLE_ID = "Work_Order_Report_rpa" # Thêm project.dataset phía trước nếu cần, vd: "my-project.my_dataset.Work_Order_Report_rpa"
+    TEST_CREDENTIALS = r"C:\path\to\your\api-key.json" # Đường dẫn file JSON của bạn
+
+    print("--- BẮT ĐẦU CHẠY THỬ NGHIỆM ---")
+    print(f"Thư mục Data: {TEST_FOLDER_PATH}")
+    print(f"Bảng BigQuery: {TEST_TABLE_ID}")
+    print("Đang xử lý dữ liệu, vui lòng đợi...\n")
+
+    # Gọi hàm chính
+    result = main_process(
+        folder_path=TEST_FOLDER_PATH, 
+        sheet_names_str=TEST_SHEET_NAMES, 
+        table_id=TEST_TABLE_ID, 
+        credentials_path=TEST_CREDENTIALS
+    )
+
+    print("\n--- KẾT THÚC ---")
+    print(f"Kết quả trả về: {result}")
+
+```
