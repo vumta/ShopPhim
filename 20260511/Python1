@@ -1,0 +1,39 @@
+Trong UiPath, bạn không thể chạy trực tiếp file Jupyter Notebook (.ipynb) theo kiểu chạy từng cell (ô code) như khi thao tác trên trình duyệt. UiPath được thiết kế để tích hợp tốt nhất với các file script Python thuần túy (.py).
+Tuy nhiên, tùy vào mục đích tự động hóa (ví dụ: bạn đang muốn chạy một luồng xử lý dữ liệu hoặc gọi một model AI/ML), có 2 cách tối ưu để giải quyết bài toán này:
+### Cách 1: Chuyển đổi sang .py và dùng UiPath Python Activities (Khuyên dùng)
+Đây là cách chuẩn và ổn định nhất để lấy output từ Python trả về luồng (workflow) của UiPath.
+**Bước 1: Chuyển đổi file .ipynb thành .py**
+ * Mở file bằng Jupyter Notebook/Lab hoặc VS Code.
+ * Chọn **File > Save and Export Notebook As... > Executable Script**.
+ * *Lưu ý:* Hãy dọn dẹp các đoạn code print/hiển thị biểu đồ không cần thiết và đóng gói đoạn code chính thành một hàm (function) để UiPath dễ gọi.
+**Bước 2: Cài đặt và cấu hình trong UiPath**
+ 1. Vào **Manage Packages**, tìm và cài đặt UiPath.Python.Activities.
+ 2. Kéo activity **Python Scope** vào luồng. Cấu hình đường dẫn thư mục cài đặt Python (Path) và phiên bản Python (Target) trong bảng Properties.
+ 3. Bên trong Python Scope, sử dụng tuần tự các activities sau:
+   * **Load Python Script:** Trỏ đường dẫn đến file .py vừa tạo. (Output: PythonObject).
+   * **Invoke Python Method:** Truyền PythonObject ở trên vào, gõ tên hàm (Name) bạn muốn chạy và truyền mảng tham số vào InputParameters nếu có. (Output: PythonObject mới).
+   * **Get Python Object:** Chuyển đổi kết quả từ dạng Python sang dạng dữ liệu .NET (String, Int32, v.v.) để sử dụng tiếp trong UiPath.
+### Cách 2: Chạy trực tiếp .ipynb qua Command Line (Dùng nbconvert hoặc papermill)
+Nếu bạn bắt buộc phải giữ nguyên định dạng .ipynb (ví dụ: cần xuất ra một file notebook mới chứa kết quả chạy, hoặc báo cáo biểu đồ tự động), bạn có thể dùng dòng lệnh để ép hệ thống chạy notebook đó từ đầu đến cuối.
+**Bước 1: Đảm bảo môi trường Python đã cài thư viện hỗ trợ**
+Mở terminal/cmd và cài đặt thư viện (nếu chưa có):
+```bash
+pip install nbconvert
+# hoặc
+pip install papermill 
+
+```
+**Bước 2: Gọi lệnh từ UiPath**
+ 1. Dùng activity **Invoke Power Shell** (hoặc **Start Process** gọi tới cmd.exe).
+ 2. Truyền đoạn mã lệnh (Command) sau vào:
+*Dùng nbconvert (Chỉ chạy và lưu đè/tạo file mới):*
+```powershell
+jupyter nbconvert --to notebook --execute "C:\path\to\your\file.ipynb" --output "C:\path\to\your\output.ipynb"
+
+```
+*Dùng papermill (Mạnh mẽ hơn, cho phép truyền biến từ UiPath vào Notebook):*
+```powershell
+papermill "C:\path\to\input.ipynb" "C:\path\to\output.ipynb" -p ten_bien "Gia_tri_tu_UiPath"
+
+```
+**Tóm lại:** Nếu chỉ cần lấy data kết quả phục vụ luồng RPA, hãy dùng **Cách 1** để kiểm soát chặt chẽ và dễ bẫy lỗi (Try-Catch). Nếu luồng tự động hóa thiên về việc "thực thi một tác vụ phân tích/AI sẵn có và xuất báo cáo", **Cách 2** sẽ tiết kiệm thời gian chỉnh sửa code.
