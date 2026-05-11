@@ -1,0 +1,122 @@
+Dưới đây là nội dung đã được chuyển đổi từ file .ipynb của bạn sang định dạng .py chuẩn.
+Cấu trúc này được tối ưu hóa để gọi từ activity **Invoke Python Method** trong UiPath. Tôi đã gộp các xử lý chính vào một hàm main_process để bạn có thể truyền tham số và nhận về kết quả thành công/thất bại dưới dạng chuỗi (String).
+### 1. Mã nguồn Python (bigquery_uploader.py)
+```python
+import pandas as pd
+import os
+from google.cloud import bigquery
+
+def clean_column_names(df):
+    """Làm sạch tên cột để phù hợp với chuẩn BigQuery."""
+    df.columns = df.columns.str.replace(r'[ \u3000()（）/.#-]', '_', regex=True)
+    return df
+
+def union_excel_sheets(folder_path, sheet_names_list):
+    """Đọc và gộp các file Excel trong thư mục."""
+    df_list = []
+    
+    if not os.path.exists(folder_path):
+        raise ValueError(f"Đường dẫn thư mục không tồn tại: {folder_path}")
+
+    for file_name in os.listdir(folder_path):
+        if file_name.endswith('.xlsx') or file_name.endswith('.xls'):
+            file_path = os.path.join(folder_path, file_name)
+            try:
+                # Đọc tất cả các sheet được chỉ định
+                excel_file = pd.read_excel(file_path, sheet_name=sheet_names_list, 
+                                         engine='openpyxl' if file_name.endswith('.xlsx') else 'xlrd')
+                
+                for sheet_name, df in excel_file.items():
+                    if df.empty:
+                        continue
+                    df['Source_File'] = file_name
+                    df = clean_column_names(df)
+                    df_list.append(df)
+            except Exception as e:
+                print(f"Lỗi khi đọc file {file_name}: {e}")
+
+    if not df_list:
+        raise ValueError("Không tìm thấy dữ liệu trong các file Excel hoặc sheet chỉ định.")
+
+    result_df = pd.concat(df_list, ignore_index=True)
+    return result_df
+
+def save_to_bigquery(dataframe, table_id, credentials_path=None):
+    """Thực hiện Delete và Insert dữ liệu vào BigQuery."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+
+    # Chuẩn hóa dữ liệu sang String để tránh lỗi Schema
+    dataframe = dataframe.astype(str)
+    dataframe = dataframe.replace(['NaT', 'NaN', 'nan', 'None'], '')
+
+    schema = [bigquery.SchemaField(name, "STRING") for name in dataframe.columns]
+
+    # Kiểm tra/Tạo bảng
+    try:
+        client.get_table(table_id)
+    except Exception:
+        table_ref = bigquery.Table(table_id, schema=schema)
+        client.create_table(table_ref)
+
+    # Xử lý Delete Insert theo từng Source_File
+    source_files = dataframe['Source_File'].unique()
+    for source_file in source_files:
+        query = f"DELETE FROM `{table_id}` WHERE Source_File = @source_file"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("source_file", "STRING", source_file)
+            ]
+        )
+        client.query(query, job_config=job_config).result()
+
+    # Upload dữ liệu mới
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition="WRITE_APPEND"
+    )
+    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
+    job.result()
+    return True
+
+def main_process(folder_path, sheet_names_str, table_id, credentials_path):
+    """
+    Hàm chính để UiPath gọi vào.
+    sheet_names_str: truyền vào dạng chuỗi cách nhau bởi dấu phẩy (ví dụ: "Sheet1,Report")
+    """
+    try:
+        # Chuyển chuỗi sheet names thành list
+        sheet_names = [s.strip() for s in sheet_names_str.split(',')]
+        
+        # 1. Gộp file
+        df = union_excel_sheets(folder_path, sheet_names)
+        
+        # 2. Upload BigQuery
+        save_to_bigquery(df, table_id, credentials_path)
+        
+        return "Success"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+```
+### 2. Cách thiết lập trong UiPath
+Bạn sử dụng gói UiPath.Python.Activities và cấu hình các thông số như sau:
+ 1. **Python Scope:** Trỏ đường dẫn đến bản cài đặt Python của bạn.
+ 2. **Load Python Script:** Trỏ đến file .py bạn vừa lưu ở trên.
+ 3. **Invoke Python Method:**
+   * **Instance:** Biến output từ activity *Load Python Script*.
+   * **Name:** "main_process"
+   * **InputParameters:** Truyền vào một mảng chứa 4 tham số: {Folder_Path, Sheet_Names, Table_ID, Credentials_JSON_Path}.
+     * *Ví dụ:* {"C:\Data", "Report", "project.dataset.table", "C:\keys\bq_key.json"}
+ 4. **Get Python Object:**
+   * Lấy kết quả từ *Invoke Python Method* và ép kiểu về **String**.
+ 5. **Kiểm tra kết quả:**
+   * Nếu String nhận được là "Success" → Chạy thành công.
+   * Nếu String bắt đầu bằng "Error:" → Lấy thông tin lỗi để Log hoặc gửi thông báo.
+### Một số lưu ý nhỏ:
+ * **Sheet Names:** Tôi thiết kế hàm nhận vào chuỗi (String) rồi mới tách ra list trong Python để phù hợp với kiểu dữ liệu đơn giản mà UiPath thường truyền vào.
+ * **Credentials:** Thay vì để cứng (hardcode) trong code, tôi đã đưa nó thành một tham số truyền từ UiPath vào để bạn dễ dàng quản lý file key JSON khi thay đổi môi trường.
+ * **Thư viện:** Hãy đảm bảo máy chạy Bot đã cài đặt pandas, openpyxl, xlrd và google-cloud-bigquery thông qua lệnh:
+   pip install pandas openpyxl xlrd google-cloud-bigquery
