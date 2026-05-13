@@ -1,0 +1,171 @@
+Chào Vũ,
+Mình đã cập nhật lại toàn bộ source code. Thay vì quét cả thư mục, giờ đây code sẽ chỉ nhận một đường dẫn file duy nhất (ví dụ: C:\...\report.xlsx).
+Mình đã thay thế hàm union_excel_sheets thành read_single_excel và dùng os.path.basename để trích xuất tên file từ đường dẫn. Việc này đảm bảo cột Source_File vẫn có dữ liệu chính xác để BigQuery có thể Delete dữ liệu cũ theo tên file trước khi Insert dữ liệu mới.
+Dưới đây là phiên bản cập nhật hoàn chỉnh:
+```python
+import pandas as pd
+import os
+from google.cloud import bigquery
+
+def clean_column_names(df):
+    """Làm sạch tên cột để phù hợp với chuẩn BigQuery."""
+    df.columns = df.columns.str.replace('[ \u3000()（）/.#-]', '_', regex=True)
+    return df
+
+def read_single_excel(file_path, sheet_names_list):
+    """Đọc một file Excel duy nhất dựa trên đường dẫn truyền vào."""
+    df_list = []
+    
+    if not os.path.exists(file_path):
+        raise ValueError(f"Đường dẫn file không tồn tại: {file_path}")
+
+    # Lấy tên file từ đường dẫn để lưu vào cột Source_File
+    file_name = os.path.basename(file_path)
+    
+    try:
+        # Kiểm tra đuôi file để chọn engine phù hợp
+        engine_type = 'openpyxl' if file_path.endswith('.xlsx') else 'xlrd'
+        excel_file = pd.read_excel(file_path, sheet_name=sheet_names_list, engine=engine_type)
+        
+        for sheet_name, df in excel_file.items():
+            if df.empty:
+                print(f"Sheet '{sheet_name}' trong file {file_name} đang trống.")
+                continue
+            df['Source_File'] = file_name
+            df = clean_column_names(df)
+            df_list.append(df)
+    except Exception as e:
+        print(f"Lỗi khi đọc file {file_name}: {e}")
+
+    if not df_list:
+        raise ValueError("Không tìm thấy dữ liệu trong file Excel hoặc sheet chỉ định.")
+
+    result_df = pd.concat(df_list, ignore_index=True)
+    return result_df
+
+def save_to_bigquery(dataframe, table_id, credentials_path=None):
+    """Thực hiện Delete và Insert dữ liệu vào BigQuery."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+
+    # Chuẩn hóa dữ liệu sang String để tránh lỗi Schema
+    dataframe = dataframe.astype(str)
+    dataframe = dataframe.replace(['NaT', 'NaN', 'nan', 'None'], '')
+
+    schema = [bigquery.SchemaField(name, "STRING") for name in dataframe.columns]
+
+    # Kiểm tra/Tạo bảng
+    try:
+        client.get_table(table_id)
+        print(f"Đã tìm thấy bảng {table_id}.")
+    except Exception:
+        print(f"Bảng {table_id} chưa tồn tại, đang tạo mới...")
+        table_ref = bigquery.Table(table_id, schema=schema)
+        client.create_table(table_ref)
+
+    # Xử lý Delete Insert theo từng Source_File
+    source_files = dataframe['Source_File'].unique()
+    for source_file in source_files:
+        query = f"DELETE FROM `{table_id}` WHERE Source_File = @source_file"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("source_file", "STRING", source_file)
+            ]
+        )
+        client.query(query, job_config=job_config).result()
+        print(f"Đã xóa dữ liệu cũ của Source_File = {source_file}")
+
+    # Upload dữ liệu mới
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition="WRITE_APPEND"
+    )
+    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
+    job.result()
+    print(f"Đã Insert thành công dữ liệu vào {table_id}.")
+    
+    return True
+
+def verify_inserted_data(table_id, credentials_path=None):
+    """Truy vấn thử 5 dòng dữ liệu từ BigQuery để kiểm tra."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+    query = f"SELECT * FROM `{table_id}` LIMIT 5"
+    
+    try:
+        query_job = client.query(query)
+        df_result = query_job.to_dataframe() 
+        
+        print(f"\n=== DỮ LIỆU ĐANG CÓ TRÊN BIGQUERY (Bảng: {table_id}) ===")
+        if df_result.empty:
+            print("Bảng hiện đang trống!")
+        else:
+            pd.set_option('display.max_columns', None) 
+            print(df_result)
+        print("=========================================================\n")
+    except Exception as e:
+        print(f"Lỗi khi truy vấn kiểm tra dữ liệu: {e}")
+
+def main_process(file_path, sheet_names_str, table_id, credentials_path):
+    """
+    Hàm chính để UiPath gọi vào.
+    file_path: Đường dẫn trỏ thẳng tới 1 file Excel.
+    """
+    try:
+        # === XỬ LÝ ĐƯỜNG DẪN ===
+        if file_path:
+            file_path = file_path.replace('\\', '/')
+        if credentials_path:
+            credentials_path = credentials_path.replace('\\', '/')
+        
+        # Chuyển chuỗi sheet names thành list
+        sheet_names = [s.strip() for s in sheet_names_str.split(',')]
+        
+        # 1. Đọc 1 file duy nhất
+        df = read_single_excel(file_path, sheet_names)
+        
+        # 2. Upload BigQuery
+        save_to_bigquery(df, table_id, credentials_path)
+        
+        return "Success"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+# ==========================================
+# PHẦN CHẠY THỬ NGHIỆM TRÊN VISUAL STUDIO CODE
+# (UiPath sẽ tự động bỏ qua phần này)
+# ==========================================
+if __name__ == "__main__":
+    # Thay đổi đường dẫn đến 1 file cụ thể
+    TEST_FILE_PATH = r"C:\Users\xxxxx\Desktop\Data\WorkOrderReport\Ten_File_Cua_Ban.xlsx" 
+    TEST_SHEET_NAMES = "Report" 
+    TEST_TABLE_ID = "Work_Order_Report_rpa" 
+    TEST_CREDENTIALS = r"C:\path\to\your\api-key.json" 
+
+    print("--- BẮT ĐẦU CHẠY THỬ NGHIỆM ---")
+    print(f"File xử lý: {TEST_FILE_PATH}")
+    print(f"Bảng BigQuery: {TEST_TABLE_ID}")
+    print("Đang xử lý dữ liệu, vui lòng đợi...\n")
+
+    # 1. Gọi hàm chính
+    result = main_process(
+        file_path=TEST_FILE_PATH, 
+        sheet_names_str=TEST_SHEET_NAMES, 
+        table_id=TEST_TABLE_ID, 
+        credentials_path=TEST_CREDENTIALS
+    )
+
+    # 2. Kiểm tra dữ liệu
+    if result == "Success":
+        safe_credentials = TEST_CREDENTIALS.replace('\\', '/') if TEST_CREDENTIALS else None
+        verify_inserted_data(table_id=TEST_TABLE_ID, credentials_path=safe_credentials)
+
+    print("\n--- KẾT THÚC ---")
+    print(f"Kết quả trả về: {result}")
+
+```
