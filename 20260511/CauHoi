@@ -1,0 +1,157 @@
+## 1. Kỹ Thuật Lõi & Kiến Trúc (RPA, C#, VB.NET)
+
+### Thách thức migrate (UiPath -> PAD, GAS -> Power Automate)?
+
+Trong dự án chuyển đổi mã nguồn GAS sang Power Automate, thách thức lớn nhất của tôi là sự khác biệt hoàn toàn về hệ sinh thái và luồng xử lý. Thay vì dịch chuyển từng dòng lệnh một cách máy móc, tôi ưu tiên tái cấu trúc lại logic. Tôi chủ động xây dựng một bộ Framework dùng chung bao gồm các module Config và Try-Catch trên nền tảng mới để chuẩn hóa đầu ra. Với các vòng lặp phức tạp gây chậm hệ thống, tôi viết lại bằng Office Scripts hoặc tối ưu bằng tư duy xử lý mảng (Array Formulas) để đảm bảo hiệu năng cao nhất.
+
+### Tại sao dùng Dataverse làm trung gian vào SAP (Project BlueLinx)?
+
+Yêu cầu cốt lõi của dự án là phải có một bước Approval Workflow trước khi dữ liệu chạm vào ERP lõi. Việc sử dụng Dataverse giúp tôi tách biệt hoàn toàn lớp lưu trữ dữ liệu (Data Layer) khỏi lớp thực thi (Action Layer). Nhờ đó, người dùng cuối có thể dễ dàng kiểm tra các hóa đơn bị lỗi OCR thông qua một ứng dụng giao diện. Dataverse cũng đảm bảo khả năng chịu tải tốt và phân quyền bảo mật khắt khe đến từng dòng dữ liệu tài chính trước khi đồng bộ vào SAP.
+
+### Power Automate Cloud vs Desktop (PAD)?
+
+Tôi ứng dụng Power Automate Cloud cho các luồng xử lý ngầm qua API vì tốc độ cực nhanh và không yêu cầu máy ảo. Tuy nhiên, với các hệ thống Legacy hoặc SAP GUI không hỗ trợ API, PAD là giải pháp bắt buộc để giả lập thao tác UI. Trong thực tế, tôi thường thiết kế kiến trúc Hybrid: Cloud Flow làm nhiệm vụ nhận Trigger và tiền xử lý dữ liệu, sau đó mới gọi Desktop Flow bật máy ảo để thực hiện nhập liệu.
+
+### Xử lý Element Waiting tránh crash hệ thống?
+
+Tôi loại bỏ hoàn toàn các lệnh Delay cứng trong mã nguồn vì chúng gây lãng phí tài nguyên. Thay vào đó, tôi sử dụng cơ chế Dynamic Waiting với thời gian Timeout tiêu chuẩn từ 10 đến 20 giây. Luồng thực thi sẽ liên tục kiểm tra trạng thái của phần tử, hoặc chờ các chỉ báo Loading biến mất hoàn toàn rồi mới tiếp tục thao tác, đảm bảo hệ thống không bị crash khi mạng phản hồi chậm.
+
+### Xử lý file Excel/Dữ liệu lớn (chục ngàn dòng) không treo máy?
+
+Việc sử dụng vòng lặp For Each Row tương tác trực tiếp lên giao diện là tối kỵ với dữ liệu lớn. Tôi xử lý bằng cách đọc toàn bộ tệp vào DataTable trên bộ nhớ RAM. Sau đó, tôi sử dụng ngôn ngữ truy vấn LINQ trong C# để Filter hoặc Join dữ liệu trực tiếp (In-memory processing). Kết quả xử lý cuối cùng sẽ được ghi trả lại file Excel trong một lần duy nhất bằng thao tác Write Range hoặc Array.
+
+### Sự khác biệt giữa throw ex; và throw; trong C#?
+
+Lệnh `throw ex;` sẽ khởi tạo lại toàn bộ Stack Trace từ vị trí gọi lệnh, làm mất hoàn toàn dấu vết của nguyên nhân gốc rễ gây ra lỗi. Ngược lại, lệnh `throw;` bảo toàn nguyên vẹn Stack Trace ban đầu. Khi triển khai các luồng Bot Unattended, việc giữ lại Stack Trace là yếu tố sống còn giúp tôi truy vết và debug lỗi một cách chính xác nhất.
+
+### Tối ưu RAM khi tạo chuỗi văn bản cực dài trong .NET?
+
+Kiểu dữ liệu String trong .NET là Immutable (không thể thay đổi). Nếu dùng toán tử cộng chuỗi trong một vòng lặp lớn, hệ thống sẽ liên tục cấp phát các vùng nhớ mới, dẫn đến tràn RAM (Memory Leak). Tôi sử dụng lớp StringBuilder để tạo một vùng đệm bộ nhớ và thực hiện các thao tác chỉnh sửa chuỗi trực tiếp trên vùng đệm đó, giúp tối ưu hóa tối đa hiệu năng hệ thống.
+
+### Khi nào viết Invoke Code, khi nào đóng gói Custom Activity (DLL)?
+
+Tôi sử dụng Invoke Code cho các đoạn script ngắn, mang tính cục bộ. Tuy nhiên, khi xây dựng chiến lược thương mại hóa các tool tự động hoặc tạo bộ công cụ dùng chung, tôi sẽ viết code C# và đóng gói thành file thực thi (.exe) hoặc Custom Activity (DLL). Việc này giúp tái sử dụng dễ dàng qua nhiều dự án, kết nối mượt mà với các API phức tạp và đặc biệt là bảo vệ được tài sản trí tuệ (IP) của mã nguồn.
+
+---
+
+## 2. Microsoft Power Platform Chuyên Sâu
+
+### Thách thức khi migrate InfoPath/SP Workflow (Project GTT)?
+
+Thách thức nằm ở việc chuyển đổi từ cấu trúc lưu trữ XML của InfoPath sang kiến trúc Component-based của Power Apps. Tôi không bê nguyên xi giao diện cũ lên nền tảng mới mà thiết kế lại hoàn toàn các Component để tái sử dụng. Đồng thời, hệ thống 13 workflows cũ nguyên khối trên SharePoint được tôi bóc tách thành các Cloud Flow độc lập, giúp việc giám sát và bảo trì trở nên linh hoạt hơn rất nhiều.
+
+### Canvas App vs Model-driven App?
+
+Canvas App cho phép tôi tùy biến UI/UX tự do đến từng pixel, rất lý tưởng để phát triển các ứng dụng linh hoạt cho End-user. Trong khi đó, Model-driven App được sinh ra tự động từ cấu trúc dữ liệu của Dataverse. Giao diện này rập khuôn nhưng lại cực kỳ mạnh mẽ trong việc chuẩn hóa các quy trình nghiệp vụ (Business Process Flow), rất phù hợp cho khối Back-office.
+
+### Xử lý vấn đề Delegation (Giới hạn dữ liệu) với SharePoint?
+
+Delegation là cơ chế nhường việc xử lý tính toán cho Database làm thay để tránh nghẽn ứng dụng. Vì SharePoint giới hạn trả về tối đa 2000 dòng, tôi tuân thủ nghiêm ngặt việc không sử dụng các hàm thiếu hỗ trợ Delegation như Search hay In. Thay vào đó, tôi xây dựng các View lọc sẵn từ dưới Database hoặc dùng Power Automate Cloud để truy vấn dữ liệu lớn rồi mới trả kết quả về App.
+
+### Tại sao dùng Office Scripts thay VBA?
+
+Tuy tôi từng phát triển các module VBA chuyển đổi dữ liệu đa luồng rất mạnh, nhưng VBA vẫn phụ thuộc vào máy local và file .xlsm. Office Scripts dựa trên TypeScript, hoạt động trên môi trường Web-based. Điều này cho phép Power Automate Cloud gọi ngầm Office Scripts thực thi các tác vụ tính toán cực nhanh trực tiếp trên máy chủ mà không cần khởi động bất kỳ máy ảo UI nào.
+
+### Cơ chế Try-Catch trong Power Automate Cloud?
+
+Power Automate không có sẵn khối Try-Catch độc lập. Tôi tự thiết kế cơ chế này bằng cách gom toàn bộ các Action thực thi chính vào một block Scope (đóng vai trò là Try). Ngay bên dưới, tôi tạo một Scope thứ hai (đóng vai trò là Catch) và thiết lập thuộc tính Configure run after thành Has failed hoặc Has timed out. Bất kỳ lỗi nào xảy ra ở block trên sẽ tự động kích hoạt block dưới để ghi log cảnh báo.
+
+### Tối ưu vòng lặp "Apply to each" chạy chậm?
+
+Mặc định luồng Apply to each xử lý dữ liệu một cách tuần tự. Tôi giải quyết nút thắt này bằng cách truy cập Settings, kích hoạt Concurrency Control và đẩy mức độ xử lý song song lên tối đa 50 luồng. Quan trọng hơn, tôi luôn dùng Filter Array hoặc OData để ép khối lượng dữ liệu xuống mức thấp nhất có thể trước khi cho phép dữ liệu đi vào vòng lặp.
+
+### Filter Query (OData) vs Filter Array?
+
+Tôi luôn ưu tiên sử dụng OData Filter trực tiếp trong lệnh Get Items. OData xử lý lọc dữ liệu ngay tại Server-side, giúp tiết kiệm đáng kể số lượng API Call và thời gian tải. Filter Array chỉ được tôi sử dụng khi điều kiện lọc vượt quá khả năng của OData, bởi vì Filter Array bắt buộc phải kéo toàn bộ dữ liệu về RAM (Client-side) rồi mới tiến hành lọc.
+
+### Tối ưu Load Time cho Canvas App?
+
+Việc tải dữ liệu tuần tự khi khởi động ứng dụng gây trải nghiệm người dùng kém. Tôi bọc các lệnh gọi dữ liệu độc lập vào trong hàm Concurrent() để thực thi chúng song song cùng một lúc. Đồng thời, tôi áp dụng chiến lược Lazy Loading: màn hình Home chỉ gọi những dữ liệu thiết yếu nhất, các dữ liệu phụ trợ sẽ được tải ngầm ở nền khi người dùng điều hướng sang màn hình khác.
+
+### Hàm Patch() vs SubmitForm()?
+
+SubmitForm() hoạt động tốt với các Form dựng sẵn và tự động xử lý validation cơ bản. Tuy nhiên, khi xây dựng các giao diện Custom phức tạp, tôi ưu tiên sử dụng Patch(). Patch() mang lại sự tự do tối đa để cập nhật các trường dữ liệu riêng lẻ, lưu trữ độc lập mà không cần Form, và đặc biệt hỗ trợ thao tác ghi dữ liệu vào nhiều Data Sources cùng một lúc.
+
+### Trigger Conditions là gì?
+
+Trigger Conditions là các biểu thức logic hoạt động như một lớp khiên bảo vệ ngay tại cổng vào của Flow. Bằng cách thiết lập các điều kiện này, Flow sẽ CHỈ được kích hoạt khi dữ liệu thực sự thỏa mãn các tiêu chí nghiệp vụ. Việc này chặn đứng các luồng chạy rác, giúp tôi tối ưu hóa triệt để Quota và số lượng API Calls của hệ thống.
+
+---
+
+## 3. Lập Trình Hướng Đối Tượng (OOP)
+
+### 4 Tính chất OOP trong RPA?
+
+Tính Đóng gói giúp tôi bảo mật các đoạn logic lõi (như thông tin login SAP) bên trong một class private. Tính Trừu tượng được áp dụng khi tôi tạo một BaseExtractor định nghĩa khung xử lý chung. Tính Kế thừa cho phép các luồng xử lý riêng biệt (PDFExtractor) dùng lại tài nguyên từ Base. Cuối cùng, tính Đa hình đảm bảo hệ thống tự động Override và gọi đúng phương thức xử lý tương ứng với từng định dạng file đầu vào.
+
+### Abstract Class vs Interface?
+
+Tôi thiết kế Abstract Class khi các module Bot chia sẻ chung một "bản chất" và cần dùng chung mã nguồn, ví dụ như BaseSAPBot chứa các hàm khởi tạo ứng dụng dùng chung. Ngược lại, tôi định nghĩa Interface như một "bản cam kết hành động" bắt buộc cho các class hoàn toàn khác biệt. Ví dụ, cả Bot xử lý nghiệp vụ và Module kết nối DB đều phải implement một Interface ILoggable để đảm bảo tính nhất quán khi ghi log.
+
+### Nguyên lý SOLID trong Bot?
+
+Theo Single Responsibility, tôi bóc tách thành các Bot đơn nhiệm: một Bot chuyên tải Email, một Bot khác chuyên đọc file. Theo nguyên lý Open/Closed, hệ thống Bot luôn sẵn sàng để mở rộng thêm các loại file mới bằng cách code thêm các class kế thừa (Open for extension) mà tuyệt đối không can thiệp, chỉnh sửa vào các class lõi đang vận hành ổn định (Closed for modification).
+
+### Loose Coupling (Lỏng lẻo) là gì?
+
+Đây là kỹ thuật thiết kế các module sao cho sự phụ thuộc lẫn nhau ở mức tối thiểu. Thay vì fix cứng (hard-code) các chuỗi kết nối Database vào bên trong class xử lý, tôi sử dụng cơ chế Dependency Injection để truyền các giá trị này thông qua Constructor. Nếu hạ tầng thay đổi Database trong tương lai, tôi chỉ cần sửa tham số truyền vào mà không phải đụng đến mã nguồn xử lý logic.
+
+### Bảo mật thông tin nhạy cảm?
+
+Việc quản lý mật khẩu tài khoản hệ thống tuyệt đối không được dùng plain-text. Tôi ứng dụng tính Đóng gói để che giấu dữ liệu, sử dụng đối tượng SecureString trong .NET để mã hóa dữ liệu ngay trên RAM. Thông tin xác thực được kéo trực tiếp từ Orchestrator Assets hoặc CyberArk và truyền thẳng vào module xử lý một cách an toàn.
+
+---
+
+## 4. Cơ Sở Dữ Liệu & SQL
+
+### Tối ưu câu lệnh Query hàng triệu dòng?
+
+Bước đầu tiên, tôi đánh Index trên các cột thường xuyên xuất hiện trong điều kiện WHERE, JOIN và ORDER BY. Tôi loại bỏ hoàn toàn thói quen dùng `SELECT *` và chỉ truy vấn đích danh các cột cần thiết. Tôi cũng sử dụng công cụ Execution Plan để dò tìm các điểm gây Table Scan, và tuyệt đối tránh việc bọc các hàm function trực tiếp lên cột đã được đánh Index để bảo toàn tốc độ tra cứu.
+
+### INNER JOIN vs LEFT JOIN (Áp dụng RPA)?
+
+Trong hệ thống RPA, tôi sử dụng LEFT JOIN như một công cụ đắc lực để bắt Exception. Bằng cách nối bảng dữ liệu gốc (bảng trái) với bảng tham chiếu (bảng phải) và thêm điều kiện `WHERE Bảng_Phải.ID IS NULL`, tôi dễ dàng lọc ra toàn bộ các bản ghi bị khuyết thiếu thông tin nghiệp vụ, từ đó rẽ nhánh cho Bot đẩy các ca này vào hàng đợi xử lý ngoại lệ.
+
+### Tại sao phải có Transaction (ACID)?
+
+Khi Bot thực thi các tác vụ tài chính liên hoàn (như hạch toán trừ tiền ở kho A và cộng vào kho B), Transaction đảm bảo tính toàn vẹn dữ liệu theo nguyên tắc ACID. Nếu Bot gặp sự cố mất mạng hoặc crash ứng dụng giữa chừng, lệnh Rollback sẽ lập tức hủy bỏ toàn bộ chuỗi thao tác, ngăn chặn triệt để tình trạng lệch sổ hoặc cập nhật dữ liệu dang dở.
+
+### Stored Procedure vs Raw Query?
+
+Viết Raw Query trực tiếp trong code tiềm ẩn rủi ro rất lớn về SQL Injection. Stored Procedure khắc phục được điều này, đồng thời mang lại hiệu năng vượt trội do Database đã biên dịch sẵn và lưu trữ Cached Execution Plan. Hơn nữa, nó giúp phân tách rõ ràng trách nhiệm: khi logic nghiệp vụ thay đổi, Database Admin chỉ cần cập nhật Procedure mà tôi không cần phải build và deploy lại toàn bộ mã nguồn của Bot.
+
+### Xóa dòng trùng lặp không dùng bảng tạm?
+
+Tôi sử dụng Common Table Expression (CTE) kết hợp cùng Window Function `ROW_NUMBER()`. Tôi phân cụm dữ liệu bằng mệnh đề `PARTITION BY` theo các trường dữ liệu dễ bị trùng lặp để đánh số thứ tự từ 1 trở đi. Sau đó, tôi thực thi lệnh DELETE thẳng trên tập CTE với điều kiện `ROW_NUMBER() > 1`, đảm bảo hệ thống dọn sạch các bản ghi thừa và chỉ giữ lại duy nhất dòng dữ liệu nguyên bản đầu tiên.
+
+---
+
+## 5. Tư Duy Thuật Toán (Whiteboard Coding / C#)
+
+### Chuỗi FizzBuzz (1-100)?
+
+Cạm bẫy lớn nhất của bài toán logic cơ bản này nằm ở thứ tự ưu tiên của khối cấu trúc If-Else. Để code chạy chính xác, điều kiện chia hết cho cả 3 và 5 (tức là `i % 15 == 0`) bắt buộc phải được đặt lên kiểm tra đầu tiên. Nếu kiểm tra chia hết cho 3 trước, chuỗi "FizzBuzz" sẽ không bao giờ có cơ hội được in ra.
+
+### Tìm phần tử xuất hiện nhiều nhất trong mảng?
+
+Thông qua việc luyện tập thuật toán kỹ lưỡng, tôi tránh hoàn toàn cách tiếp cận dùng hai vòng lặp lồng nhau gây ra độ phức tạp thời gian O(n²). Giải pháp tối ưu của tôi là cấp phát một đối tượng `Dictionary<int, int>` (Hash Map) để duyệt qua mảng một lần duy nhất và đếm tần suất xuất hiện. Cách làm này rút gọn độ phức tạp thuật toán xuống chỉ còn O(n).
+
+### Kiểm tra chuỗi đối xứng (Palindrome)?
+
+Để tối ưu hóa không gian bộ nhớ, tôi không sử dụng hàm `Reverse()` có sẵn vì nó bắt buộc hệ thống phải cấp phát thêm RAM để tạo ra một bản sao mới của chuỗi. Thay vào đó, tôi triển khai thuật toán Two-Pointers. Sử dụng hai con trỏ chạy ngược chiều từ hai đầu mảng tiến dần vào trung tâm để kiểm tra chéo, giúp tôi giữ nguyên độ phức tạp bộ nhớ ở mức O(1).
+
+---
+
+## 6. Xử Lý Tình Huống Dự Án (Leadership)
+
+### Khách đổi yêu cầu lớn (Major CR) sát ngày Go-live?
+
+Giai đoạn này, chiến lược lùi một bước về vai trò Developer giúp tôi có nền tảng kỹ thuật vững chắc để đánh giá rủi ro cực kỳ chính xác thay vì chỉ quản lý tiến độ. Khi nhận yêu cầu CR lớn, tôi lập tức thực hiện Impact Analysis. Tôi sẽ trình bày với Project Manager hai phương án cụ thể: triển khai một Workaround chạy thủ công luồng nghiệp vụ mới để bảo vệ ngày Go-live, hoặc phân tích chi tiết lượng thời gian cần thiết để lùi lịch và code lại triệt để. Dữ liệu kỹ thuật này là vũ khí để PM thương lượng với khách hàng.
+
+### Junior trong team bị đuối, trễ deadline?
+
+Bằng kinh nghiệm mentoring thực tế về AI/Machine Learning và phát triển hệ thống, tôi ưu tiên tìm gốc rễ của nút thắt thay vì gây áp lực. Nếu vấn đề nằm ở mặt kỹ thuật, tôi sẽ cung cấp ngay các bộ Framework hoặc DLL đã đóng gói sẵn để bạn tái sử dụng. Tiếp đó, tôi chủ động tổ chức các phiên Pair-programming để gỡ lỗi trực tiếp, đảm bảo team duy trì tiến độ mà không đánh đổi chất lượng của mã nguồn.
+
+### Giai đoạn UAT phát hiện bot chạy sai do hiểu nhầm Gap nghiệp vụ?
+
+Đầu tiên, tôi cùng team phân tích xem đây thực chất là một Bug hệ thống hay là một New Requirement chưa từng được định nghĩa. Tiếp theo là đánh giá Impact lên toàn bộ kiến trúc lõi. Để đảm bảo quá trình UAT không bị đóng băng, tôi lập tức triển khai một Workaround: cấu hình Bot rẽ nhánh các trường hợp bị lỗi này ra một file Excel để con người xử lý thủ công, duy trì các luồng chạy chính. Song song đó, tôi ước lượng effort để vá lại Gap nghiệp vụ này tận gốc trong Sprint tiếp theo.
