@@ -1,0 +1,282 @@
+```react
+import React, { useState } from 'react';
+import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, List, LayoutGrid, CheckCircle2, Lightbulb } from 'lucide-react';
+
+const interviewData = [
+  // --- Kỹ thuật & Kiến trúc ---
+  {
+    category: "Kỹ thuật & Kiến trúc",
+    question: "Thách thức lớn nhất khi migrate dự án từ UiPath sang PAD hoặc từ GAS sang Power Automate là gì? Giải quyết thế nào?",
+    answer: "Thách thức lớn nhất là sự khác biệt về Kiến trúc Framework và Hệ sinh thái. Thay vì dịch '1-1', tôi tái cấu trúc lại logic. Tôi xây dựng Framework dùng chung (Common/Config/Try-Catch) trên nền tảng mới trước. Với vòng lặp phức tạp, tôi dùng Array Formulas hoặc Office Script để tối ưu hiệu năng.",
+    tip: "Nhấn mạnh vào từ khóa 'Tái cấu trúc (Restructure)' và 'Framework dùng chung' thay vì chỉ copy-paste code."
+  },
+  {
+    category: "Kỹ thuật & Kiến trúc",
+    question: "Tại sao Project BlueLinx chọn Dataverse làm trung gian thay vì đẩy trực tiếp từ Tool OCR vào SAP?",
+    answer: "Vì cần một bước kiểm tra/phê duyệt (Approval Workflow) trước khi đưa vào ERP. Dataverse tách biệt lớp Dữ liệu và Xử lý, cho phép tạo Power Apps để user kiểm tra hóa đơn lỗi. Về chịu tải, Dataverse scale rất tốt và có phân quyền sâu đến từng row/column, đảm bảo bảo mật tài chính tuyệt đối.",
+    tip: "Thể hiện tư duy kiến trúc hệ thống: Tách biệt Data Layer và Action Layer."
+  },
+  {
+    category: "Kỹ thuật & Kiến trúc",
+    question: "Sự khác biệt giữa Power Automate Cloud và Desktop (PAD)? Khi nào dùng loại nào?",
+    answer: "Cloud (API-based): Chạy ngầm, gọi API, cực nhanh, không cần VM. Desktop (UI-based): Giả lập thao tác, dùng khi hệ thống cũ (SAP GUI, Web Legacy) không có API. Dự án lớn thường dùng Hybrid: Cloud nhận trigger, xử lý data rồi gọi Desktop bật máy ảo nhập liệu.",
+    tip: "Từ khóa ăn điểm: Mô hình Hybrid (kết hợp cả Cloud và Desktop)."
+  },
+  {
+    category: "Kỹ thuật & Kiến trúc",
+    question: "Xử lý dữ liệu lớn (hàng ngàn dòng Excel) thế nào để tối ưu hiệu năng?",
+    answer: "Không dùng vòng lặp UI (For Each Row). Tôi đọc toàn bộ vào DataTable/Memory. Dùng C#/VB.NET với LINQ để lọc, sắp xếp (In-memory processing) cho tốc độ cực nhanh. Khi ghi dữ liệu xuống, tôi ghi một mảng (Write Range / Array Formulas) trong 1 lần duy nhất.",
+    tip: "In-memory processing và LINQ là 2 kỹ thuật rất được đánh giá cao."
+  },
+
+  // --- Microsoft Power Platform (NEW) ---
+  {
+    category: "Microsoft Power Platform",
+    question: "Trong Project GTT, bạn migrate InfoPath và SP Workflow cũ sang Power Apps/Automate. Thách thức lớn nhất là gì?",
+    answer: "InfoPath lưu dữ liệu dạng XML, còn Power Apps quản lý theo Control/Component. Thách thức là chuyển đổi các Logic Rule phức tạp. Tôi không bê nguyên xi UI cũ sang, mà cấu trúc lại giao diện theo hướng Component-based trong Power Apps để dễ tái sử dụng, đồng thời chuyển 13 SP Workflows thành các Cloud Flow chia nhỏ để dễ maintain.",
+    tip: "Nhắc đến việc đập đi thiết kế lại UI/UX (Redesign) cho hiện đại thay vì chỉ 'dịch' y hệt hệ thống cũ."
+  },
+  {
+    category: "Microsoft Power Platform",
+    question: "Sự khác biệt giữa Canvas App và Model-driven App là gì? Khi nào dùng cái nào?",
+    answer: "Canvas App: Cho phép tùy biến giao diện tự do (pixel-perfect), kết nối được nhiều nguồn (SharePoint, SQL), phù hợp làm app cho End-user. Model-driven App: Giao diện tự sinh ra từ mô hình dữ liệu (bắt buộc dùng Dataverse), cực mạnh về quản lý quy trình nghiệp vụ (Business Process Flow), phù hợp cho Back-office/Admin.",
+    tip: "Bắt buộc phải nhắc tới 'Dataverse' khi giải thích về Model-driven App."
+  },
+  {
+    category: "Microsoft Power Platform",
+    question: "Vấn đề 'Delegation' trong Power Apps là gì? Cách bạn xử lý khi làm việc với SharePoint Online có dữ liệu lớn?",
+    answer: "Delegation là đẩy việc xử lý dữ liệu (Filter, Sort) về phía Data Source làm thay, thay vì kéo toàn bộ data về App làm nặng máy. Với SharePoint, giới hạn tối đa là 2000 record. Cách tôi xử lý: Tránh dùng các hàm không hỗ trợ delegation (như Search/In), ưu tiên tạo View sẵn dưới Database, hoặc dùng Power Automate Cloud query data rồi mới trả về App.",
+    tip: "Delegation là câu hỏi 'sát thủ' để phân loại Senior và Junior Power Apps Developer."
+  },
+  {
+    category: "Microsoft Power Platform",
+    question: "Trong dự án migrate từ GAS, tại sao bạn chọn Office Scripts thay vì dùng VBA (Macro) trên Excel?",
+    answer: "VBA phụ thuộc vào máy cục bộ (Desktop) và file phải có đuôi .xlsm. Office Scripts viết bằng TypeScript và chạy trực tiếp trên nền tảng Web (Excel Online). Do đó, Power Automate Cloud có thể gọi Office Scripts để xử lý data ngầm trên Cloud cực kỳ nhanh mà không cần bật máy ảo, rất giống với bản chất của Google Apps Script (GAS).",
+    tip: "Từ khóa: Web-based, TypeScript, gọi ngầm từ Cloud Flow không cần VM."
+  },
+  {
+    category: "Microsoft Power Platform",
+    question: "Làm thế nào để thiết kế cơ chế Try-Catch (xử lý lỗi) trong Power Automate Cloud?",
+    answer: "Power Automate không có block Try-Catch kéo thả sẵn. Tôi áp dụng bằng cách gom các action chính vào một 'Scope' (gọi là Scope-Try). Ngay bên dưới, tôi tạo một 'Scope-Catch' và cấu hình thuộc tính 'Configure run after' là 'Has failed' hoặc 'Has timed out'. Khi lỗi xảy ra, luồng sẽ nhảy vào Scope-Catch để ghi log (dùng hàm error()) và gửi alert.",
+    tip: "Từ khóa ăn điểm tuyệt đối: 'Scope' và 'Configure run after'."
+  },
+
+  // --- OOP Thực chiến ---
+  {
+    category: "OOP Thực chiến",
+    question: "4 Tính chất cốt lõi của OOP và ví dụ thực tế trong RPA?",
+    answer: "1. Đóng gói: Gói logic login SAP, password vào 1 class private. 2. Trừu tượng: Tạo BaseExtractor định nghĩa hàm Extract() không có chi tiết. 3. Kế thừa: Lớp PDFExtractor kế thừa từ BaseExtractor. 4. Đa hình: Tùy file đầu vào, chương trình tự gọi đúng hàm Extract() của lớp tương ứng qua Override.",
+    tip: "Luôn lấy ví dụ về Bot/Extractor, đừng lấy ví dụ 'Chó/Mèo'."
+  },
+  {
+    category: "OOP Thực chiến",
+    question: "Sự khác biệt giữa Abstract Class và Interface? Khi nào dùng?",
+    answer: "Abstract Class dùng khi các lớp có 'chung bản chất' và muốn tái sử dụng code (VD: BaseSAPBot chứa code hàm Login dùng chung). Interface là 'Bản cam kết hành động' dùng cho các lớp khác hẳn bản chất (VD: ILoggable ép cả BotLogic và DBConnector đều phải có hàm WriteLog).",
+    tip: "Chung bản chất -> Abstract. Quy chuẩn hành động -> Interface."
+  },
+  {
+    category: "OOP Thực chiến",
+    question: "Loose Coupling (Mã nguồn lỏng lẻo) là gì? Áp dụng thế nào?",
+    answer: "Là thiết kế các module ít phụ thuộc nhau. Tôi không hard-code đường dẫn file hay DB vào Class logic. Tôi truyền chúng qua tham số (Parameter/Constructor). Khi đổi DB sang SharePoint, tôi chỉ đổi module kết nối, module logic giữ nguyên.",
+    tip: "Dependency Injection / Truyền tham số là biểu hiện của Loose Coupling."
+  },
+
+  // --- Giải quyết vấn đề & Teamwork ---
+  {
+    category: "Giải quyết vấn đề",
+    question: "Khách hàng đổi yêu cầu lớn (Major CR) sát ngày Go-live, bạn xử lý sao?",
+    answer: "Không từ chối ngay. Tôi làm Impact Analysis (Phân tích ảnh hưởng): đánh giá rủi ro, estimate thời gian. Sau đó lập báo cáo kỹ thuật với 2 phương án (PA1: Chạy tạm luồng thủ công để Go-live kịp; PA2: Lùi ngày để code triệt để). PM sẽ dùng data này để thương lượng lại với khách.",
+    tip: "Impact Analysis là kỹ năng bắt buộc của Senior/Leader."
+  },
+  {
+    category: "Giải quyết vấn đề",
+    question: "Thành viên Junior trong team bị đuối tiến độ, Leader xử lý thế nào?",
+    answer: "Tôi sẽ rà soát xem bạn tắc ở đâu (nghiệp vụ hay tool mới). Cung cấp các bộ Framework / Custom Activity có sẵn để tái sử dụng. Cuối cùng, tôi sẽ Pair-programming (code cặp) vài task để hướng dẫn trực tiếp, kéo tiến độ mà vẫn đảm bảo chất lượng code.",
+    tip: "Thể hiện sự hỗ trợ (Mentoring) thay vì đổ lỗi hay tạo áp lực."
+  }
+];
+
+const categories = ["Tất cả", ...new Set(interviewData.map(item => item.category))];
+
+const App = () => {
+  const [viewMode, setViewMode] = useState('flashcard');
+  const [currentCategory, setCurrentCategory] = useState("Tất cả");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  const filteredData = interviewData.filter(
+    item => currentCategory === "Tất cả" || item.category === currentCategory
+  );
+
+  const handleNext = () => {
+    setIsFlipped(false);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % filteredData.length);
+    }, 150);
+  };
+
+  const handlePrev = () => {
+    setIsFlipped(false);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev - 1 + filteredData.length) % filteredData.length);
+    }, 150);
+  };
+
+  const handleCategoryChange = (cat) => {
+    setCurrentCategory(cat);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200">
+      <header className="bg-blue-800 text-white shadow-md p-6 border-b-4 border-blue-600">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <BookOpen size={32} className="text-blue-200" />
+            <div>
+              <h1 className="text-2xl font-bold">Hành trang Phỏng vấn CMC Global</h1>
+              <p className="text-blue-200 text-sm">Vị trí: RPA / Power Platform Developer</p>
+            </div>
+          </div>
+          <div className="flex bg-blue-900 p-1 rounded-lg">
+            <button 
+              onClick={() => setViewMode('flashcard')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'flashcard' ? 'bg-white text-blue-800 shadow' : 'text-blue-100 hover:bg-blue-700'}`}
+            >
+              <LayoutGrid size={16} /> Thẻ ghi nhớ
+            </button>
+            <button 
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-white text-blue-800 shadow' : 'text-blue-100 hover:bg-blue-700'}`}
+            >
+              <List size={16} /> Danh sách
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto p-4 md:p-6 pb-20">
+        
+        <div className="flex flex-wrap gap-2 mb-8">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => handleCategoryChange(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${currentCategory === cat ? 'bg-blue-600 text-white shadow-md scale-105' : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {viewMode === 'flashcard' && (
+          <div className="flex flex-col items-center w-full animate-in fade-in duration-500">
+            <div className="mb-4 text-slate-500 font-medium">
+              Câu {currentIndex + 1} / {filteredData.length}
+            </div>
+
+            <div 
+              className="w-full max-w-2xl min-h-[380px] perspective-1000 cursor-pointer group"
+              onClick={() => setIsFlipped(!isFlipped)}
+            >
+              <div className={`relative w-full h-full min-h-[380px] transition-all duration-500 transform-style-preserve-3d shadow-xl rounded-2xl ${isFlipped ? 'rotate-y-180' : ''}`}>
+                
+                <div className={`absolute inset-0 w-full h-full bg-white rounded-2xl p-8 flex flex-col items-center justify-center text-center backface-hidden border-t-4 border-blue-500 ${isFlipped ? 'invisible' : 'visible'}`}>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold mb-6 tracking-wider uppercase">
+                    {filteredData[currentIndex].category}
+                  </span>
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-snug">
+                    {filteredData[currentIndex].question}
+                  </h2>
+                  <div className="absolute bottom-6 flex items-center gap-2 text-slate-400 text-sm font-medium animate-pulse">
+                    <RotateCcw size={16} /> Chạm vào thẻ để xem đáp án
+                  </div>
+                </div>
+
+                <div className={`absolute inset-0 w-full h-full bg-slate-800 text-white rounded-2xl p-6 md:p-8 flex flex-col justify-center backface-hidden rotate-y-180 overflow-y-auto border-t-4 border-emerald-500 ${!isFlipped ? 'invisible' : 'visible'}`}>
+                  <h3 className="text-emerald-400 font-semibold mb-4 text-lg flex items-center gap-2">
+                    <CheckCircle2 size={20} /> Gợi ý trả lời (Từ khóa quan trọng):
+                  </h3>
+                  <p className="text-lg md:text-xl leading-relaxed text-slate-100 mb-6 font-light">
+                    {filteredData[currentIndex].answer}
+                  </p>
+                  
+                  {filteredData[currentIndex].tip && (
+                    <div className="mt-auto bg-slate-700/80 p-4 rounded-xl border border-slate-600 flex items-start gap-3">
+                      <Lightbulb size={24} className="text-yellow-400 shrink-0 mt-1" />
+                      <div>
+                        <p className="text-sm font-bold text-yellow-400 mb-1">Mẹo ghi điểm cực mạnh</p>
+                        <p className="text-sm text-slate-300">{filteredData[currentIndex].tip}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6 mt-8">
+              <button 
+                onClick={handlePrev}
+                className="p-4 rounded-full bg-white text-blue-600 shadow-md hover:bg-blue-50 hover:scale-110 transition-all border border-slate-100"
+              >
+                <ChevronLeft size={28} />
+              </button>
+              
+              <button 
+                onClick={() => setIsFlipped(!isFlipped)}
+                className="px-8 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all flex items-center gap-2 active:scale-95"
+              >
+                <RotateCcw size={20} />
+                Lật thẻ
+              </button>
+
+              <button 
+                onClick={handleNext}
+                className="p-4 rounded-full bg-white text-blue-600 shadow-md hover:bg-blue-50 hover:scale-110 transition-all border border-slate-100"
+              >
+                <ChevronRight size={28} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'list' && (
+          <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {filteredData.map((item, idx) => (
+              <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+                <div className="p-5 md:p-6 border-b border-slate-100 bg-slate-50/50">
+                  <span className="text-xs font-bold text-blue-600 mb-2 block uppercase tracking-wider">{item.category}</span>
+                  <h2 className="text-xl font-bold text-slate-800">{item.question}</h2>
+                </div>
+                <div className="p-5 md:p-6">
+                  <p className="text-slate-700 text-lg leading-relaxed mb-4">{item.answer}</p>
+                  {item.tip && (
+                    <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg flex gap-3 items-start border border-yellow-100">
+                      <Lightbulb size={20} className="text-yellow-600 shrink-0 mt-0.5" />
+                      <p className="text-sm font-medium">{item.tip}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+      </main>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-preserve-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+      `}} />
+    </div>
+  );
+};
+
+export default App;
+
+
+```
