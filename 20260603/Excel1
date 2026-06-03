@@ -1,0 +1,27 @@
+Nếu bạn đang thiết lập công thức độc lập cho từng cột theo kiểu thủ công (cột này tham chiếu sang cột kia của Sheet raw data), việc kết hợp điều kiện lọc K <> "stop" sẽ phụ thuộc vào phiên bản Excel bạn đang dùng.
+Dưới đây là 2 cách xử lý chuẩn nhất dựa trên cấu trúc từng cột của bạn:
+### Cách 1: Dùng hàm FILTER kết hợp CHOOSECOLS (Khuyên dùng - Excel 365 / 2021)
+Nếu bạn muốn viết công thức tại ô đầu tiên của mỗi cột bên Sheet thứ 2 và để dữ liệu **tự động tràn xuống** các dòng dưới, bạn chỉ cần chỉ định chính xác cột bên Sheet raw data mà bạn muốn lấy.
+ * **Tại cột A (Sheet thứ 2)** - Muốn lấy dữ liệu từ **cột B** của Sheet raw data:
+   ```excel
+   =FILTER('Sheet raw data'!B2:B10000, 'Sheet raw data'!K2:K10000 <> "stop")
+   
+   ```
+ * **Tại cột B (Sheet thứ 2)** - Giả sử bạn muốn lấy dữ liệu từ **Vị trí cột khác** (ví dụ cột E) của Sheet raw data:
+   ```excel
+   =FILTER('Sheet raw data'!E2:E10000, 'Sheet raw data'!K2:K10000 <> "stop")
+   
+   ```
+**Ưu điểm:** Bạn chỉ cần nhập công thức vào ô dòng 2 (A2, B2,...), dữ liệu sẽ tự động điền xuống dưới mà không cần kéo công thức cho từng dòng.
+### Cách 2: Dùng hàm INDEX kết hợp AGGREGATE (Dành cho mọi phiên bản Excel cũ hơn)
+Nếu bạn đang dùng Excel bản cũ (như 2016, 2019) không có hàm FILTER, bạn phải dùng công thức mảng động kéo tay theo từng ô.
+Tại ô **A2** của Sheet thứ 2 (Tham chiếu tới **cột B** của raw data):
+```excel
+=IFERROR(INDEX('Sheet raw data'!B$2:B$10000, AGGREGATE(15, 6, (ROW('Sheet raw data'!$K$2:$K$10000)-ROW('Sheet raw data'!$K$2)+1)/('Sheet raw data'!$K$2:$K$10000<>"stop"), ROW(A1))), "")
+
+```
+**Cách copy công thức này cho các cột khác:**
+ 1. **Kéo xuống:** Bạn kéo công thức từ A2 xuống hết các dòng bên dưới của cột A.
+ 2. **Kéo ngang (Sang cột B, C...):** Khi bạn copy công thức này sang cột B của Sheet thứ 2, ký tự 'Sheet raw data'!B$2:B$10000 ở đầu công thức sẽ **tự động đổi** thành cột C, D, E... tương ứng theo quy luật dịch cột của Excel.
+   * *Lưu ý:* Nếu thứ tự cột bên Sheet thứ 2 không trùng khít theo thứ tự dịch cabin của Sheet raw data (Ví dụ: Cột A lấy cột B raw, nhưng Cột B lại lấy cột G raw), bạn chỉ cần sửa chữ cái B$2:B$10000 ở đầu công thức thành G$2:G$10000 rồi kéo xuống là được. Các thành phần chứa dấu $ cố định phía sau giữ nguyên.
+Bạn đang áp dụng theo cách đặt công thức cho từng ô kéo xuống hay muốn một công thức mảng động chạy cho cả cột? Nếu cần tùy biến cột phức tạp hơn, bạn cứ nói rõ tên các cặp cột tương ứng (Ví dụ: A -> B, B -> E, C -> F...) tôi sẽ lên chính xác công thức cho bạn nhé!
