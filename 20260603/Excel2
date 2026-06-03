@@ -1,0 +1,33 @@
+Để giải quyết vấn đề **"Công thức tự động fill theo số dòng sinh ra từ Sheet raw data"**, cách xử lý sẽ phụ thuộc hoàn toàn vào cách bạn đã chọn để lấy dữ liệu ở bước trước.
+Dưới đây là 2 giải pháp tối ưu nhất tương ứng với công thức mảng (Excel 365) hoặc công thức truyền thống (Excel cũ):
+### Cách 1: Sử dụng Hàm Mảng Động MAP hoặc BYROW (Tối ưu nhất cho Excel 365)
+Nếu ở bước trước bạn đã dùng hàm FILTER để dynamic data tự tràn xuống, thì các cột công thức mới cũng nên dùng hàm mảng động. Cách này giúp bạn **chỉ cần nhập công thức đúng 1 ô duy nhất ở dòng đầu tiên**, công thức sẽ tự động tính toán và fill xuống chính xác theo số dòng mà hàm FILTER sinh ra (không sợ thừa, không sợ thiếu, không lo lỗi #N/A).
+Giả sử dữ liệu tham chiếu được sinh ra ở **Cột A** (bắt đầu từ A2), và bạn muốn viết công thức tại **Cột B** dựa trên giá trị của Cột A:
+**Công thức tại ô B2:**
+```excel
+=MAP(A2#, LAMBDA(row_data, IF(row_data="", "", row_data * 10%)))
+
+```
+*(Trong ví dụ này, công thức là lấy dữ liệu ở cột A nhân với 10%, bạn hãy thay đoạn row_data * 10% bằng logic công thức thực tế của bạn).*
+**Giải thích ký hiệu đặc biệt:**
+ * A2#: Dấu # cực kỳ quan trọng. Nó đại diện cho "toàn bộ vùng dữ liệu động được sinh ra từ ô A2". Khi Sheet raw data thay đổi làm cho Cột A dài ra hoặc ngắn lại, A2# sẽ tự động co giãn theo.
+ * MAP(..., LAMBDA(row_data, ...)): Hàm này sẽ duyệt qua từng dòng của Cột A, gán giá trị dòng đó vào biến row_data để chạy công thức bạn muốn.
+### Cách 2: Sử dụng Hàm IF kết hợp kiểm tra dòng trống (Dành cho Excel cũ / Kéo tay)
+Nếu bạn đang dùng phiên bản Excel cũ (phải kéo công thức thủ công xuống vài nghìn dòng để chờ sẵn), bạn cần bọc công thức của mình bên trong một hàm IF(ISBLANK(...)) hoặc IF(...="").
+Mục đích là để những dòng bên dưới chưa có data reference sinh ra thì công thức sẽ hiển thị **trống (ẩn đi)** tạo cảm giác như tự động fill khi có dòng mới xuất hiện, tránh việc hiện lỗi hoặc hiện số 0 xấu xí.
+Giả sử công thức tính toán tại ô B2 dựa trên dữ liệu tham chiếu ở ô A2:
+**Công thức tại ô B2:**
+```excel
+=IF(A2="", "", A2 * 10%)
+
+```
+**Cách thực hiện:**
+ 1. Nhập công thức trên vào ô B2.
+ 2. Kéo (Fill) công thức này xuống sẵn khoảng vài trăm hoặc vài nghìn dòng (tùy thuộc vào lượng data tối đa mà Sheet raw data có thể đạt tới).
+ 3. Khi cột A xuất hiện dòng mới do bên raw data đổ về, cột B sẽ tự động hiển thị kết quả tính toán. Nếu cột A trống, cột B sẽ để trắng.
+### Cách 3: Biến vùng dữ liệu thành Excel Table (Ctrl + T)
+Nếu bạn không dùng công thức mảng động mà dùng dữ liệu dạng tĩnh (VBA hoặc copy thủ công):
+ 1. Quét chọn toàn bộ vùng dữ liệu ở **Sheet thứ 2**.
+ 2. Nhấn tổ hợp phím **Ctrl + T** để biến nó thành một **Table**.
+ 3. Khi bạn viết công thức vào cột mới trong Table, Excel sẽ **tự động fill** cho toàn bộ các dòng còn lại. Khi có dòng dữ liệu mới được chèn vào cuối bảng, Table sẽ tự động mở rộng và tự sinh công thức cho dòng mới đó.
+**Khuyên dùng:** Nếu bạn đang dùng Excel 365, hãy chọn **Cách 1** để file chạy mượt mà và tự động hóa 100% không cần quản lý dòng thừa thiếu.
