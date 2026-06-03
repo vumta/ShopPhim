@@ -1,0 +1,64 @@
+Để trích xuất dữ liệu từ Sheet raw data sang Sheet thứ 2 theo điều kiện cột K khác "stop", bạn có thể sử dụng giải pháp bằng **Hàm Excel (Dùng hàm FILTER - tối ưu nhất)** hoặc **VBA/Power Automate Desktop** tùy thuộc vào công cụ bạn muốn áp dụng.
+Dưới đây là các cách thực hiện chi tiết:
+## Cách 1: Dùng hàm FILTER (Nhanh nhất & Tự động cập nhật)
+Nếu bạn đang dùng Excel 365, Excel 2021 hoặc Excel Online, hàm FILTER là lựa chọn hoàn hảo vì dữ liệu bên Sheet thứ 2 sẽ tự động cập nhật khi Sheet raw data thay đổi.
+Giả sử bạn chỉ muốn lấy một vài cột cụ thể, ví dụ: **Cột A (Mã số), Cột C (Tên), và Cột K (Trạng thái)**.
+Tại ô đầu tiên của Sheet thứ 2 (ví dụ A2), bạn nhập công thức sau:
+```excel
+=FILTER(CHOOSECOLS('Sheet raw data'!A2:Z10000, 1, 3, 11), 'Sheet raw data'!K2:K10000 <> "stop")
+
+```
+**Giải thích chi tiết:**
+ * 'Sheet raw data'!A2:Z10000: Vùng dữ liệu gốc của bạn (bạn có thể tăng số 10000 lên tùy độ dài của file).
+ * CHOOSECOLS(..., 1, 3, 11): Hàm này giúp bạn chọn các cột cần lấy. Ở đây 1 tương ứng cột A, 3 là cột C, và 11 là cột K. Bạn muốn lấy thêm cột nào chỉ cần điền số thứ tự của cột đó vào.
+ * 'Sheet raw data'!K2:K10000 <> "stop": Điều kiện lọc (Cột K khác chữ "stop").
+## Cách 2: Sử dụng VBA (Nếu muốn xuất ra dữ liệu tĩnh hoặc dùng bản Excel cũ)
+Nếu bạn sử dụng phiên bản Excel cũ hơn hoặc muốn xử lý bằng code để copy-paste dữ liệu cứng sang Sheet thứ 2, bạn có thể dùng đoạn macro này:
+```vba
+Sub FilterAndCopyData()
+    Dim wsRaw As Worksheet
+    Dim wsRef As Worksheet
+    Dim lastRow As Long
+    Dim targetRow As Long
+    Dim i As Long
+    
+    ' Định nghĩa các sheet
+    Set wsRaw = ThisWorkbook.Sheets("Sheet raw data")
+    Set wsRef = ThisWorkbook.Sheets("Sheet thứ 2")
+    
+    ' Xóa dữ liệu cũ ở Sheet thứ 2 (trừ dòng tiêu đề)
+    wsRef.Rows("2:" & wsRef.Rows.Count).ClearContents
+    
+    ' Tìm dòng cuối cùng của Sheet gốc
+    lastRow = wsRaw.Cells(wsRaw.Rows.Count, "A").End(xlUp).Row
+    targetRow = 2 ' Dòng bắt đầu ghi dữ liệu ở Sheet thứ 2
+    
+    ' Duyệt qua từng dòng để kiểm tra điều kiện
+    For i = 2 To lastRow
+        If wsRaw.Cells(i, "K").Value <> "stop" Then
+            ' Ví dụ: Lấy cột A (1), cột C (3), cột K (11) sang các cột A, B, C của sheet mới
+            wsRef.Cells(targetRow, 1).Value = wsRaw.Cells(i, 1).Value  ' Cột A
+            wsRef.Cells(targetRow, 2).Value = wsRaw.Cells(i, 3).Value  ' Cột C
+            wsRef.Cells(targetRow, 3).Value = wsRaw.Cells(i, 11).Value ' Cột K
+            
+            targetRow = targetRow + 1
+        End If
+    Next i
+    
+    MsgBox "Đã hoàn thành trích xuất dữ liệu!", vbInformation
+End Sub
+
+```
+## Cách 3: Dùng Advanced Filter (Không cần code, không cần hàm phức tạp)
+Nếu bạn chỉ muốn lọc nhanh một lần bằng tính năng có sẵn của Excel:
+ 1. Tại **Sheet thứ 2**, tạo một vùng điều kiện (ví dụ tại ô Y1:Y2).
+   * Ô Y1 điền tên tiêu đề của cột K (ví dụ: Trạng thái).
+   * Ô Y2 điền: <>stop
+ 2. Vào thẻ **Data** > Chọn **Advanced** (trong nhóm Sort & Filter).
+ 3. Trong bảng hiện ra:
+   * Chọn **Copy to another location**.
+   * **List range**: Quét toàn bộ từ cột A đến Z bên Sheet raw data.
+   * **Criteria range**: Quét vùng Y1:Y2 vừa tạo.
+   * **Copy to**: Chọn ô đầu tiên bạn muốn đặt dữ liệu tại Sheet thứ 2.
+ 4. Nhấn **OK**.
+Bạn đang muốn xây dựng logic này trực tiếp trên công thức Excel, viết script VBA hay cấu hình qua một công cụ tự động hóa như Power Automate Desktop? Hãy cho tôi biết nếu bạn cần chỉnh sửa sâu hơn cho phù hợp với workflow của mình nhé!
