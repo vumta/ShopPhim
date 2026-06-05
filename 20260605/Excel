@@ -1,0 +1,26 @@
+Có một cách rất hay để bạn **dùng trực tiếp chữ cái tên cột (A, B, C...)** thay vì phải ngồi đếm số thứ tự 1, 2, 3, 4... rồi điền vào hàm CHOOSECOLS.
+Bản chất hàm CHOOSECOLS chỉ nhận tham số là **Số (Index)**, nên để dùng được chữ cái, chúng ta sẽ dùng hàm **COLUMN** để Excel tự động chuyển đổi chữ cái tên cột thành số dòng tương ứng.
+Dưới đây là công thức đã được chuyển đổi theo đúng ý bạn:
+### 1. Công thức dùng Tên Cột bằng hàm COLUMN (Khuyên dùng)
+Thay vì điền 8, 9, 10..., bạn sẽ bọc tên cột đó vào hàm COLUMN('Sheet raw data'!H:H) (vì cột 8 là cột H). Công thức tại ô **I2** (Cột thứ 9 của Sheet 2) sẽ là:
+```excel
+=FILTER(CHOOSECOLS('Sheet raw data'!A2:Z10000, COLUMN('Sheet raw data'!H:H), COLUMN('Sheet raw data'!I:I), COLUMN('Sheet raw data'!J:J), COLUMN('Sheet raw data'!K:K), COLUMN('Sheet raw data'!L:L), COLUMN('Sheet raw data'!M:M), COLUMN('Sheet raw data'!N:N), COLUMN('Sheet raw data'!O:O), COLUMN('Sheet raw data'!P:P)), 'Sheet raw data'!K2:K10000 <> "stop")
+
+```
+### 2. Cách viết rút gọn bằng Mảng Cột (Ngắn hơn)
+Nếu bạn không muốn lặp lại hàm COLUMN nhiều lần, bạn có thể dùng một mảng chứa tên các cột liên tục từ **H đến P** bằng cách viết như sau:
+```excel
+=FILTER(CHOOSECOLS('Sheet raw data'!A2:Z10000, COLUMN('Sheet raw data'!H:P)), 'Sheet raw data'!K2:K10000 <> "stop")
+
+```
+*Cách này cực kỳ gọn vì COLUMN('Sheet raw data'!H:P) sẽ tự động trả về dãy số {8, 9, 10, 11, 12, 13, 14, 15, 16} cho bạn mà không cần đếm.*
+### Đính chính lại công thức cho Cụm 1 (Từ cột 1 đến 7 - Cột A đến G)
+Tương tự, ô công thức đầu tiên tại **A2** của Sheet 2 bạn cũng có thể đổi thành chữ cái cho đồng bộ:
+```excel
+=FILTER(CHOOSECOLS('Sheet raw data'!A2:Z10000, COLUMN('Sheet raw data'!A:G)), 'Sheet raw data'!K2:K10000 <> "stop")
+
+```
+### ⚠️ Lưu ý quan trọng để tránh lỗi khi dùng cách này:
+ * Hàm COLUMN('Sheet raw data'!H:P) sẽ lấy số thứ tự cột dựa trên **toàn bộ sheet Excel** (A=1, B=2...).
+ * Do đó, vùng dữ liệu gốc của bạn bắt buộc phải quét **bắt đầu từ cột A** (như bạn đang làm là 'Sheet raw data'!A2:Z10000 là hoàn toàn chính xác). Nếu sau này bạn đổi vùng gốc thành B2:Z10000 thì số thứ tự cột sẽ bị lệch ngay.
+ 
