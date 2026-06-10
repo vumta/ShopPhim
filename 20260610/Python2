@@ -1,0 +1,174 @@
+Chào Vũ,
+Nhìn đường dẫn C:\01_RPA\... là mình hiểu ngay vấn đề rồi! Bạn đang chạy đoạn code này thông qua trình thực thi của phần mềm RPA (như UiPath) hoặc một công cụ tự động hóa, chứ không phải Terminal độc lập của Python nữa.
+**Nguyên nhân:**
+Trong môi trường RPA, công cụ đã tự động "bọc" cổng in dữ liệu (stdout) bằng một object ảo của riêng nó (tên là StdOutputFile) nhằm mục đích thu thập log ẩn dưới nền. Object ảo này không phải là Terminal chuẩn của Windows nên nó không có lệnh .reconfigure(), dẫn đến lỗi mà bạn vừa gặp.
+**Cách giải quyết triệt để (Không đụng đến hệ thống):**
+ 1. Xóa dòng sys.stdout.reconfigure đi.
+ 2. Để giải quyết lỗi cp932 (không in được ký tự lạ như chữ ö ở đợt trước) mà không làm sập Bot, chúng ta sẽ dùng một "thủ thuật" của Python: **Ghi đè hàm print()**. Nếu Bot gặp ký tự lạ không in được, nó sẽ tự động biến ký tự đó thành dấu ? và tiếp tục chạy bình thường, không văng lỗi nữa.
+Dưới đây là mã nguồn đã được cập nhật thủ thuật safe_print này. Bạn copy đè lên file main.py nhé:
+```python
+import pandas as pd
+import os
+from google.cloud import bigquery
+
+# ==========================================
+# THỦ THUẬT VƯỢT LỖI CP932 TRONG MÔI TRƯỜNG RPA
+# ==========================================
+_original_print = print
+def safe_print(*args, **kwargs):
+    """Hàm in an toàn: Tự động thay thế ký tự lạ thành '?' nếu môi trường RPA không hỗ trợ."""
+    try:
+        _original_print(*args, **kwargs)
+    except UnicodeEncodeError:
+        safe_args = [str(arg).encode('cp932', errors='replace').decode('cp932') for arg in args]
+        _original_print(*safe_args, **kwargs)
+
+# Ghi đè hàm print mặc định bằng hàm an toàn
+print = safe_print
+# ==========================================
+
+def clean_column_names(df):
+    """Làm sạch tên cột để phù hợp với chuẩn BigQuery."""
+    df.columns = df.columns.str.replace('[ \u3000()（）/.#-]', '_', regex=True)
+    return df
+
+def read_single_excel(file_path, sheet_names_list):
+    """Đọc một file Excel duy nhất dựa trên đường dẫn truyền vào."""
+    df_list = []
+    
+    if not os.path.exists(file_path):
+        raise ValueError(f"Đường dẫn file không tồn tại: {file_path}")
+
+    file_name = os.path.basename(file_path)
+    
+    try:
+        engine_type = 'openpyxl' if file_path.endswith('.xlsx') else 'xlrd'
+        excel_file = pd.read_excel(file_path, sheet_name=sheet_names_list, engine=engine_type)
+        
+        for sheet_name, df in excel_file.items():
+            if df.empty:
+                print(f"Sheet '{sheet_name}' trong file {file_name} đang trống.")
+                continue
+            df['Source_File'] = file_name
+            df = clean_column_names(df)
+            df_list.append(df)
+    except Exception as e:
+        print(f"Lỗi khi đọc file {file_name}: {e}")
+
+    if not df_list:
+        raise ValueError("Không tìm thấy dữ liệu trong file Excel hoặc sheet chỉ định.")
+
+    result_df = pd.concat(df_list, ignore_index=True)
+    return result_df
+
+def save_to_bigquery(dataframe, table_id, credentials_path=None):
+    """Thực hiện Delete và Insert dữ liệu vào BigQuery."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+
+    dataframe = dataframe.astype(str)
+    dataframe = dataframe.replace(['NaT', 'NaN', 'nan', 'None'], '')
+
+    schema = [bigquery.SchemaField(name, "STRING") for name in dataframe.columns]
+
+    try:
+        client.get_table(table_id)
+        print(f"Đã tìm thấy bảng {table_id}.")
+    except Exception:
+        print(f"Bảng {table_id} chưa tồn tại, đang tạo mới...")
+        table_ref = bigquery.Table(table_id, schema=schema)
+        client.create_table(table_ref)
+
+    source_files = dataframe['Source_File'].unique()
+    for source_file in source_files:
+        query = f"DELETE FROM `{table_id}` WHERE Source_File = @source_file"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("source_file", "STRING", source_file)
+            ]
+        )
+        client.query(query, job_config=job_config).result()
+        print(f"Đã xóa dữ liệu cũ của Source_File = {source_file}")
+
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition="WRITE_APPEND"
+    )
+    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
+    job.result()
+    print(f"Đã Insert thành công dữ liệu vào {table_id}.")
+    
+    return True
+
+def verify_inserted_data(table_id, credentials_path=None):
+    """Truy vấn thử 5 dòng dữ liệu từ BigQuery để kiểm tra."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+    query = f"SELECT * FROM `{table_id}` LIMIT 5"
+    
+    try:
+        query_job = client.query(query)
+        df_result = query_job.to_dataframe() 
+        
+        print(f"\n=== DỮ LIỆU ĐANG CÓ TRÊN BIGQUERY (Bảng: {table_id}) ===")
+        if df_result.empty:
+            print("Bảng hiện đang trống!")
+        else:
+            pd.set_option('display.max_columns', None) 
+            print(df_result)
+        print("=========================================================\n")
+    except Exception as e:
+        print(f"Lỗi khi truy vấn kiểm tra dữ liệu: {e}")
+
+def main_process(file_path, sheet_names_str, table_id, credentials_path):
+    """
+    Hàm chính để UiPath gọi vào.
+    file_path: Đường dẫn trỏ thẳng tới 1 file Excel.
+    """
+    try:
+        if file_path:
+            file_path = file_path.replace('\\', '/')
+        if credentials_path:
+            credentials_path = credentials_path.replace('\\', '/')
+        
+        sheet_names = [s.strip() for s in sheet_names_str.split(',')]
+        
+        df = read_single_excel(file_path, sheet_names)
+        save_to_bigquery(df, table_id, credentials_path)
+        
+        return "Success"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ==========================================
+# PHẦN CHẠY THỬ NGHIỆM
+# ==========================================
+if __name__ == "__main__":
+    TEST_FILE_PATH = r"C:\01_RPA\03_Production\02_Input_Output\P01249_01\03_Work\Ten_File_Cua_Ban.xlsx" 
+    TEST_SHEET_NAMES = "Report" 
+    TEST_TABLE_ID = "Work_Order_Report_rpa" 
+    TEST_CREDENTIALS = r"C:\path\to\your\api-key.json" 
+
+    print("--- BẮT ĐẦU CHẠY THỬ NGHIỆM ---")
+    print(f"File xử lý: {TEST_FILE_PATH}")
+    print(f"Bảng BigQuery: {TEST_TABLE_ID}")
+    
+    result = main_process(
+        file_path=TEST_FILE_PATH, 
+        sheet_names_str=TEST_SHEET_NAMES, 
+        table_id=TEST_TABLE_ID, 
+        credentials_path=TEST_CREDENTIALS
+    )
+
+    if result == "Success":
+        safe_credentials = TEST_CREDENTIALS.replace('\\', '/') if TEST_CREDENTIALS else None
+        verify_inserted_data(table_id=TEST_TABLE_ID, credentials_path=safe_credentials)
+
+    print("\n--- KẾT THÚC ---")
+    print(f"Kết quả trả về: {result}")
+
+```
