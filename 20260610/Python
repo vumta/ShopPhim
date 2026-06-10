@@ -1,0 +1,32 @@
+Chào Vũ,
+Lỗi **cp932 codec can't encode character** là một "đặc sản" rất hay gặp khi bạn sử dụng máy tính chạy Windows có thiết lập ngôn ngữ hệ thống (System Locale) là tiếng Nhật.
+**Nguyên nhân:**
+cp932 là bảng mã Shift-JIS của tiếng Nhật trên Windows. Trong dữ liệu Excel của bạn (hoặc trong tên file/tên cột) đang chứa một ký tự đặc biệt — cụ thể mã \xf6 chính là chữ **ö** (chữ o có 2 dấu chấm trên đầu, thường dùng trong tiếng Đức). Khi hàm print() của Python cố gắng in chữ ö này ra màn hình Terminal bằng bảng mã tiếng Nhật cp932, nó không hiểu được và lập tức văng lỗi vỡ font.
+Để khắc phục triệt để, chúng ta chỉ cần "ép" Terminal của Python sử dụng chuẩn quốc tế **UTF-8** thay vì cp932. Bạn có thể chọn 1 trong 2 cách sau:
+### Cách 1: Sửa trực tiếp vào Code (Khuyên dùng)
+Cách này tốt nhất vì sau này dù bạn mang code sang máy nào chạy cũng không sợ bị lỗi hiển thị.
+Bạn lên **trên cùng** của file main.py, thêm thư viện sys và dòng code ép kiểu UTF-8 vào ngay dưới các dòng import:
+```python
+import pandas as pd
+import os
+import sys
+from google.cloud import bigquery
+
+# Ép Python sử dụng chuẩn UTF-8 khi in ra màn hình (Fix lỗi cp932)
+sys.stdout.reconfigure(encoding='utf-8')
+
+def clean_column_names(df):
+    # ... (giữ nguyên các đoạn code bên dưới)
+
+```
+### Cách 2: Đổi bảng mã của Terminal trong VS Code
+Nếu bạn không muốn sửa code, bạn có thể chạy một lệnh để đổi Terminal hiện tại sang UTF-8 trước khi chạy file Python.
+ 1. Mở Terminal trong VS Code.
+ 2. Gõ lệnh sau và nhấn Enter:
+   ```cmd
+   chcp 65001
+   
+   ```
+   *(Mã 65001 là mã đại diện cho UTF-8 trên Windows).*
+ 3. Sau khi Terminal báo Active code page: 65001, bạn chạy lại lệnh python main.py.
+Bạn hãy thử thêm dòng sys.stdout.reconfigure(encoding='utf-8') vào code nhé. Nó sẽ giải quyết gọn gàng vấn đề này!
