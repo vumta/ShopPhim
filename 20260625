@@ -1,0 +1,176 @@
+Chào Vũ,
+Mình đã dịch toàn bộ chú thích (comments), tài liệu hàm (docstrings) và các câu lệnh in ra màn hình (print) sang tiếng Anh. Cấu trúc và logic của code vẫn được giữ nguyên hoàn toàn để đảm bảo hoạt động ổn định trên UiPath.
+Bạn có thể copy toàn bộ đoạn code dưới đây để thay thế:
+```python
+import pandas as pd
+import os
+from google.cloud import bigquery
+
+# ==========================================
+# ENCODING ERROR WORKAROUND IN RPA ENVIRONMENT
+# Ensures the Bot never crashes due to print() commands
+# ==========================================
+_original_print = print
+def safe_print(*args, **kwargs):
+    """Safe print function: Automatically replaces unknown characters with '?' in all environments."""
+    try:
+        _original_print(*args, **kwargs)
+    except Exception:
+        # If encoding error (charmap/cp932/...), force to standard ASCII
+        try:
+            safe_args = [str(arg).encode('ascii', errors='replace').decode('ascii') for arg in args]
+            _original_print(*safe_args, **kwargs)
+        except Exception:
+            pass # Ignore completely if the Terminal is too strict, keeping the Bot alive
+
+# Override default print with the safe print function
+print = safe_print
+# ==========================================
+
+def clean_column_names(df):
+    """Clean column names to match BigQuery standards."""
+    df.columns = df.columns.str.replace('[ \u3000()（）/.#-]', '_', regex=True)
+    return df
+
+def read_single_excel(file_path, sheet_names_list):
+    """Read a single Excel file based on the provided path."""
+    df_list = []
+    
+    if not os.path.exists(file_path):
+        raise ValueError(f"File path does not exist: {file_path}")
+
+    file_name = os.path.basename(file_path)
+    
+    try:
+        engine_type = 'openpyxl' if file_path.endswith('.xlsx') else 'xlrd'
+        excel_file = pd.read_excel(file_path, sheet_name=sheet_names_list, engine=engine_type)
+        
+        for sheet_name, df in excel_file.items():
+            if df.empty:
+                print(f"Sheet '{sheet_name}' in file {file_name} is empty.")
+                continue
+            df['Source_File'] = file_name
+            df = clean_column_names(df)
+            df_list.append(df)
+    except Exception as e:
+        print(f"Error reading file {file_name}: {e}")
+
+    if not df_list:
+        raise ValueError("No data found in the Excel file or specified sheets.")
+
+    result_df = pd.concat(df_list, ignore_index=True)
+    return result_df
+
+def save_to_bigquery(dataframe, table_id, credentials_path=None):
+    """Perform Delete and Insert data into BigQuery."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+
+    dataframe = dataframe.astype(str)
+    dataframe = dataframe.replace(['NaT', 'NaN', 'nan', 'None'], '')
+
+    schema = [bigquery.SchemaField(name, "STRING") for name in dataframe.columns]
+
+    try:
+        client.get_table(table_id)
+        print(f"Found table {table_id}.")
+    except Exception:
+        print(f"Table {table_id} does not exist, creating a new one...")
+        table_ref = bigquery.Table(table_id, schema=schema)
+        client.create_table(table_ref)
+
+    source_files = dataframe['Source_File'].unique()
+    for source_file in source_files:
+        query = f"DELETE FROM `{table_id}` WHERE Source_File = @source_file"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("source_file", "STRING", source_file)
+            ]
+        )
+        client.query(query, job_config=job_config).result()
+        print(f"Deleted old data for Source_File = {source_file}")
+
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition="WRITE_APPEND"
+    )
+    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
+    job.result()
+    print(f"Successfully inserted data into {table_id}.")
+    
+    return True
+
+def verify_inserted_data(table_id, credentials_path=None):
+    """Query the first 5 rows from BigQuery for verification."""
+    if credentials_path:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+    client = bigquery.Client()
+    query = f"SELECT * FROM `{table_id}` LIMIT 5"
+    
+    try:
+        query_job = client.query(query)
+        df_result = query_job.to_dataframe() 
+        
+        print(f"\n=== CURRENT DATA IN BIGQUERY (Table: {table_id}) ===")
+        if df_result.empty:
+            print("The table is currently empty!")
+        else:
+            pd.set_option('display.max_columns', None) 
+            print(df_result)
+        print("=========================================================\n")
+    except Exception as e:
+        print(f"Error while querying to verify data: {e}")
+
+def main_process(file_path, sheet_names_str, table_id, credentials_path):
+    """
+    Main function to be called by UiPath.
+    file_path: Direct path to a single Excel file.
+    """
+    try:
+        if file_path:
+            file_path = file_path.replace('\\', '/')
+        if credentials_path:
+            credentials_path = credentials_path.replace('\\', '/')
+        
+        sheet_names = [s.strip() for s in sheet_names_str.split(',')]
+        
+        df = read_single_excel(file_path, sheet_names)
+        save_to_bigquery(df, table_id, credentials_path)
+        
+        return "Success"
+    except Exception as e:
+        # Force error to safe string format (no special characters) before returning to UiPath
+        error_msg = str(e).encode('ascii', errors='replace').decode('ascii')
+        return f"Error: {error_msg}"
+
+# ==========================================
+# TESTING SECTION
+# ==========================================
+if __name__ == "__main__":
+    TEST_FILE_PATH = r"C:\01_RPA\03_Production\02_Input_Output\P01249_01\03_Work\Ten_File_Cua_Ban.xlsx" 
+    TEST_SHEET_NAMES = "Report" 
+    TEST_TABLE_ID = "Work_Order_Report_rpa" 
+    TEST_CREDENTIALS = r"C:\path\to\your\api-key.json" 
+
+    print("--- STARTING TEST RUN ---")
+    print(f"Processing file: {TEST_FILE_PATH}")
+    print(f"BigQuery Table: {TEST_TABLE_ID}")
+    
+    result = main_process(
+        file_path=TEST_FILE_PATH, 
+        sheet_names_str=TEST_SHEET_NAMES, 
+        table_id=TEST_TABLE_ID, 
+        credentials_path=TEST_CREDENTIALS
+    )
+
+    if result == "Success":
+        safe_credentials = TEST_CREDENTIALS.replace('\\', '/') if TEST_CREDENTIALS else None
+        verify_inserted_data(table_id=TEST_TABLE_ID, credentials_path=safe_credentials)
+
+    print("\n--- FINISHED ---")
+    print(f"Returned result: {result}")
+
+```
