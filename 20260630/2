@@ -1,0 +1,129 @@
+Chào bạn, để hoàn thiện script, mình đã viết tiếp đoạn code xử lý logic phân loại mới cho hai khối **MgrFlag** và **DirFlag** trong Sub MasterList dựa trên logic bạn đã áp dụng cho StaffSheet.
+Dưới đây là phần code bổ sung. Bạn chỉ cần copy và thay thế vào các khối tương ứng của sheet Mgr_MasterList và Dir_MasterList trong file VBA hiện tại.
+### Cập nhật cho khối MgrFlag (Sheet Mgr_MasterList)
+```vba
+    '★Mgrシートの処理(フラグが1だったら処理する)
+    If MgrFlag = 1 Then
+        last = wsMgrMaster.Cells(Rows.count, 7).End(xlUp).Row '7列目(社員番号)の最終行を取得
+        
+        ' (Phần code xử lý cột V giữ nguyên như cũ)
+        ' ...
+
+        For start = 4 To last
+            'DR列の情報をクリア
+            wsMgrMaster.Cells(start, 122).ClearContents
+            'グレード_Distribution
+            Dim gradeValMgr As String
+            gradeValMgr = wsMgrMaster.Cells(start, 13).Value
+            
+            ' FPT 20260630 - Update Mgr
+            If InStr(1, gradeValMgr, "M-") > 0 Or InStr(1, gradeValMgr, "E-") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = Left(gradeValMgr, 1)
+            ElseIf InStr(1, gradeValMgr, "S-4") > 0 Or InStr(1, gradeValMgr, "S-5") > 0 Or InStr(1, gradeValMgr, "RS-4") > 0 Or InStr(1, gradeValMgr, "RS-5") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeValMgr, "S-2") > 0 Or InStr(1, gradeValMgr, "S-3") > 0 Or InStr(1, gradeValMgr, "RS-2") > 0 Or InStr(1, gradeValMgr, "RS-3") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf InStr(1, gradeValMgr, "J-") > 0 Or InStr(1, gradeValMgr, "RJ-") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "J and RJ"
+            ElseIf InStr(1, gradeValMgr, "F-") > 0 Or InStr(1, gradeValMgr, "RF-") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "F and RF"
+            ElseIf InStr(1, gradeValMgr, "Contractor") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "Contractor"
+            Else
+                wsMgrMaster.Cells(start, 122).Value = "Other"
+            End If
+        Next start
+
+        ' (Phần code xử lý cột DS giữ nguyên như cũ)
+        ' ...
+
+        For start = 4 To last
+            'DT列の情報をクリア
+            wsMgrMaster.Cells(start, 124).ClearContents
+            'グレード_PromoDemo
+            gradeValMgr = wsMgrMaster.Cells(start, 13).Value
+            
+            ' FPT 20260630 - Update Mgr
+            If Left(gradeValMgr, 2) = "M-" Or Left(gradeValMgr, 2) = "E-" Then
+                wsMgrMaster.Cells(start, 124).Value = Left(gradeValMgr, 1)
+            ElseIf InStr(1, gradeValMgr, "S-4") > 0 Or InStr(1, gradeValMgr, "S-5") > 0 Or InStr(1, gradeValMgr, "RS-4") > 0 Or InStr(1, gradeValMgr, "RS-5") > 0 Then
+                wsMgrMaster.Cells(start, 124).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeValMgr, "S-2") > 0 Or InStr(1, gradeValMgr, "S-3") > 0 Or InStr(1, gradeValMgr, "RS-2") > 0 Or InStr(1, gradeValMgr, "RS-3") > 0 Then
+                wsMgrMaster.Cells(start, 124).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf Left(gradeValMgr, 2) = "J-" Or Left(gradeValMgr, 3) = "RJ-" Then
+                wsMgrMaster.Cells(start, 124).Value = "J and RJ"
+            ElseIf Left(gradeValMgr, 2) = "F-" Or Left(gradeValMgr, 3) = "RF-" Then
+                wsMgrMaster.Cells(start, 124).Value = "F and RF"
+            ElseIf InStr(gradeValMgr, "SSC Contractor") > 0 Then
+                wsMgrMaster.Cells(start, 124).Value = "Contractor"
+            Else
+                wsMgrMaster.Cells(start, 124).Value = "Other"
+            End If
+        Next start
+    End If
+
+```
+### Cập nhật cho khối DirFlag (Sheet Dir_MasterList)
+```vba
+    '★Dirシートの処理(フラグが1だったら処理する)
+    If DirFlag = 1 Then
+        last = wsDirMaster.Cells(Rows.count, 7).End(xlUp).Row '7列目(社員番号)の最終行を取得
+        
+        ' (Phần code xử lý cột V giữ nguyên như cũ)
+        ' ...
+
+        For start = 4 To last
+            'DR列の情報をクリア
+            wsDirMaster.Cells(start, 122).ClearContents
+            'グレード_Distribution
+            Dim gradeValDir As String
+            gradeValDir = wsDirMaster.Cells(start, 13).Value
+            
+            ' FPT 20260630 - Update Dir
+            If InStr(1, gradeValDir, "M-") > 0 Or InStr(1, gradeValDir, "E-") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = Left(gradeValDir, 1)
+            ElseIf InStr(1, gradeValDir, "S-4") > 0 Or InStr(1, gradeValDir, "S-5") > 0 Or InStr(1, gradeValDir, "RS-4") > 0 Or InStr(1, gradeValDir, "RS-5") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeValDir, "S-2") > 0 Or InStr(1, gradeValDir, "S-3") > 0 Or InStr(1, gradeValDir, "RS-2") > 0 Or InStr(1, gradeValDir, "RS-3") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf InStr(1, gradeValDir, "J-") > 0 Or InStr(1, gradeValDir, "RJ-") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "J and RJ"
+            ElseIf InStr(1, gradeValDir, "F-") > 0 Or InStr(1, gradeValDir, "RF-") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "F and RF"
+            ElseIf InStr(1, gradeValDir, "Contractor") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "Contractor"
+            Else
+                wsDirMaster.Cells(start, 122).Value = "Other"
+            End If
+        Next start
+
+        ' (Phần code xử lý cột DS giữ nguyên như cũ)
+        ' ...
+
+        For start = 4 To last
+            'DT列の情報をクリア
+            wsDirMaster.Cells(start, 124).ClearContents
+            'グレード_PromoDemo
+            gradeValDir = wsDirMaster.Cells(start, 13).Value
+            
+            ' FPT 20260630 - Update Dir
+            If Left(gradeValDir, 2) = "M-" Or Left(gradeValDir, 2) = "E-" Then
+                wsDirMaster.Cells(start, 124).Value = Left(gradeValDir, 1)
+            ElseIf InStr(1, gradeValDir, "S-4") > 0 Or InStr(1, gradeValDir, "S-5") > 0 Or InStr(1, gradeValDir, "RS-4") > 0 Or InStr(1, gradeValDir, "RS-5") > 0 Then
+                wsDirMaster.Cells(start, 124).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeValDir, "S-2") > 0 Or InStr(1, gradeValDir, "S-3") > 0 Or InStr(1, gradeValDir, "RS-2") > 0 Or InStr(1, gradeValDir, "RS-3") > 0 Then
+                wsDirMaster.Cells(start, 124).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf Left(gradeValDir, 2) = "J-" Or Left(gradeValDir, 3) = "RJ-" Then
+                wsDirMaster.Cells(start, 124).Value = "J and RJ"
+            ElseIf Left(gradeValDir, 2) = "F-" Or Left(gradeValDir, 3) = "RF-" Then
+                wsDirMaster.Cells(start, 124).Value = "F and RF"
+            ElseIf InStr(gradeValDir, "SSC Contractor") > 0 Then
+                wsDirMaster.Cells(start, 124).Value = "Contractor"
+            Else
+                wsDirMaster.Cells(start, 124).Value = "Other"
+            End If
+        Next start
+    End If
+
+```
+Đối với Sub Distribution_EvaMap, vì các dải ô xử lý đếm (ví dụ For i = 212 To 219) có vẻ đã được mở rộng để bao trọn số dòng mới thêm trong template (như khai báo trong PDF), nên logic vòng lặp CountIfs sẽ tự động lấy được tiêu chí (criteria) đúng từ template mới của bạn. Bạn chỉ cần đảm bảo rằng các giá trị trên Excel thực tế khớp chính xác với những string ("S High (S-4/S-5/RS-4/RS-5)", v.v.) mà chúng ta vừa gán.
