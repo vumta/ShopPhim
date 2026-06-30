@@ -1,0 +1,36 @@
+Chào bạn, hiện tượng hàm đếm CountIfs cho PromoDemo chỉ ra 1 (hoặc ra kết quả rất ít) trong khi bạn thấy có nhiều nhân viên thuộc nhóm S và RS thường xuất phát từ **3 nguyên nhân chính** sau đây. Chúng ta cùng rà soát và fix từng lỗi nhé:
+### 1. Lệch tên chuỗi giữa Template và Code (Nguyên nhân phổ biến nhất)
+Hàm CountIfs yêu cầu chuỗi ở cột B trong file Template phải **giống hệt 100%** với chuỗi mà VBA in ra ở cột DT (GradeProDemo).
+ * **Trong code hiện tại đang in ra:** "S High (S-4/S-5/RS-4/RS-5)" và "S Low (S-2/S-3/RS-2/RS-3)" (Lưu ý có 1 dấu cách trước dấu ngoặc đơn).
+ * **Lỗi thường gặp:** Ở file Excel (Sheet EvaMap), bạn có thể gõ thiếu dấu cách, dư khoảng trắng ở cuối câu, hoặc gõ sai ký tự. Ví dụ: "S High(S-4/S-5/RS-4/RS-5)" (thiếu dấu cách) sẽ khiến Excel coi đây là 2 giá trị khác nhau và không đếm được.
+ * **Cách Fix:** Bạn hãy copy chính xác chuỗi "S High (S-4/S-5/RS-4/RS-5)" từ trong code VBA và dán thẳng vào ô tương ứng ở cột B của file Excel.
+### 2. Quên chưa mở rộng vòng lặp đếm (Row Index)
+Trong code cũ (PDF bạn gửi), vòng lặp đếm PromoDemo theo Grade chỉ chạy **7 dòng**:
+```vba
+' By Grade: 対象 ProDemoデータをカウント
+For i = 305 To 311 
+
+```
+Tuy nhiên, vì bạn đã tách S and RS ra thành 2 nhóm là S High và S Low, nên tổng số category bây giờ là **8**. Nếu bạn đã chèn thêm dòng vào Excel nhưng chưa cập nhật biến i, code có thể bỏ qua dòng mới hoặc đọc sai dòng tiêu chí.
+ * **Cách Fix:** Kiểm tra lại dòng thực tế trong file Excel chứa các grade này và sửa lại khoảng lặp. Ví dụ: For i = 305 To 312.
+### 3. Cột AW (Promotion/Demotion) thực sự chỉ có 1 người thỏa mãn
+Hàm đếm PromoDemo chạy trên **2 điều kiện đồng thời**:
+```vba
+result = Application.WorksheetFunction.CountIfs(ProDemoRange, criteria, GradeProDemoRange, SearchKey)
+
+```
+ 1. **Điều kiện 1:** Cột DT (GradeProDemoRange) = S High...
+ 2. **Điều kiện 2:** Cột AW (ProDemoRange) = criteria (Ví dụ: "Promotion", "Demotion")
+Bạn có thể thấy nhiều người mang Grade S, nhưng nếu trong cột **AW** (cột chứa dữ liệu xét Promotion/Demotion) của file Staff_MasterList chỉ có **đúng 1 người** chứa chữ "Promotion", thì kết quả đếm ra 1 là hoàn toàn chính xác.
+ * **Cách Fix:** Mở sheet Staff_MasterList, bật Filter. Lọc cột DT (Cột 124) chọn "S High...", sau đó nhìn sang cột AW (Cột 49) xem có thực sự bao nhiêu người có dữ liệu khớp với tiêu chí Promotion/Demotion nhé.
+**💡 Mẹo fix code an toàn (Bỏ qua lỗi dư khoảng trắng):**
+Nếu bạn muốn code VBA tự động bỏ qua các khoảng trắng bị thừa ở đầu/cuối của file Excel để đếm chuẩn hơn, hãy tìm đoạn code đếm PromoDemo và bọc SearchKey vào hàm Trim() + kẹp thêm dấu * như sau:
+```vba
+' Dùng Trim để cắt khoảng trắng thừa trên file Excel
+SearchKey = Trim(wsEvaMap_Staff.Cells(i, 2).Value)
+
+' Thêm dấu * (wildcard) để dễ khớp chuỗi hơn
+result = Application.WorksheetFunction.CountIfs(ProDemoRange, criteria, GradeProDemoRange, "*" & SearchKey & "*")
+
+```
+Bạn hãy thử check lại file Excel theo 3 hướng trên xem sao nhé! Cần hỗ trợ thêm đoạn nào bạn cứ báo mình.
