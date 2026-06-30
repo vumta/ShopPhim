@@ -1,0 +1,160 @@
+Chào bạn, để đếm số lượng cho từng Grade cụ thể (E-3, E-2,..., J-1/RJ-1), chúng ta cần lưu ý một điểm quan trọng: trong file template, các Grade có thể đứng chung một dòng với ký tự / (ví dụ: M-5/RM-5). Do đó, hàm CountIfs thông thường sẽ không tìm thấy kết quả nếu tìm nguyên chuỗi này trong cột M (cột Grade).
+Mình đã viết thêm logic dùng hàm Split để tách chuỗi này ra và đếm riêng lẻ từng Grade (ví dụ đếm M-5 cộng với RM-5), sau đó gộp tổng lại. Ngoài ra, mình có thêm dấu * (Wildcard) vào tiêu chí tìm kiếm để dự phòng trường hợp trong data Master của bạn có chứa các đuôi phụ (ví dụ: M-5-新).
+Bạn hãy thêm các đoạn code dưới đây vào bên trong Sub Distribution_EvaMap() nhé.
+### Bước 1: Khai báo thêm biến (Đặt ở đầu Sub Distribution_EvaMap())
+Hãy tìm phần khai báo biến (Dim ...) ở đầu hàm và thêm các dòng sau vào:
+```vba
+    Dim exactGradeRange As Range
+    Dim gradeArray() As String
+    Dim k As Integer
+    Dim tempResult As Long
+
+```
+### Bước 2: Thêm logic đếm cho khối Staff
+Kéo xuống phần cuối của khối **'★Staffシートの処理** (trước dòng '★Staff_EvaMapシートの処理), và thêm đoạn code này.
+**Lưu ý:** Trong code mẫu, mình đang giả sử bảng đếm Grade này của bạn nằm từ dòng **225 đến 241** (với dòng 224 chứa tiêu chí đánh giá). Bạn **bắt buộc phải sửa lại các con số (225, 241, 224)** cho đúng với số dòng thực tế trên template Excel của bạn.
+```vba
+    '--- THÊM MỚI: By Exact Grade (Từng grade cụ thể) ---
+    Set exactGradeRange = wsStaffMaster.Range("M:M") ' Cột M (13) chứa thông tin Grade
+    
+    ' Dọn dẹp data cũ (SỬA LẠI SỐ DÒNG THEO TEMPLATE THỰC TẾ CỦA BẠN)
+    wsDist_Staff.Range("D225:H241").ClearContents
+    wsDist_Staff.Range("Q225:U241").ClearContents
+
+    ' By Exact Grade: 対象半期データをカウント (Half Count)
+    For i = 225 To 241 ' SỬA LẠI SỐ DÒNG BẮT ĐẦU VÀ KẾT THÚC
+        If wsDist_Staff.Cells(i, 2).Value <> "" Then
+            SearchKey = wsDist_Staff.Cells(i, 2).Value
+            gradeArray = Split(SearchKey, "/") ' Tách chuỗi nếu có dấu "/" (VD: M-5/RM-5)
+            
+            ' D225からH241に結果を反映
+            For j = 0 To 4
+                criteria = wsDist_Staff.Cells(224, 4 + j).Value ' Lấy dòng tiêu chí đánh giá (SỬA LẠI SỐ DÒNG)
+                result = 0
+                For k = LBound(gradeArray) To UBound(gradeArray)
+                    tempResult = Application.WorksheetFunction.CountIfs(countRange_half, "", criteriaRange_half, criteria, exactGradeRange, Trim(gradeArray(k)) & "*")
+                    result = result + tempResult
+                Next k
+                wsDist_Staff.Cells(i, 4 + j).Value = result
+            Next j
+        End If
+    Next i
+
+    ' By Exact Grade: 対象通期データをカウント (Annual Count)
+    For i = 225 To 241 ' SỬA LẠI SỐ DÒNG
+        If wsDist_Staff.Cells(i, 2).Value <> "" Then
+            SearchKey = wsDist_Staff.Cells(i, 2).Value
+            gradeArray = Split(SearchKey, "/")
+            
+            ' Q225からU241に結果を反映
+            For j = 0 To 4
+                criteria = wsDist_Staff.Cells(224, 17 + j).Value ' Lấy dòng tiêu chí đánh giá (SỬA LẠI SỐ DÒNG)
+                result = 0
+                For k = LBound(gradeArray) To UBound(gradeArray)
+                    tempResult = Application.WorksheetFunction.CountIfs(countRange_annual, "", criteriaRange_annual, criteria, exactGradeRange, Trim(gradeArray(k)) & "*")
+                    result = result + tempResult
+                Next k
+                wsDist_Staff.Cells(i, 17 + j).Value = result
+            Next j
+        End If
+    Next i
+
+```
+### Bước 3: Thêm logic đếm cho khối Mgr
+Kéo xuống phần cuối của khối **'★Mgrシートの処理** (trước dòng '★Mgr_EvaMapシートの処理), thêm đoạn code này để cộng dồn số liệu Mgr và Staff:
+```vba
+    '--- THÊM MỚI: By Exact Grade (Từng grade cụ thể) ---
+    Set exactGradeRange = wsMgrMaster.Range("M:M")
+    
+    ' Dọn dẹp data cũ
+    wsDist_Mgr.Range("D225:H241").ClearContents
+    wsDist_Mgr.Range("Q225:U241").ClearContents
+
+    ' By Exact Grade: 対象半期データをカウント (Half Count)
+    For i = 225 To 241
+        If wsDist_Mgr.Cells(i, 2).Value <> "" Then
+            SearchKey = wsDist_Mgr.Cells(i, 2).Value
+            gradeArray = Split(SearchKey, "/")
+            
+            For j = 0 To 4
+                criteria = wsDist_Mgr.Cells(224, 4 + j).Value
+                result = 0
+                For k = LBound(gradeArray) To UBound(gradeArray)
+                    tempResult = Application.WorksheetFunction.CountIfs(countRange_half, "", criteriaRange_half, criteria, exactGradeRange, Trim(gradeArray(k)) & "*")
+                    result = result + tempResult
+                Next k
+                ' Cộng với giá trị của Staff
+                wsDist_Mgr.Cells(i, 4 + j).Value = result + wsDist_Staff.Cells(i, 4 + j).Value
+            Next j
+        End If
+    Next i
+
+    ' By Exact Grade: 対象通期データをカウント (Annual Count)
+    For i = 225 To 241
+        If wsDist_Mgr.Cells(i, 2).Value <> "" Then
+            SearchKey = wsDist_Mgr.Cells(i, 2).Value
+            gradeArray = Split(SearchKey, "/")
+            
+            For j = 0 To 4
+                criteria = wsDist_Mgr.Cells(224, 17 + j).Value
+                result = 0
+                For k = LBound(gradeArray) To UBound(gradeArray)
+                    tempResult = Application.WorksheetFunction.CountIfs(countRange_annual, "", criteriaRange_annual, criteria, exactGradeRange, Trim(gradeArray(k)) & "*")
+                    result = result + tempResult
+                Next k
+                ' Cộng với giá trị của Staff
+                wsDist_Mgr.Cells(i, 17 + j).Value = result + wsDist_Staff.Cells(i, 17 + j).Value
+            Next j
+        End If
+    Next i
+
+```
+### Bước 4: Thêm logic đếm cho khối Dir
+Tương tự, kéo xuống phần cuối của khối **'★Dirシートの処理** (trước dòng '★Dir_EvaMapシートの処理) và thêm đoạn cộng dồn số liệu Dir và Mgr:
+```vba
+    '--- THÊM MỚI: By Exact Grade (Từng grade cụ thể) ---
+    Set exactGradeRange = wsDirMaster.Range("M:M")
+    
+    ' Dọn dẹp data cũ
+    wsDist_Dir.Range("D225:H241").ClearContents
+    wsDist_Dir.Range("Q225:U241").ClearContents
+
+    ' By Exact Grade: 対象半期データをカウント (Half Count)
+    For i = 225 To 241
+        If wsDist_Dir.Cells(i, 2).Value <> "" Then
+            SearchKey = wsDist_Dir.Cells(i, 2).Value
+            gradeArray = Split(SearchKey, "/")
+            
+            For j = 0 To 4
+                criteria = wsDist_Dir.Cells(224, 4 + j).Value
+                result = 0
+                For k = LBound(gradeArray) To UBound(gradeArray)
+                    tempResult = Application.WorksheetFunction.CountIfs(countRange_half, "", criteriaRange_half, criteria, exactGradeRange, Trim(gradeArray(k)) & "*")
+                    result = result + tempResult
+                Next k
+                ' Cộng với giá trị của Mgr (đã bao gồm Staff)
+                wsDist_Dir.Cells(i, 4 + j).Value = result + wsDist_Mgr.Cells(i, 4 + j).Value
+            Next j
+        End If
+    Next i
+
+    ' By Exact Grade: 対象通期データをカウント (Annual Count)
+    For i = 225 To 241
+        If wsDist_Dir.Cells(i, 2).Value <> "" Then
+            SearchKey = wsDist_Dir.Cells(i, 2).Value
+            gradeArray = Split(SearchKey, "/")
+            
+            For j = 0 To 4
+                criteria = wsDist_Dir.Cells(224, 17 + j).Value
+                result = 0
+                For k = LBound(gradeArray) To UBound(gradeArray)
+                    tempResult = Application.WorksheetFunction.CountIfs(countRange_annual, "", criteriaRange_annual, criteria, exactGradeRange, Trim(gradeArray(k)) & "*")
+                    result = result + tempResult
+                Next k
+                ' Cộng với giá trị của Mgr (đã bao gồm Staff)
+                wsDist_Dir.Cells(i, 17 + j).Value = result + wsDist_Mgr.Cells(i, 17 + j).Value
+            Next j
+        End If
+    Next i
+
+```
