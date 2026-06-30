@@ -1,0 +1,47 @@
+Chào bạn, trong file PDF bạn cung cấp, đoạn code dùng để đếm (count) giá trị cho phần PromoDemo nằm trong Sub Distribution_EvaMap(). Có nhiều đoạn đếm PromoDemo (đếm theo Department, Team, Title, và Grade) được chia ra cho từng nhóm Staff, Mgr, và Dir.
+Vì ở câu hỏi trước bạn đang gặp vấn đề đếm cho nhóm Grade ("S and RS"), mình trích xuất chính xác đoạn code đếm PromoDemo **theo Grade (By Grade)** để bạn dễ đối chiếu nhé.
+Dưới đây là đoạn code đếm trên sheet **Staff** (nằm ở trang 15 - 16 của file PDF):
+```vba
+'By Grade: 対象 ProDemoデータをカウント
+For i = 305 To 311
+    SearchKey = wsEvaMap_Staff.Cells(i, 2).Value ' \$B305以降の値
+    
+    'D305からG311に結果を反映
+    For j = 0 To 3
+        criteria = wsEvaMap_Staff.Cells(304, 4 + j).Value ' \$D304以降の値
+        result = Application.WorksheetFunction.Countifs(ProDemoRange, criteria, GradeProDemoRange, SearchKey)
+        wsEvaMap_Staff.Cells(i, 4 + j).Value = result
+    Next j
+Next i
+
+```
+Tương tự, logic này được áp dụng cho sheet **Mgr** (trang 22 - 23) và sheet **Dir** (trang 29), điểm khác biệt là nó sẽ cộng dồn kết quả từ Staff lên:
+**Trên sheet Mgr**:
+```vba
+'By Grade: 対象 ProDemoデータをカウント
+For i = 305 To 311
+    SearchKey = wsEvaMap_Mgr.Cells(i, 2).Value '\$B305以降の値
+    'D305からG311に結果を反映
+    For j = 0 To 3
+        criteria = wsEvaMap_Mgr.Cells(304, 4 + j).Value ' \$D304以降の値
+        result = Application.WorksheetFunction.CountIfs (ProDemoRange, criteria, GradeProDemoRange, SearchKey)
+        wsEvaMap_Mgr.Cells(i, 4 + j).Value = result + wsEvaMap_Staff.Cells(i, 4 + j).Value
+    Next j
+Next i
+
+```
+**Trên sheet Dir**:
+```vba
+'By Grade: 対象 ProDemoデータをカウント
+For i = 305 To 311
+    SearchKey = wsEvaMap_Dir.Cells(i, 2).Value ' \$B305以降の値
+    'D305からG311に結果を反映
+    For j = 0 To 3
+        criteria = wsEvaMap_Dir.Cells(304, 4 + j).Value ' \$D304以降の値
+        result = Application.WorksheetFunction.Countifs (ProDemoRange, criteria, GradeProDemoRange, SearchKey)
+        wsEvaMap_Dir.Cells(i, 4 + j).Value = result + wsEvaMap_Mgr.Cells(i, 4 + j).Value
+    Next j
+Next i
+
+```
+**Lưu ý quan trọng:** Như mình có phân tích ở câu trả lời trước, bạn hãy đặc biệt chú ý đến vòng lặp For i = 305 To 311. Nếu trên file Excel template mới của bạn, danh sách các Grade đã được chèn thêm dòng (ví dụ từ 7 dòng thành 9 dòng), bạn bắt buộc phải sửa con số 311 này thành dòng kết thúc thực tế trên file Excel (ví dụ 313) thì code mới duyệt qua hết các Grade mới được.
