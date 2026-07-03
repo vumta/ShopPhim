@@ -1,0 +1,53 @@
+Chào bạn, để xử lý 2 yêu cầu mới này, cách tối ưu và đồng bộ nhất với luồng xử lý hiện tại là thêm logic trực tiếp vào vòng lặp For start = 4 To last bên trong Sub MasterList() (nơi đang xử lý từng dòng dữ liệu).
+Thay vì tạo Conditional Formatting (dễ bị đè/lặp rule khi chạy Macro nhiều lần), mình sẽ dùng code VBA để trực tiếp tô màu (Highlight) ô nếu thỏa mãn các điều kiện.
+Dưới đây là đoạn code bạn cần bổ sung. Bạn hãy chèn đoạn này vào bên trong vòng lặp For start = 4 To last của sheet **Staff** (và làm tương tự cho khối **Mgr** và **Dir** nếu cần nhé).
+### Mã VBA bổ sung
+```vba
+    For start = 4 To last
+        ' (Các code xử lý cột V, DR, DS, DT của bạn để ở đây...)
+        
+        ' --------------------------------------------------------
+        ' YÊU CẦU 2: Copy dữ liệu từ cột AB (Cột 28) sang cột B (Cột 2)
+        ' --------------------------------------------------------
+        wsStaffMaster.Cells(start, 2).Value = wsStaffMaster.Cells(start, 28).Value
+        
+        ' --------------------------------------------------------
+        ' YÊU CẦU 3: Rule highlight cho cột M (Cột 13 - Grade)
+        ' --------------------------------------------------------
+        Dim colB_Value As String
+        Dim colM_Value As String
+        
+        colB_Value = wsStaffMaster.Cells(start, 2).Value ' Lấy giá trị cột B
+        colM_Value = wsStaffMaster.Cells(start, 13).Value ' Lấy giá trị cột M (Grade)
+        
+        ' Reset màu nền trước khi check (để tránh bị lưu màu sai nếu data thay đổi và chạy lại Macro)
+        wsStaffMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+        
+        ' Điều kiện a: Cột B có value là "Japan"
+        If colB_Value = "Japan" Then
+            ' Điều kiện b: Cột M có value sau cùng là chữ "新"
+            If Right(colM_Value, 1) = "新" Then
+                
+                Dim firstChar As String
+                firstChar = UCase(Left(colM_Value, 1))
+                
+                ' Điều kiện c: Value cột M bắt đầu bằng chữ M, S, J
+                If firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                    ' Thỏa mãn tất cả -> Highlight màu Vàng (Bạn có thể đổi mã RGB nếu muốn màu khác)
+                    wsStaffMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+                End If
+                
+            End If
+        End If
+        
+    Next start
+
+```
+### Giải thích logic xử lý:
+ 1. **Copy AB sang B:** Cột AB tương ứng với số 28, cột B tương ứng với số 2. Code đơn giản gán giá trị của cột 28 sang cột 2.
+ 2. **Highlight Cột M:** Cột M tương ứng với số 13.
+   * **a:** Kiểm tra chuỗi ở cột 2 có khớp "Japan" không.
+   * **b:** Dùng hàm Right(colM_Value, 1) để lấy ra ký tự cuối cùng của chuỗi Grade xem có phải là "新" không.
+   * **c:** Dùng hàm Left(colM_Value, 1) để lấy ra ký tự đầu tiên, dùng UCase để phòng ngừa lỗi viết thường/viết hoa (m, s, j), sau đó so sánh xem có thuộc tập hợp "M", "S", hoặc "J" không.
+   * **Đổ màu:** Dùng Interior.Color = RGB(255, 255, 0) để highlight màu vàng. Dòng xlNone phía trên giúp tẩy màu đi để reset nếu chạy lại tool trên cùng 1 file.
+*Lưu ý: Nhớ đổi tiền tố wsStaffMaster thành wsMgrMaster hoặc wsDirMaster khi copy đoạn code này sang các khối xử lý của Manager và Director nhé.*
