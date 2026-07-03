@@ -1,0 +1,68 @@
+Chào bạn, mình hiểu rồi. Thay vì bắt buộc phải thỏa mãn cả 3 điều kiện cùng lúc (AND), bây giờ chỉ cần thỏa mãn **1 trong 3** điều kiện (OR) là sẽ được tô màu.
+Dưới đây là phần code đã được cập nhật lại bằng cấu trúc If ... ElseIf ... đúng như bạn yêu cầu. Bạn hãy tìm và thay thế đoạn code highlight cũ bên trong vòng lặp For start = 4 To last của Sub MasterList cho cả 3 sheet nhé:
+### 1. Cập nhật cho sheet Staff
+```vba
+        '-------------------------------------------------------
+        ' Yêu cầu 2: Copy cột AB (28) sang cột B (2) & Highlight cột M (13)
+        '-------------------------------------------------------
+        wsStaffMaster.Cells(start, 2).Value = wsStaffMaster.Cells(start, 28).Value
+        colB_Value = wsStaffMaster.Cells(start, 2).Value
+        colM_Value = wsStaffMaster.Cells(start, 13).Value
+        firstChar = UCase(Left(colM_Value, 1)) ' Lấy ký tự đầu tiên của cột M
+        
+        ' Reset màu nền trước khi check
+        wsStaffMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+        
+        ' Check điều kiện IF ... ELSEIF (Chỉ cần 1 trong 3 điều kiện đúng là tô màu)
+        If colB_Value = "Japan" Then
+            wsStaffMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+        ElseIf Right(colM_Value, 1) = "新" Then
+            wsStaffMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+        ElseIf firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+            wsStaffMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+        End If
+
+```
+### 2. Cập nhật cho sheet Mgr
+```vba
+            '-------------------------------------------------------
+            ' Copy cột AB sang B & Highlight cột M (Mgr)
+            '-------------------------------------------------------
+            wsMgrMaster.Cells(start, 2).Value = wsMgrMaster.Cells(start, 28).Value
+            colB_Value = wsMgrMaster.Cells(start, 2).Value
+            colM_Value = wsMgrMaster.Cells(start, 13).Value
+            firstChar = UCase(Left(colM_Value, 1))
+            
+            wsMgrMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+            
+            If colB_Value = "Japan" Then
+                wsMgrMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+            ElseIf Right(colM_Value, 1) = "新" Then
+                wsMgrMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+            ElseIf firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                wsMgrMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+            End If
+
+```
+### 3. Cập nhật cho sheet Dir
+```vba
+            '-------------------------------------------------------
+            ' Copy cột AB sang B & Highlight cột M (Dir)
+            '-------------------------------------------------------
+            wsDirMaster.Cells(start, 2).Value = wsDirMaster.Cells(start, 28).Value
+            colB_Value = wsDirMaster.Cells(start, 2).Value
+            colM_Value = wsDirMaster.Cells(start, 13).Value
+            firstChar = UCase(Left(colM_Value, 1))
+            
+            wsDirMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+            
+            If colB_Value = "Japan" Then
+                wsDirMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+            ElseIf Right(colM_Value, 1) = "新" Then
+                wsDirMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+            ElseIf firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                wsDirMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+            End If
+
+```
+Với cấu trúc If ... ElseIf ... này, khi hệ thống kiểm tra thấy dòng nào đáp ứng được điều kiện ngay từ trên xuống dưới (ví dụ thấy chữ "Japan" ở cột B), nó sẽ lập tức tô màu và chuyển sang dòng tiếp theo mà không cần phải tốn thời gian tính toán kiểm tra các điều kiện (b) hay (c) nữa, giúp code chạy rất tối ưu.
