@@ -1,0 +1,363 @@
+Chào bạn, để bạn dễ dàng cập nhật và không bị nhầm lẫn khi copy từng đoạn nhỏ, mình đã tổng hợp và viết lại **toàn bộ mã nguồn hoàn chỉnh cho cả 2 Sub (MasterList và Distribution_EvaMap)**.
+Mình đã tối ưu hóa mã bằng cách **gộp các vòng lặp For start = 4 To last** lại với nhau để code chạy nhanh hơn và ngắn gọn hơn, đồng thời tích hợp đầy đủ 3 yêu cầu của bạn:
+ 1. Phân loại Grade mới (S High, S Low, J and RJ, v.v.).
+ 2. Copy cột AB sang B và Highlight cột M theo rule (Japan + kết thúc bằng "新" + bắt đầu bằng M/S/J).
+ 3. Đếm từng Grade cụ thể (E-3, E-2, M-5/RM-5...) bằng cách tách chuỗi.
+**Lưu ý quan trọng trước khi chạy:** Trong Sub Distribution_EvaMap, phần đếm Grade cụ thể mình đang để tạm dòng chạy từ 225 đến 241 (với dòng 224 chứa tiêu chí đánh giá). Bạn hãy tìm chữ **SỬA SỐ DÒNG Ở ĐÂY** trong code và thay đổi các con số này cho khớp với số dòng thực tế trên bảng Excel template của bạn nhé.
+Dưới đây là toàn bộ code hoàn chỉnh:
+```vba
+Attribute VB_Name = "Module1"
+Option Explicit
+
+'各Subでシート名があるかを確認する共通Function
+Function IsExistsSheet(sheetName) As Boolean
+    Dim flag As Boolean 'True/Falseを入れる変数
+    flag = False '初期値としてFalseを設定
+    
+    Dim sheet 'Bookにあるシートを入れる変数
+    For Each sheet In Worksheets
+        'sheetの名前が指定したシート名 (sheetName) と同じか判断
+        If sheet.Name = sheetName Then
+            flag = True
+            Exit For
+        End If
+    Next sheet
+    IsExistsSheet = flag
+End Function
+
+'========================================================================
+' MASTER LIST
+'========================================================================
+Sub MasterList()
+    Dim wsStaffMaster As Worksheet
+    Dim wsMgrMaster As Worksheet
+    Dim wsDirMaster As Worksheet
+    
+    Dim MgrFlag As Integer
+    Dim DirFlag As Integer
+    MgrFlag = 0
+    DirFlag = 0
+    
+    Set wsStaffMaster = ThisWorkbook.Sheets("Staff_MasterList")
+    
+    If IsExistsSheet("Mgr_MasterList") Then
+        Set wsMgrMaster = ThisWorkbook.Sheets("Mgr_MasterList")
+        MgrFlag = 1
+    End If
+    
+    If IsExistsSheet("Dir_MasterList") Then
+        Set wsDirMaster = ThisWorkbook.Sheets("Dir_MasterList")
+        DirFlag = 1
+    End If
+    
+    Dim start As Integer
+    Dim last As Integer
+    
+    Dim gradeVal As String
+    Dim colB_Value As String
+    Dim colM_Value As String
+    Dim firstChar As String
+    
+    '★Staffシートの処理
+    last = wsStaffMaster.Cells(Rows.count, 7).End(xlUp).Row
+    
+    For start = 4 To last
+        '-------------------------------------------------------
+        ' 1. Yêu cầu mới: Copy cột AB (28) sang cột B (2) & Highlight cột M (13)
+        '-------------------------------------------------------
+        wsStaffMaster.Cells(start, 2).Value = wsStaffMaster.Cells(start, 28).Value
+        colB_Value = wsStaffMaster.Cells(start, 2).Value
+        colM_Value = wsStaffMaster.Cells(start, 13).Value
+        
+        ' Reset màu nền trước khi check
+        wsStaffMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+        If colB_Value = "Japan" Then
+            If Right(colM_Value, 1) = "新" Then
+                firstChar = UCase(Left(colM_Value, 1))
+                If firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                    wsStaffMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0) ' Màu vàng
+                End If
+            End If
+        End If
+
+        '-------------------------------------------------------
+        ' 2. V列の情報をクリア & TOEIC/英検/CEFR
+        '-------------------------------------------------------
+        wsStaffMaster.Cells(start, 22).ClearContents
+        If wsStaffMaster.Cells(start, 23).Value >= 700 Or wsStaffMaster.Cells(start, 24).Value >= 76 Or wsStaffMaster.Cells(start, 25).Value >= 6 Then
+            wsStaffMaster.Cells(start, 22).Value = "●"
+        ElseIf wsStaffMaster.Cells(start, 26).Value = "準1級" Or wsStaffMaster.Cells(start, 26).Value = "1級" Then
+            wsStaffMaster.Cells(start, 22).Value = "●"
+        ElseIf wsStaffMaster.Cells(start, 27).Value = "B1+" Or wsStaffMaster.Cells(start, 27).Value = "B2" Or wsStaffMaster.Cells(start, 27).Value = "B2+" Or wsStaffMaster.Cells(start, 27).Value = "C1" Or wsStaffMaster.Cells(start, 27).Value = "C1+" Or wsStaffMaster.Cells(start, 27).Value = "C2" Then
+            wsStaffMaster.Cells(start, 22).Value = "●"
+        End If
+        
+        '-------------------------------------------------------
+        ' 3. DR列 (122) & DS列 (123) & DT列 (124) の処理
+        '-------------------------------------------------------
+        gradeVal = wsStaffMaster.Cells(start, 13).Value
+        wsStaffMaster.Cells(start, 122).ClearContents
+        wsStaffMaster.Cells(start, 123).ClearContents
+        wsStaffMaster.Cells(start, 124).ClearContents
+        
+        ' --- DR: グレード_Distribution ---
+        If InStr(1, gradeVal, "M-") > 0 Or InStr(1, gradeVal, "E-") > 0 Then
+            wsStaffMaster.Cells(start, 122).Value = Left(gradeVal, 1)
+        ElseIf InStr(1, gradeVal, "S-4") > 0 Or InStr(1, gradeVal, "S-5") > 0 Or InStr(1, gradeVal, "RS-4") > 0 Or InStr(1, gradeVal, "RS-5") > 0 Then
+            wsStaffMaster.Cells(start, 122).Value = "S High (S-4/S-5/RS-4/RS-5)"
+        ElseIf InStr(1, gradeVal, "S-2") > 0 Or InStr(1, gradeVal, "S-3") > 0 Or InStr(1, gradeVal, "RS-2") > 0 Or InStr(1, gradeVal, "RS-3") > 0 Then
+            wsStaffMaster.Cells(start, 122).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+        ElseIf InStr(1, gradeVal, "J-") > 0 Or InStr(1, gradeVal, "RJ-") > 0 Then
+            wsStaffMaster.Cells(start, 122).Value = "J and RJ"
+        ElseIf InStr(1, gradeVal, "F-") > 0 Or InStr(1, gradeVal, "RF-") > 0 Then
+            wsStaffMaster.Cells(start, 122).Value = "F and RF"
+        ElseIf InStr(1, gradeVal, "Contractor") > 0 Then
+            wsStaffMaster.Cells(start, 122).Value = "Contractor"
+        Else
+            wsStaffMaster.Cells(start, 122).Value = "Other"
+        End If
+        
+        ' --- DS: グレード_Eva Map ---
+        If gradeVal = "" Then
+            wsStaffMaster.Cells(start, 123).Value = ""
+        ElseIf Left(gradeVal, 2) = "S-" Or Left(gradeVal, 2) = "J-" Or Left(gradeVal, 2) = "F-" Then
+            wsStaffMaster.Cells(start, 123).Value = Replace(gradeVal & "/R" & gradeVal, "-新", "")
+        ElseIf Left(gradeVal, 3) = "RS-" Or Left(gradeVal, 3) = "RJ-" Or Left(gradeVal, 3) = "RF-" Then
+            wsStaffMaster.Cells(start, 123).Value = Replace(Replace(gradeVal, "R", "") & "/" & gradeVal, "-新", "")
+        ElseIf Left(gradeVal, 2) = "E-" Or Left(gradeVal, 2) = "M-" Or InStr(1, gradeVal, "SSC Contractor") > 0 Then
+            wsStaffMaster.Cells(start, 123).Value = Replace(gradeVal, "-新", "")
+        Else
+            wsStaffMaster.Cells(start, 123).Value = "Other"
+        End If
+        
+        ' --- DT: グレード_PromoDemo ---
+        If Left(gradeVal, 2) = "M-" Or Left(gradeVal, 2) = "E-" Then
+            wsStaffMaster.Cells(start, 124).Value = Left(gradeVal, 1)
+        ElseIf InStr(1, gradeVal, "S-4") > 0 Or InStr(1, gradeVal, "S-5") > 0 Or InStr(1, gradeVal, "RS-4") > 0 Or InStr(1, gradeVal, "RS-5") > 0 Then
+            wsStaffMaster.Cells(start, 124).Value = "S High (S-4/S-5/RS-4/RS-5)"
+        ElseIf InStr(1, gradeVal, "S-2") > 0 Or InStr(1, gradeVal, "S-3") > 0 Or InStr(1, gradeVal, "RS-2") > 0 Or InStr(1, gradeVal, "RS-3") > 0 Then
+            wsStaffMaster.Cells(start, 124).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+        ElseIf Left(gradeVal, 2) = "J-" Or Left(gradeVal, 3) = "RJ-" Then
+            wsStaffMaster.Cells(start, 124).Value = "J and RJ"
+        ElseIf Left(gradeVal, 2) = "F-" Or Left(gradeVal, 3) = "RF-" Then
+            wsStaffMaster.Cells(start, 124).Value = "F and RF"
+        ElseIf InStr(gradeVal, "SSC Contractor") > 0 Then
+            wsStaffMaster.Cells(start, 124).Value = "Contractor"
+        Else
+            wsStaffMaster.Cells(start, 124).Value = "Other"
+        End If
+    Next start
+    
+    '★Mgrシートの処理
+    If MgrFlag = 1 Then
+        last = wsMgrMaster.Cells(Rows.count, 7).End(xlUp).Row
+        For start = 4 To last
+            wsMgrMaster.Cells(start, 2).Value = wsMgrMaster.Cells(start, 28).Value
+            colB_Value = wsMgrMaster.Cells(start, 2).Value
+            colM_Value = wsMgrMaster.Cells(start, 13).Value
+            wsMgrMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+            If colB_Value = "Japan" Then
+                If Right(colM_Value, 1) = "新" Then
+                    firstChar = UCase(Left(colM_Value, 1))
+                    If firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                        wsMgrMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+                    End If
+                End If
+            End If
+
+            wsMgrMaster.Cells(start, 22).ClearContents
+            If wsMgrMaster.Cells(start, 23).Value >= 700 Or wsMgrMaster.Cells(start, 24).Value >= 76 Or wsMgrMaster.Cells(start, 25).Value >= 6 Then
+                wsMgrMaster.Cells(start, 22).Value = "●"
+            ElseIf wsMgrMaster.Cells(start, 26).Value = "準1級" Or wsMgrMaster.Cells(start, 26).Value = "1級" Then
+                wsMgrMaster.Cells(start, 22).Value = "●"
+            ElseIf wsMgrMaster.Cells(start, 27).Value = "B1+" Or wsMgrMaster.Cells(start, 27).Value = "B2" Or wsMgrMaster.Cells(start, 27).Value = "B2+" Or wsMgrMaster.Cells(start, 27).Value = "C1" Or wsMgrMaster.Cells(start, 27).Value = "C1+" Or wsMgrMaster.Cells(start, 27).Value = "C2" Then
+                wsMgrMaster.Cells(start, 22).Value = "●"
+            End If
+            
+            gradeVal = wsMgrMaster.Cells(start, 13).Value
+            wsMgrMaster.Cells(start, 122).ClearContents
+            wsMgrMaster.Cells(start, 123).ClearContents
+            wsMgrMaster.Cells(start, 124).ClearContents
+            
+            ' --- DR: グレード_Distribution ---
+            If InStr(1, gradeVal, "M-") > 0 Or InStr(1, gradeVal, "E-") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = Left(gradeVal, 1)
+            ElseIf InStr(1, gradeVal, "S-4") > 0 Or InStr(1, gradeVal, "S-5") > 0 Or InStr(1, gradeVal, "RS-4") > 0 Or InStr(1, gradeVal, "RS-5") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeVal, "S-2") > 0 Or InStr(1, gradeVal, "S-3") > 0 Or InStr(1, gradeVal, "RS-2") > 0 Or InStr(1, gradeVal, "RS-3") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf InStr(1, gradeVal, "J-") > 0 Or InStr(1, gradeVal, "RJ-") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "J and RJ"
+            ElseIf InStr(1, gradeVal, "F-") > 0 Or InStr(1, gradeVal, "RF-") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "F and RF"
+            ElseIf InStr(1, gradeVal, "Contractor") > 0 Then
+                wsMgrMaster.Cells(start, 122).Value = "Contractor"
+            Else
+                wsMgrMaster.Cells(start, 122).Value = "Other"
+            End If
+            
+            ' --- DS: グレード_Eva Map ---
+            If gradeVal = "" Then
+                wsMgrMaster.Cells(start, 123).Value = ""
+            ElseIf Left(gradeVal, 2) = "S-" Or Left(gradeVal, 2) = "J-" Or Left(gradeVal, 2) = "F-" Then
+                wsMgrMaster.Cells(start, 123).Value = Replace(gradeVal & "/R" & gradeVal, "-新", "")
+            ElseIf Left(gradeVal, 3) = "RS-" Or Left(gradeVal, 3) = "RJ-" Or Left(gradeVal, 3) = "RF-" Then
+                wsMgrMaster.Cells(start, 123).Value = Replace(Replace(gradeVal, "R", "") & "/" & gradeVal, "-新", "")
+            ElseIf Left(gradeVal, 2) = "E-" Or Left(gradeVal, 2) = "M-" Or InStr(1, gradeVal, "SSC Contractor") > 0 Then
+                wsMgrMaster.Cells(start, 123).Value = Replace(gradeVal, "-新", "")
+            Else
+                wsMgrMaster.Cells(start, 123).Value = "Other"
+            End If
+            
+            ' --- DT: グレード_PromoDemo ---
+            If Left(gradeVal, 2) = "M-" Or Left(gradeVal, 2) = "E-" Then
+                wsMgrMaster.Cells(start, 124).Value = Left(gradeVal, 1)
+            ElseIf InStr(1, gradeVal, "S-4") > 0 Or InStr(1, gradeVal, "S-5") > 0 Or InStr(1, gradeVal, "RS-4") > 0 Or InStr(1, gradeVal, "RS-5") > 0 Then
+                wsMgrMaster.Cells(start, 124).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeVal, "S-2") > 0 Or InStr(1, gradeVal, "S-3") > 0 Or InStr(1, gradeVal, "RS-2") > 0 Or InStr(1, gradeVal, "RS-3") > 0 Then
+                wsMgrMaster.Cells(start, 124).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf Left(gradeVal, 2) = "J-" Or Left(gradeVal, 3) = "RJ-" Then
+                wsMgrMaster.Cells(start, 124).Value = "J and RJ"
+            ElseIf Left(gradeVal, 2) = "F-" Or Left(gradeVal, 3) = "RF-" Then
+                wsMgrMaster.Cells(start, 124).Value = "F and RF"
+            ElseIf InStr(gradeVal, "SSC Contractor") > 0 Then
+                wsMgrMaster.Cells(start, 124).Value = "Contractor"
+            Else
+                wsMgrMaster.Cells(start, 124).Value = "Other"
+            End If
+        Next start
+    End If
+    
+    '★Dirシートの処理
+    If DirFlag = 1 Then
+        last = wsDirMaster.Cells(Rows.count, 7).End(xlUp).Row
+        For start = 4 To last
+            wsDirMaster.Cells(start, 2).Value = wsDirMaster.Cells(start, 28).Value
+            colB_Value = wsDirMaster.Cells(start, 2).Value
+            colM_Value = wsDirMaster.Cells(start, 13).Value
+            wsDirMaster.Cells(start, 13).Interior.ColorIndex = xlNone
+            If colB_Value = "Japan" Then
+                If Right(colM_Value, 1) = "新" Then
+                    firstChar = UCase(Left(colM_Value, 1))
+                    If firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                        wsDirMaster.Cells(start, 13).Interior.Color = RGB(255, 255, 0)
+                    End If
+                End If
+            End If
+
+            wsDirMaster.Cells(start, 22).ClearContents
+            If wsDirMaster.Cells(start, 23).Value >= 700 Or wsDirMaster.Cells(start, 24).Value >= 76 Or wsDirMaster.Cells(start, 25).Value >= 6 Then
+                wsDirMaster.Cells(start, 22).Value = "●"
+            ElseIf wsDirMaster.Cells(start, 26).Value = "準1級" Or wsDirMaster.Cells(start, 26).Value = "1級" Then
+                wsDirMaster.Cells(start, 22).Value = "●"
+            ElseIf wsDirMaster.Cells(start, 27).Value = "B1+" Or wsDirMaster.Cells(start, 27).Value = "B2" Or wsDirMaster.Cells(start, 27).Value = "B2+" Or wsDirMaster.Cells(start, 27).Value = "C1" Or wsDirMaster.Cells(start, 27).Value = "C1+" Or wsDirMaster.Cells(start, 27).Value = "C2" Then
+                wsDirMaster.Cells(start, 22).Value = "●"
+            End If
+            
+            gradeVal = wsDirMaster.Cells(start, 13).Value
+            wsDirMaster.Cells(start, 122).ClearContents
+            wsDirMaster.Cells(start, 123).ClearContents
+            wsDirMaster.Cells(start, 124).ClearContents
+            
+            ' --- DR: グレード_Distribution ---
+            If InStr(1, gradeVal, "M-") > 0 Or InStr(1, gradeVal, "E-") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = Left(gradeVal, 1)
+            ElseIf InStr(1, gradeVal, "S-4") > 0 Or InStr(1, gradeVal, "S-5") > 0 Or InStr(1, gradeVal, "RS-4") > 0 Or InStr(1, gradeVal, "RS-5") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeVal, "S-2") > 0 Or InStr(1, gradeVal, "S-3") > 0 Or InStr(1, gradeVal, "RS-2") > 0 Or InStr(1, gradeVal, "RS-3") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf InStr(1, gradeVal, "J-") > 0 Or InStr(1, gradeVal, "RJ-") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "J and RJ"
+            ElseIf InStr(1, gradeVal, "F-") > 0 Or InStr(1, gradeVal, "RF-") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "F and RF"
+            ElseIf InStr(1, gradeVal, "Contractor") > 0 Then
+                wsDirMaster.Cells(start, 122).Value = "Contractor"
+            Else
+                wsDirMaster.Cells(start, 122).Value = "Other"
+            End If
+            
+            ' --- DS: グレード_Eva Map ---
+            If gradeVal = "" Then
+                wsDirMaster.Cells(start, 123).Value = ""
+            ElseIf Left(gradeVal, 2) = "S-" Or Left(gradeVal, 2) = "J-" Or Left(gradeVal, 2) = "F-" Then
+                wsDirMaster.Cells(start, 123).Value = Replace(gradeVal & "/R" & gradeVal, "-新", "")
+            ElseIf Left(gradeVal, 3) = "RS-" Or Left(gradeVal, 3) = "RJ-" Or Left(gradeVal, 3) = "RF-" Then
+                wsDirMaster.Cells(start, 123).Value = Replace(Replace(gradeVal, "R", "") & "/" & gradeVal, "-新", "")
+            ElseIf Left(gradeVal, 2) = "E-" Or Left(gradeVal, 2) = "M-" Or InStr(1, gradeVal, "SSC Contractor") > 0 Then
+                wsDirMaster.Cells(start, 123).Value = Replace(gradeVal, "-新", "")
+            Else
+                wsDirMaster.Cells(start, 123).Value = "Other"
+            End If
+            
+            ' --- DT: グレード_PromoDemo ---
+            If Left(gradeVal, 2) = "M-" Or Left(gradeVal, 2) = "E-" Then
+                wsDirMaster.Cells(start, 124).Value = Left(gradeVal, 1)
+            ElseIf InStr(1, gradeVal, "S-4") > 0 Or InStr(1, gradeVal, "S-5") > 0 Or InStr(1, gradeVal, "RS-4") > 0 Or InStr(1, gradeVal, "RS-5") > 0 Then
+                wsDirMaster.Cells(start, 124).Value = "S High (S-4/S-5/RS-4/RS-5)"
+            ElseIf InStr(1, gradeVal, "S-2") > 0 Or InStr(1, gradeVal, "S-3") > 0 Or InStr(1, gradeVal, "RS-2") > 0 Or InStr(1, gradeVal, "RS-3") > 0 Then
+                wsDirMaster.Cells(start, 124).Value = "S Low (S-2/S-3/RS-2/RS-3)"
+            ElseIf Left(gradeVal, 2) = "J-" Or Left(gradeVal, 3) = "RJ-" Then
+                wsDirMaster.Cells(start, 124).Value = "J and RJ"
+            ElseIf Left(gradeVal, 2) = "F-" Or Left(gradeVal, 3) = "RF-" Then
+                wsDirMaster.Cells(start, 124).Value = "F and RF"
+            ElseIf InStr(gradeVal, "SSC Contractor") > 0 Then
+                wsDirMaster.Cells(start, 124).Value = "Contractor"
+            Else
+                wsDirMaster.Cells(start, 124).Value = "Other"
+            End If
+        Next start
+    End If
+End Sub
+
+'========================================================================
+' DISTRIBUTION & EVA MAP
+'========================================================================
+Sub Distribution_EvaMap()
+    Dim wsStaffMaster As Worksheet
+    Dim wsMgrMaster As Worksheet
+    Dim wsDirMaster As Worksheet
+    
+    Dim MgrFlag As Integer
+    Dim DirFlag As Integer
+    MgrFlag = 0
+    DirFlag = 0
+    
+    Set wsStaffMaster = ThisWorkbook.Sheets("Staff_MasterList")
+    
+    If IsExistsSheet("Mgr_MasterList") Then
+        Set wsMgrMaster = ThisWorkbook.Sheets("Mgr_MasterList")
+        MgrFlag = 1
+    End If
+    If IsExistsSheet("Dir_MasterList") Then
+        Set wsDirMaster = ThisWorkbook.Sheets("Dir_MasterList")
+        DirFlag = 1
+    End If
+    
+    Dim wsDist_Staff As Worksheet
+    Dim wsDist_Mgr As Worksheet
+    Dim wsDist_Dir As Worksheet
+    Dim wsEvaMap_Staff As Worksheet
+    Dim wsEvaMap_Mgr As Worksheet
+    Dim wsEvaMap_Dir As Worksheet
+    
+    Dim countRange_half As Range, criteriaRange_half As Range
+    Dim countRange_annual As Range, criteriaRange_annual As Range
+    Dim departmentRange As Range, teamRange As Range
+    Dim titleRange As Range, GradeDisRange As Range
+    Dim ProDemoRange As Range, GradeProDemoRange As Range
+    
+    Dim result As Long
+    Dim i As Integer, j As Integer, start As Integer, last As Integer
+    Dim uniqueValues As Variant, cellValue As Variant
+    Dim targetCell As Range, Found As Range
+    Dim criteria As String, SearchKey As String, text As String
+    
+    ' Khai báo cho đếm chính xác Grade
+    Dim exactGradeRange As Range
+    Dim gradeArray() As String
+    Dim k As Integer
+    Dim tempResult As Long
+    
+    '====================== STAFF PROCESSING ======================
+    Set wsDist_Staff = ThisWorkbook.Sheets("Staff_Distribution")
+    Set wsEvaMap_Staff = ThisWorkbook.Sheets("Staff_EvaMap&Promo
