@@ -1,0 +1,25 @@
+Trong Power Automate, một điểm khá gây nhầm lẫn là **Microsoft Teams connector** có 2 action với tên gần giống nhau, dẫn đến việc dữ liệu trả về khác nhau:
+ 1. **Get message details** (Lấy chi tiết tin nhắn): Chỉ trả về duy nhất **1 kết quả** của đúng tin nhắn đó (không phải danh sách).
+ 2. **Get messages** (Lấy danh sách các tin nhắn): Trả về một danh sách (Array) nhiều tin nhắn.
+Nếu bạn đang gặp trường hợp hệ thống tự động sinh ra vòng lặp *Apply to each* hoặc trả về một danh sách dài, có thể bạn đang dùng nhầm sang hành động số 2, hoặc cấu hình Dynamic Content chưa chuẩn.
+Để **chỉ lấy nội dung của bài đăng mới nhất** vừa được tạo, bạn hãy điều chỉnh Flow theo hướng dẫn dưới đây:
+### Giải pháp 1: Thay đổi Action chính xác (Không lo vòng lặp)
+Khi một User tạo một Post mới, bản thân trigger ban đầu đã bắt được chính xác ID của bài post đó. Bạn không cần phải quét qua danh sách tin nhắn cũ.
+Hãy thay đổi các bước trong Flow của bạn thành cấu trúc như sau:
+ 1. **Trigger:** When a new channel message is added
+ 2. **Action:** Tìm chính xác từ khóa **Get message details** (Nhớ chọn hành động có chữ *details*, tránh chọn *Get messages*).
+ 3. **Cấu hình:** Ở ô **Message**, bạn bấm vào ô và chọn thẻ **Message ID** từ *Dynamic Content* của Trigger bước 1.
+*Cách này sẽ lập tức trả về đúng bài viết mới nhất vừa được đăng mà không bao giờ bị hiện tượng "nhiều kết quả".*
+### Giải pháp 2: Nếu bạn bắt buộc phải dùng danh sách (Hoặc lấy từ một mảng dữ liệu)
+Nếu trong luồng xử lý của bạn có một bước nào đó (ví dụ như lọc dữ liệu - *Filter array* hoặc quét danh sách) trả về một mảng chứa nhiều bài đăng và bạn chỉ muốn lấy phần tử đầu tiên (bài mới nhất):
+Thay vì truyền thẳng mảng đó vào action tiếp theo (khiến Power Automate tự tạo vòng lặp), bạn hãy sử dụng **Expression (Biểu thức)** first().
+**Cách thực hiện:**
+ 1. Tại ô nhập liệu của Action tiếp theo (ví dụ: ô Content của *Html to Text* hoặc ô Body của *Send an email*).
+ 2. Thay vì chọn Dynamic Content, bạn bấm sang tab **Expression** (Biểu thức).
+ 3. Nhập hàm sau:
+   ```text
+   first(outputs('Tên_Action_Trả_Về_Mảng')?['body/value'])
+   
+   ```
+   *Lưu ý: Thay Tên_Action_Trả_Về_Mảng bằng tên chính xác của Action trước đó của bạn (ví dụ: outputs('Get_messages')?['body/value']). Cách nhanh nhất là viết hàm first(), đặt con trỏ chuột vào giữa dấu ngoặc đơn ( ), rồi chuyển sang tab Dynamic content và click chọn mảng (value) của action trước đó.*
+Hàm first() này sẽ giúp bạn ép Power Automate chỉ lấy đúng bản ghi đầu tiên trong danh sách kết quả trả về, giúp loại bỏ hoàn toàn các kết quả thừa và không bị lặp.
