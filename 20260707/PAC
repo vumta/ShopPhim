@@ -1,0 +1,44 @@
+Để tự động lấy nội dung của một bài đăng (post) mới trong kênh (channel) của Microsoft Teams bằng Power Automate, bạn cần sử dụng trigger (bộ kích hoạt) **"When a new channel message is added"**.
+Dưới đây là hướng dẫn từng bước thiết lập luồng (flow) cực kỳ chi tiết và dễ làm theo:
+## Các bước thiết lập Power Automate Flow
+### Bước 1: Tạo luồng mới và chọn Trigger
+ 1. Truy cập vào Power Automate và đăng nhập tài khoản của bạn.
+ 2. Chọn **Create** > **Automated cloud flow** (Luồng đám mây tự động).
+ 3. Đặt tên cho flow (Ví dụ: *Get New Teams Post Content*).
+ 4. Ở ô tìm kiếm trigger, gõ Teams và chọn trigger:
+   > **When a new channel message is added** (Microsoft Teams)
+   > 
+ 5. Nhấn **Create**.
+### Bước 2: Cấu hình Trigger (Chọn Kênh cần theo dõi)
+Trong giao diện của trigger vừa tạo, bạn điền các thông tin sau:
+ * **Team:** Chọn nhóm Teams chứa kênh bạn muốn theo dõi.
+ * **Channel:** Chọn kênh cụ thể mà bạn muốn lấy bài viết.
+### Bước 3: Lấy nội dung chi tiết bài viết (Khuyên dùng)
+Mặc dù trigger ở Bước 2 đã trả về một số thông tin, nhưng để lấy được trọn vẹn và chính xác định dạng nội dung (Body), tiêu đề (Subject) hay người gửi, bạn nên thêm một action bổ sung:
+ 1. Nhấn nút **New step** (hoặc dấu cộng + để thêm action).
+ 2. Tìm kiếm Teams và chọn action: **Get message details** (Microsoft Teams).
+ 3. Cấu hình các tham số bằng cách sử dụng **Dynamic content** (Nội dung động) từ Bước 2:
+   * **Message:** Chọn Message ID (từ trigger Bước 2).
+   * **Team:** Chọn lại tên Nhóm cũ.
+   * **Channel:** Chọn lại tên Kênh cũ.
+### Bước 4: Xử lý nội dung bài viết
+Nội dung bài đăng từ Teams mặc định sẽ ở dạng thẻ **HTML** (có thể chứa các tag như <p>, <div>,...). Bạn có hai cách xử lý tùy thuộc vào nhu cầu:
+#### Cách A: Nếu bạn muốn lấy chữ thuần túy (Plain Text) để gửi Email/Lưu File
+ 1. Thêm action mới, tìm kiếm Content Conversion.
+ 2. Chọn action: **Html to text** (Xem preview).
+ 3. Ở ô **Content**, chọn Body Content (hoặc Message Body Content) từ phần *Dynamic content* của action *Get message details*.
+#### Cách B: Nếu bạn muốn giữ nguyên định dạng (In đậm, link, màu sắc...)
+ * Bạn có thể bỏ qua bước *Html to text* và sử dụng trực tiếp thẻ Body Content ở các bước sau (ví dụ: chèn thẳng vào email dạng HTML).
+### Bước 5: Sử dụng dữ liệu thu được (Ví dụ: Gửi email thông báo)
+Để kiểm tra xem flow hoạt động đúng không, bạn có thể thử gửi nội dung post đó về Email của bạn:
+ 1. Thêm action: **Send an email (V2)** (của Office 365 Outlook).
+ 2. **To:** Điền email của bạn.
+ 3. **Subject:** Chọn Message Subject (Tiêu đề bài post - nếu user không viết tiêu đề thì trường này sẽ trống, bạn có thể ghi đè chữ "Bài đăng mới").
+ 4. **Body:** Chọn The PlainText content (Kết quả từ bước *Html to text*) hoặc Message Body Content để xem nội dung bài viết.
+## 💡 Một số lưu ý quan trọng:
+ * **Reply (Bài văn phản hồi):** Trigger *"When a new channel message is added"* chỉ kích hoạt khi có **bài đăng mới hoàn toàn (New Post)**, nó sẽ **không** kích hoạt khi có ai đó vào trả lời (Reply) dưới bài đăng cũ.
+ * **Tài khoản kết nối:** Hãy đảm bảo tài khoản bạn dùng để tạo Connection trong Power Automate có quyền tham gia và đọc tin nhắn trong kênh Teams đó.
+Luồng xử lý của bạn sẽ trông như thế này:
+> **Trigger Teams** (Có bài mới) ➔ **Action Teams** (Lấy chi tiết tin nhắn) ➔ **Action Html to text** (Chuyển sang chữ) ➔ **Action tiếp theo** (Gửi mail, lưu Excel, thông báo qua Zalo/Telegram...).
+> 
+Bạn dự định sẽ làm gì tiếp theo với nội dung bài post đã lấy được này? (Ví dụ: lưu vào file Excel, gửi sang ứng dụng khác hay chat bot...) Hãy chia sẻ để mình có thể hỗ trợ cấu hình tiếp nhé!
