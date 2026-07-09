@@ -1,0 +1,76 @@
+Chào bạn, để gọi code VBA từ bên ngoài bằng UiPath, cách tối ưu nhất là lưu đoạn code này thành một file text (.txt hoặc .vba), sau đó sử dụng activity **Invoke VBA** trong UiPath để thực thi.
+Cách tiếp cận này rất gọn gàng cho kiến trúc Bot: bạn không cần phải nhúng trực tiếp Macro vào file Excel template (giảm thiểu rủi ro file .xlsm bị cảnh báo bảo mật) và dễ dàng maintain code sau này.
+Dưới đây là file VBA độc lập được viết lại dưới dạng một hàm tổng quát. Code sẽ tự động quét qua cả 3 sheet (Staff, Mgr, Dir) trên file Excel đang mở.
+### Bước 1: Tạo file VBA riêng
+Bạn hãy tạo một file text mới (ví dụ đặt tên là FormatJapanGrade.txt), copy toàn bộ đoạn code dưới đây dán vào và lưu lại:
+```vba
+Sub ProcessJapanAndGrade()
+    Dim ws As Worksheet
+    Dim sheetNames As Variant
+    Dim sheetName As Variant
+    Dim lastRow As Long
+    Dim startRow As Long
+    
+    Dim colB_Value As String
+    Dim colM_Value As String
+    Dim firstChar As String
+    
+    ' Danh sách các sheet cần xử lý
+    sheetNames = Array("Staff_MasterList", "Mgr_MasterList", "Dir_MasterList")
+    
+    ' Lặp qua từng sheet
+    For Each sheetName In sheetNames
+        ' Bỏ qua lỗi nếu sheet không tồn tại trong file
+        On Error Resume Next
+        Set ws = ActiveWorkbook.Sheets(sheetName)
+        On Error GoTo 0
+        
+        ' Nếu tìm thấy sheet thì bắt đầu xử lý
+        If Not ws Is Nothing Then
+            ' Tìm dòng cuối cùng có dữ liệu ở cột 7 (Mã nhân viên)
+            lastRow = ws.Cells(ws.Rows.Count, 7).End(xlUp).Row
+            
+            For startRow = 4 To lastRow
+                '-------------------------------------------------------
+                ' 1. Copy cột AB (28) sang cột B (2)
+                '-------------------------------------------------------
+                ws.Cells(startRow, 2).Value = ws.Cells(startRow, 28).Value
+                
+                '-------------------------------------------------------
+                ' 2. Highlight cột M (13) theo điều kiện (Logic OR)
+                '-------------------------------------------------------
+                colB_Value = ws.Cells(startRow, 2).Value
+                colM_Value = ws.Cells(startRow, 13).Value
+                firstChar = UCase(Left(colM_Value, 1))
+                
+                ' Reset màu nền trước khi kiểm tra
+                ws.Cells(startRow, 13).Interior.ColorIndex = xlNone
+                
+                If colB_Value = "Japan" Then
+                    ws.Cells(startRow, 13).Interior.Color = RGB(255, 255, 0) ' Màu vàng
+                ElseIf Right(colM_Value, 1) = "新" Then
+                    ws.Cells(startRow, 13).Interior.Color = RGB(255, 255, 0)
+                ElseIf firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                    ws.Cells(startRow, 13).Interior.Color = RGB(255, 255, 0)
+                End If
+                
+            Next startRow
+            
+            ' Giải phóng object cho vòng lặp tiếp theo
+            Set ws = Nothing
+        End If
+    Next sheetName
+
+End Sub
+
+```
+*(Lưu ý: Mình dùng ActiveWorkbook thay vì ThisWorkbook vì khi UiPath inject code từ file text bên ngoài vào, nó cần target đúng vào file Excel đang được mở bởi activity).*
+### Bước 2: Setup trong UiPath
+Trong workflow của UiPath, bạn thiết lập luồng như sau:
+ 1. Dùng activity **Excel Application Scope** (hoặc **Use Excel File** nếu dùng Modern Design) và trỏ tới file Excel cần xử lý.
+ 2. Bên trong Scope, kéo activity **Invoke VBA**.
+ 3. Cấu hình Properties cho Invoke VBA:
+   * **CodeFilePath:** Đường dẫn tới file FormatJapanGrade.txt vừa tạo.
+   * **EntryMethodName:** Điền "ProcessJapanAndGrade" (Tên Sub ở trên, nhớ có dấu ngoặc kép).
+   * **EntryMethodParameters:** Bỏ trống (vì hàm không yêu cầu tham số truyền vào).
+Khi Bot chạy đến bước này, nó sẽ mở file Excel, đọc logic từ file text, thực thi việc copy cột AB và đổ màu cột M chớp nhoáng trên cả 3 sheet, sau đó kết thúc sạch sẽ.
