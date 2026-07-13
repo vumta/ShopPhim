@@ -1,0 +1,72 @@
+Để cập nhật các yêu cầu mới vào code hiện tại của bạn, tôi đề xuất bạn tạo một thủ tục (Sub) mới có tên là `FormatReport` để xử lý việc định dạng sau khi sao chép dữ liệu. Điều này giúp code sạch sẽ và dễ bảo trì hơn thay vì nhồi nhét vào các hàm hiện có.
+
+Dưới đây là các bước thực hiện chi tiết:
+
+### Bước 1: Tạo thủ tục định dạng mới
+
+Thêm đoạn code sau vào dưới cùng của module của bạn:
+
+``` vba
+Sub FormatReport(wsTarget As Worksheet)
+    Dim lngLastRow As Long
+    Dim i As Long
+    
+    ' Tìm dòng cuối cùng dựa trên cột C (社員番号)
+    lngLastRow = wsTarget.Cells(wsTarget.Rows.Count, "C").End(xlUp).Row
+    
+    ' 1. Thêm viền cho dải dữ liệu (từ cột A đến P hoặc cột cuối cùng bạn cần)
+    wsTarget.Range("A1:P" & lngLastRow).Borders.LineStyle = xlContinuous
+    
+    ' 2 & 3. Xử lý dữ liệu
+    For i = 2 To lngLastRow
+        ' Xử lý Cột E (役職)
+        If wsTarget.Cells(i, 5).Value = "Store Manager" Then
+            wsTarget.Cells(i, 5).Value = "店長/代行"
+        Else
+            ' Xóa các giá trị khác theo yêu cầu
+            wsTarget.Cells(i, 5).ClearContents
+        End If
+        
+        ' Xử lý Cột B (組織名称)
+        If InStr(wsTarget.Cells(i, 2).Value, "/") > 0 Then
+            wsTarget.Cells(i, 2).Value = Left(wsTarget.Cells(i, 2).Value, InStr(wsTarget.Cells(i, 2).Value, "/") - 1)
+        End If
+        
+        ' Xử lý Cột P (応援先組織名)
+        If InStr(wsTarget.Cells(i, 16).Value, "/") > 0 Then
+            wsTarget.Cells(i, 16).Value = Left(wsTarget.Cells(i, 16).Value, InStr(wsTarget.Cells(i, 16).Value, "/") - 1)
+        End If
+    Next i
+End Sub
+
+```
+
+### Bước 2: Tích hợp vào hàm `CopyAuditDataToSummary`
+
+Bạn cần gọi hàm `FormatReport` vừa tạo sau khi đã hoàn tất việc sao chép dữ liệu vào `wsSummarySheet`.
+
+Tìm đến hàm `CopyAuditDataToSummary` trong code của bạn, và thêm dòng `Call FormatReport(wsSummarySheet)` vào ngay trước khi đóng workbook (`wbAuditDataWorkbook.Close`).
+
+**Vị trí chèn:**
+
+``` vba
+        ' ... (phần code sao chép hiện tại của bạn) ...
+        .Range(stRangeCopyByUser & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteByUser & lngSummaryLastRow)
+    End With
+    
+    ' --- GỌI HÀM ĐỊNH DẠNG MỚI Ở ĐÂY ---
+    Call FormatReport(wsSummarySheet)
+    
+    ' --- KẾT THÚC ---
+    wbAuditDataWorkbook.Close
+End Function
+
+```
+
+### Lưu ý quan trọng:
+
+  * **Dòng cuối cùng:** Hàm `FormatReport` mặc định lấy dòng cuối dựa trên cột C. Nếu cấu trúc cột C của bạn thay đổi, hãy điều chỉnh `wsTarget.Cells(wsTarget.Rows.Count, "C")`.
+  * **Dữ liệu rỗng:** Nếu cột P hoặc B có thể để trống, hàm `InStr` vẫn hoạt động tốt (trả về 0) và sẽ không thực hiện thay đổi, đảm bảo an toàn cho dữ liệu.
+  * **Xóa giá trị:** Ở bước 2 (Cột E), tôi sử dụng `ClearContents` để xóa nội dung nếu không khớp với "Store Manager". Nếu ý bạn là xóa cả dòng, bạn cần chuyển sang dùng vòng lặp ngược (từ `lngLastRow` về 2) và sử dụng `wsTarget.Rows(i).Delete`.
+
+Bạn có muốn tôi điều chỉnh thêm phần logic xóa giá trị thành xóa cả dòng thay vì chỉ xóa dữ liệu trong ô không?
