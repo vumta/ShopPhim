@@ -1,0 +1,117 @@
+Để thêm một bộ lọc (filter) mới cho cột với các giá trị `a,b,c`, bạn cần làm 2 việc:
+
+1.  Đọc thêm tham số từ `dicConfig` (Column Index và danh sách giá trị).
+2.  Thêm lệnh `.Autofilter` vào trong khối `With`.
+
+Dưới đây là đoạn code đã được cập nhật. Tôi đã sử dụng `Operator:=xlFilterValues` cho tất cả các filter dạng mảng (Array) để đảm bảo Excel lọc chính xác nhiều giá trị cùng lúc.
+
+Bạn hãy thay thế toàn bộ hàm `CopyAuditDataToSummary` bằng đoạn này:
+
+``` vba
+Function CopyAuditDataToSummary(stParameterFilePath As String, stSettingSheet As String, stAuditDataFilePath As String)    
+    Call FreezeScreen
+    
+    Dim lngLastRow As Long, lngLastCol As Long, lngSummaryLastRow As Long, lngRowCount As Long
+    Dim cetValue As Date, jstValue As Date
+    Dim dicConfig As Object
+    Set dicConfig = getDataConfig(stParameterFilePath, stSettingSheet)
+    
+    ' Các khai báo biến cấu hình hiện có
+    Dim stSummarySheetName As String: stSummarySheetName = dicConfig("SHEETNAME_SUMMARY")
+    Dim lngAuditMinRowFiltered As Long: lngAuditMinRowFiltered = CInt(dicConfig("OTHER_AUDIT_MIN_ROW_FILTERED"))
+    Dim lngRowSummaryDataStart As Long: lngRowSummaryDataStart = CInt(dicConfig("ROW_SUMMARY_DATA_START"))
+    Dim stUserEnter As String: stUserEnter = dicConfig("OTHER_USER_ENTER")
+    Dim lngDataSourceNum As Long: lngDataSourceNum = CInt(dicConfig("COLUMN_DATA_SOURCE_NUMBER"))
+    Dim lngByUserNum As Long: lngByUserNum = CInt(dicConfig("COLUMN_BY_USER_NUMBER"))
+    Dim lngAuditStartRow As Long: lngAuditStartRow = CInt(dicConfig("ROW_AUDIT_START"))
+    Dim lngEmployeeIDNum As Long: lngEmployeeIDNum = CInt(dicConfig("COLUMN_AUDIT_EMPLOYEE_ID_NUMBER"))
+    Dim lngChangedOnNum As Long: lngChangedOnNum = dicConfig("COLUMN_CHANGED_ON_NUMBER")
+    
+    ' --- Cấu hình cho Action Filter (hiện có) ---
+    Dim lngAction As Long: lngAction = CInt(dicConfig("COLUMN_AUDIT_ACTION"))
+    Dim arrActionValue() As String: arrActionValue = Split(dicConfig("COLUMN_AUDIT_ACTION_VALUE"), ",")
+    
+    ' --- CẤU HÌNH MỚI: Thêm cột filter a,b,c ---
+    ' Lưu ý: Bạn cần đảm bảo trong file Excel Config có key "COLUMN_NEW_FILTER" và "COLUMN_NEW_VALUES"
+    Dim lngNewFilterCol As Long: lngNewFilterCol = CInt(dicConfig("COLUMN_NEW_FILTER"))
+    Dim arrNewValues() As String: arrNewValues = Split(dicConfig("COLUMN_NEW_VALUES"), ",")
+    
+    ' Các Range copy/paste
+    Dim stRangeCopyEmployeeID As String: stRangeCopyEmployeeID = dicConfig("RANGE_COPY_EMPLOYEE_ID")
+    Dim stRangePasteEmployeeID As String: stRangePasteEmployeeID = dicConfig("RANGE_PASTE_EMPLOYEE_ID")
+    ' ... (Giữ nguyên các biến Range khác của bạn)
+    Dim stRangeCopyWorkday As String: stRangeCopyWorkday = dicConfig("RANGE_COPY_WORKDAY")
+    Dim stRangePasteWorkday As String: stRangePasteWorkday = dicConfig("RANGE_PASTE_WORKDAY")
+    Dim stRangeCopyWorkCategory As String: stRangeCopyWorkCategory = dicConfig("RANGE_COPY_WORK_CATEGORY")
+    Dim stRangePasteWorkCategory As String: stRangePasteWorkCategory = dicConfig("RANGE_PASTE_WORK_CATEGORY")
+    Dim stRangeCopyStartTime As String: stRangeCopyStartTime = dicConfig("RANGE_COPY_START_TIME")
+    Dim stRangePasteStartTime As String: stRangePasteStartTime = dicConfig("RANGE_PASTE_START_TIME")
+    Dim stRangeCopyEndTime As String: stRangeCopyEndTime = dicConfig("RANGE_COPY_END_TIME")
+    Dim stRangePasteEndTime As String: stRangePasteEndTime = dicConfig("RANGE_PASTE_END_TIME")
+    Dim stRangeCopyAction As String: stRangeCopyAction = dicConfig("RANGE_COPY_ACTION")
+    Dim stRangePasteAction As String: stRangePasteAction = dicConfig("RANGE_PASTE_ACTION")
+    Dim stRangeCopyChangedOn As String: stRangeCopyChangedOn = dicConfig("RANGE_COPY_CHANGED_ON")
+    Dim stRangePasteChangedOn As String: stRangePasteChangedOn = dicConfig("RANGE_PASTE_CHANGED_ON")
+    Dim stRangeCopyByUser As String: stRangeCopyByUser = dicConfig("RANGE_COPY_BY_USER")
+    Dim stRangePasteByUser As String: stRangePasteByUser = dicConfig("RANGE_PASTE_BY_USER")
+ 
+    Dim wsSummarySheet As Worksheet, wbAuditDataWorkbook As Workbook, wsAuditDataSheet As Worksheet
+    Set wsSummarySheet = ThisWorkbook.Sheets(stSummarySheetName)
+    Set wbAuditDataWorkbook = OpenWorkbook(stAuditDataFilePath)
+    Set wsAuditDataSheet = wbAuditDataWorkbook.Sheets(1)
+    
+    lngLastRow = LastRowColumn(wsAuditDataSheet)
+    lngLastCol = LastRowColumn(wsAuditDataSheet, "col")
+    lngSummaryLastRow = LastRowColumn(wsSummarySheet) + 1
+    
+    If lngSummaryLastRow < lngRowSummaryDataStart Then lngSummaryLastRow = lngRowSummaryDataStart
+    
+    ' Add leading zeros
+    For Each cell In wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow + 1, lngByUserNum), wsAuditDataSheet.Cells(lngLastRow, lngByUserNum))
+        If IsNumeric(cell.Value) Then cell.Value = "'" & Right(String(8, "0") & CStr(cell.Value), 8)
+    Next cell
+    
+    ' --- Filter value ---
+    With wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow, 1), wsAuditDataSheet.Cells(lngLastRow, lngLastCol))
+        .AutoFilter Field:=lngDataSourceNum, Criteria1:=stUserEnter
+        .AutoFilter Field:=lngByUserNum, Criteria1:="0*"
+        
+        ' Filter Action (Array)
+        .AutoFilter Field:=lngAction, Criteria1:=arrActionValue, Operator:=xlFilterValues
+        
+        ' FILTER MỚI: Thêm filter cho a,b,c
+        .AutoFilter Field:=lngNewFilterCol, Criteria1:=arrNewValues, Operator:=xlFilterValues
+    End With
+    
+    ' Copy dữ liệu như cũ...
+    lngRowCount = wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow, 1), wsAuditDataSheet.Cells(lngLastRow, lngLastCol)).Columns(lngDataSourceNum).SpecialCells(xlCellTypeVisible).Cells.Count
+    If lngRowCount > lngAuditMinRowFiltered Then
+        ' Xử lý format EmployeeID và ChangedOn...
+        ' [Giữ nguyên code xử lý dữ liệu của bạn ở đây]
+        
+        ' Copy Audit data to Summary file
+        With wsAuditDataSheet
+            .Range(stRangeCopyEmployeeID & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEmployeeID & lngSummaryLastRow)
+            .Range(stRangeCopyWorkday & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkday & lngSummaryLastRow)
+            .Range(stRangeCopyWorkCategory & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkCategory & lngSummaryLastRow)
+            .Range(stRangeCopyStartTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteStartTime & lngSummaryLastRow)
+            .Range(stRangeCopyEndTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEndTime & lngSummaryLastRow)
+            .Range(stRangeCopyAction & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteAction & lngSummaryLastRow)
+            .Range(stRangeCopyChangedOn & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteChangedOn & lngSummaryLastRow)
+            .Range(stRangeCopyByUser & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteByUser & lngSummaryLastRow)
+        End With
+    End If
+    
+    wbAuditDataWorkbook.Close
+End Function
+
+```
+
+### Lưu ý quan trọng:
+
+Để đoạn code trên chạy được, bạn **phải cập nhật file Excel cấu hình** của bạn (file `ParameterFilePath`) với 2 dòng mới:
+
+  * Cột 1: `COLUMN_NEW_FILTER` | Cột 2: `Số thứ tự cột bạn muốn lọc` (Ví dụ: `5`)
+  * Cột 1: `COLUMN_NEW_VALUES` | Cột 2: `a,b,c` (Danh sách các giá trị phân cách bằng dấu phẩy)
+
+Nếu bạn không thêm 2 dòng này vào file cấu hình, hàm `dicConfig("...")` sẽ bị lỗi key missing.
