@@ -1,0 +1,65 @@
+Để hiển thị thời gian theo định dạng 24h (ví dụ: 15:27 thay vì 3:27 PM), bạn cần thay đổi chuỗi định dạng trong Excel từ `h:mm` thành `HH:mm` (chữ `HH` viết hoa trong Excel ép buộc hiển thị theo giờ 24h).
+
+Dưới đây là các phần code bạn cần cập nhật trong file `.txt` của mình.
+
+### 1\. Cập nhật đoạn code xử lý thời gian trong hàm `CopyAuditDataToSummary`
+
+Hãy tìm đoạn vòng lặp xử lý `Changed On` trong hàm `CopyAuditDataToSummary` và cập nhật dòng `NumberFormat` như sau:
+
+``` vba
+        ' Change Value of Changed On (CET) to JST
+        For Each cell In wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow + 1, lngChangedOnNum), wsAuditDataSheet.Cells(lngLastRow, lngChangedOnNum)).SpecialCells(xlCellTypeVisible)
+            If IsDate(cell.Value) Then
+                cetValue = cell.Value
+                jstValue = CETtoJST(cetValue)
+                cell.Value = jstValue
+                ' Đã cập nhật định dạng sang HH:mm để ép kiểu 24h
+                cell.NumberFormat = "yyyy/mm/dd HH:mm" 
+            End If
+        Next cell
+
+```
+
+-----
+
+### 2\. Giữ nguyên logic xử lý múi giờ (Phần trích xuất)
+
+Logic tính toán múi giờ của bạn đã đúng, bạn không cần thay đổi phần tính toán này (chỉ cần đảm bảo nó nằm trong file `.txt` của bạn):
+
+``` vba
+' Function to check if a given CET date is in daylight saving time
+Private Function IsCETDST(ByVal dt As Date) As Boolean
+    ' CET DST starts last Sunday in March, ends last Sunday in October
+    Dim yearVal As Integer
+    Dim dstStart As Date, dstEnd As Date
+    
+    yearVal = Year(dt)
+    
+    ' Last Sunday in March
+    dstStart = DateSerial(yearVal, 3, 31) - Weekday(DateSerial(yearVal, 3, 31), vbMonday) + 1
+    ' Last Sunday in October
+    dstEnd = DateSerial(yearVal, 10, 31) - Weekday(DateSerial(yearVal, 10, 31), vbMonday) + 1
+    
+    IsCETDST = (dt >= dstStart + TimeSerial(2, 0, 0) And dt < dstEnd + TimeSerial(3, 0, 0))
+End Function
+
+' Convert CET to JST
+Public Function CETtoJST(ByVal cetDate As Date) As Date
+    Dim offsetHours As Double
+    
+    ' CET = UTC+1, CEST = UTC+2
+    If IsCETDST(cetDate) Then
+        offsetHours = 9 - 2 ' JST(UTC+9) - CEST(UTC+2)
+    Else
+        offsetHours = 9 - 1 ' JST(UTC+9) - CET(UTC+1)
+    End If
+    
+    CETtoJST = cetDate + offsetHours / 24
+End Function
+
+```
+
+**Lưu ý:**
+
+  * Chữ `HH` viết hoa là quan trọng nhất để Excel luôn hiển thị định dạng 24h bất kể cài đặt vùng (Region) của máy tính đang là gì.
+  * Bạn chỉ cần cập nhật thay đổi ở mục 1 vào file `.txt` hiện có, các phần khác giữ nguyên.
