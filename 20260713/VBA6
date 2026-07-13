@@ -1,0 +1,64 @@
+Để đáp ứng yêu cầu của bạn: hàm `FormatReport` sẽ chạy độc lập và bạn có thể gọi từ một "Step" khác trong UiPath.
+
+Bạn chỉ cần thêm 2 đoạn mã này vào cuối file `.txt` hiện tại của bạn là xong.
+
+### 1\. Thêm đoạn mã này vào cuối file .txt
+
+Bạn copy và dán toàn bộ đoạn này vào cuối tệp:
+
+``` vba
+' Procedure to format report (Independent)
+Sub FormatReport(wsTarget As Worksheet)
+    Dim lngLastRow As Long
+    Dim i As Long
+    
+    ' 1. Add borders for data range (based on Column C)
+    lngLastRow = wsTarget.Cells(wsTarget.Rows.Count, "C").End(xlUp).Row
+    wsTarget.Range("A1:P" & lngLastRow).Borders.LineStyle = xlContinuous
+    
+    ' 2 & 3. Process data
+    For i = 2 To lngLastRow
+        ' Process Column E (Role)
+        If wsTarget.Cells(i, 5).Value = "Store Manager" Then
+            wsTarget.Cells(i, 5).Value = "店長/代行"
+        Else
+            wsTarget.Cells(i, 5).ClearContents
+        End If
+        
+        ' Process Column B (Org Name)
+        If InStr(wsTarget.Cells(i, 2).Value, "/") > 0 Then
+            wsTarget.Cells(i, 2).Value = Left(wsTarget.Cells(i, 2).Value, InStr(wsTarget.Cells(i, 2).Value, "/") - 1)
+        End If
+        
+        ' Process Column P (Support Org Name)
+        If InStr(wsTarget.Cells(i, 16).Value, "/") > 0 Then
+            wsTarget.Cells(i, 16).Value = Left(wsTarget.Cells(i, 16).Value, InStr(wsTarget.Cells(i, 16).Value, "/") - 1)
+        End If
+    Next i
+End Sub
+
+' Wrapper Sub for UiPath to call independently
+Sub RunFormatReport(stSheetName As String)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets(stSheetName)
+    On Error GoTo 0
+    
+    If Not ws Is Nothing Then
+        Call FormatReport(ws)
+    Else
+        Err.Raise 1, "", "Sheet " & stSheetName & " not found."
+    End If
+End Sub
+
+```
+
+### 2\. Cách gọi trong UiPath
+
+Tại Step (Activity) mới mà bạn muốn gọi hàm này, bạn dùng activity **"Execute Macro"**:
+
+  * **Macro Name:** `RunFormatReport`
+  * **Parameters:** `new String[] { "Tên_Sheet_Của_Bạn" }`
+      * *Ví dụ:* Nếu sheet bạn cần format là "Summary", bạn điền: `new String[] { "Summary" }`
+
+Cách này giúp bạn giữ nguyên cấu trúc code cũ, không cần sửa gì trong hàm `CopyAuditDataToSummary`, và UiPath vẫn điều khiển được việc định dạng diễn ra ở đúng thời điểm bạn muốn.
