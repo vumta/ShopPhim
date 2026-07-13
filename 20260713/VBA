@@ -1,0 +1,46 @@
+Chào bạn, việc lọc dữ liệu tự động (AutoFilter) bằng một danh sách các chuỗi cách nhau bởi dấu phẩy là một bài toán rất phổ biến trong VBA.
+Để làm được việc này, chúng ta sẽ sử dụng hàm Split() để cắt chuỗi thành một mảng, sau đó truyền mảng đó vào tham số Criteria1 của AutoFilter với cấu trúc Operator:=xlFilterValues.
+Dưới đây là đoạn code chuẩn chỉnh, sạch sẽ và rất dễ tùy biến cho bạn:
+```vba
+Sub AutoFilter_Dua_Tren_Chuoi()
+    Dim ws As Worksheet
+    Dim chuoiGoc As String
+    Dim mangBoLoc() As String
+    Dim vungDuLieu As Range
+    
+    ' 1. Cấu hình Sheet và Vùng dữ liệu cần lọc
+    Set ws = ThisWorkbook.Sheets("Sheet1") ' Thay "Sheet1" bằng tên Sheet của bạn
+    Set vungDuLieu = ws.Range("A1:C100")   ' Thay bằng vùng dữ liệu thực tế (bao gồm cả dòng tiêu đề)
+    
+    ' 2. Chuỗi chứa các điều kiện lọc (cách nhau bằng dấu phẩy)
+    chuoiGoc = "Apple, Orange, Banana"      ' Thay bằng chuỗi của bạn
+    
+    ' 3. Tách chuỗi thành mảng dựa vào dấu phẩy
+    ' Dùng Trim() trong thực tế nếu chuỗi có khoảng trắng thừa (ví dụ: "Apple,  Orange")
+    mangBoLoc = Split(chuoiGoc, ", ")
+    
+    ' Nếu chuỗi của bạn KHÔNG có khoảng trắng sau dấu phẩy (dạng "Apple,Orange"), hãy dùng dòng dưới:
+    ' mangBoLoc = Split(chuoiGoc, ",")
+
+    ' 4. Thực hiện AutoFilter
+    ' Lưu ý: Field:=1 nghĩa là lọc ở cột ĐẦU TIÊN của vùng vungDuLieu.
+    ' Nếu muốn lọc cột thứ 2, đổi thành Field:=2
+    With vungDuLieu
+        .AutoFilter Field:=1, _
+                    Criteria1:=mangBoLoc, _
+                    Operator:=xlFilterValues
+    End With
+    
+    MsgBox "Đã lọc dữ liệu thành công!", vbInformation, "Thông báo"
+End Sub
+
+```
+### 💡 Một vài lưu ý quan trọng để code chạy mượt mà:
+ * **Dấu cách sau dấu phẩy:** Nếu chuỗi của bạn có dạng "Apple, Orange" (có dấu cách), hãy dùng Split(chuoiGoc, ", "). Nếu chuỗi dính liền "Apple,Orange", hãy dùng Split(chuoiGoc, ",").
+ * **Xóa bộ lọc cũ:** Nếu muốn đảm bảo trước khi lọc, Sheet của bạn không bị dính bộ lọc cũ nào, bạn có thể thêm dòng này vào đầu code (sau phần Set dữ liệu):
+   ```vba
+   if ws.FilterMode Then ws.ShowAllData
+   
+   ```
+ * **Lọc chính xác (Exact Match):** Phương pháp này sẽ lọc chính xác các giá trị có trong mảng. Nếu bạn muốn lọc theo kiểu "chứa ký tự" (Like/Contains), thuật toán sẽ phức tạp hơn và cần dùng vòng lặp.
+Bạn có gặp khó khăn gì khi áp dụng đoạn code này vào file thực tế của mình không?
