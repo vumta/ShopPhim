@@ -1,0 +1,434 @@
+Dưới đây là toàn bộ mã nguồn của bạn đã được cập nhật với các bình luận (comments) bằng tiếng Anh chuyên nghiệp, bao gồm cả thủ tục `FormatReport` mà chúng ta đã thảo luận ở bước trước.
+
+``` vba
+Function MergeGlobalData(stParameterFilePath As String, stSettingSheet As String, stGlobalDataFilePath As String)
+    Call FreezeScreen
+    
+    Dim lngSummaryLastRow As Long
+    Dim lngGlobalLastRow As Long
+    Dim lngGlobalLastCol As Long
+    
+    Dim dicConfig As Object
+    Set dicConfig = getDataConfig(stParameterFilePath, stSettingSheet)
+    Dim lngGlobalEmployeeIDNum As Long: lngGlobalEmployeeIDNum = dicConfig("COLUMN_GLOBAL_EMPLOYEE_ID_NUMBER") + 1
+    Dim stGlobalTsSheetName As String: stGlobalTsSheetName = dicConfig("SHEETNAME_GLOBAL_TS")
+    Dim lngGlobalStartRow As Long: lngGlobalStartRow = dicConfig("ROW_GLOBAL_START")
+    Dim lngGlobalLeftOverRow As Long: lngGlobalLeftOverRow = dicConfig("OTHER_GLOBAL_LEFT_OVER_ROW")
+    
+    Dim wsGlobalTimesheetXlsxSheet As Worksheet
+    Dim wbGlobalTimesheetCsvWorkbook As Workbook
+    Dim wsGlobalTimesheetCsvSheet As Worksheet
+    Set wsGlobalTimesheetXlsxSheet = ThisWorkbook.Sheets(1)
+    wsGlobalTimesheetXlsxSheet.Name = stGlobalTsSheetName
+    Set wsGlobalTimesheetXlsxSheet = ThisWorkbook.Sheets(stGlobalTsSheetName)
+    Set wbGlobalTimesheetCsvWorkbook = OpenWorkbook(stGlobalDataFilePath)
+    Set wsGlobalTimesheetCsvSheet = wbGlobalTimesheetCsvWorkbook.Sheets(1)
+    
+    lngGlobalLastRow = LastRowColumn(wsGlobalTimesheetCsvSheet)
+    lngGlobalLastCol = LastRowColumn(wsGlobalTimesheetCsvSheet, "col")
+    
+    ' Add leading zeros to the Employee ID column values
+    For Each cell In wsGlobalTimesheetCsvSheet.Range(wsGlobalTimesheetCsvSheet.Cells(lngGlobalStartRow + 1, lngGlobalEmployeeIDNum), wsGlobalTimesheetCsvSheet.Cells(lngGlobalLastRow, lngGlobalEmployeeIDNum))
+        If IsNumeric(cell.Value) Then
+            cell.Value = "'" & Right(String(8, "0") & CStr(cell.Value), 8)
+        End If
+    Next cell
+    
+    If IsEmpty(wsGlobalTimesheetXlsxSheet.Cells(2, 1)) Then
+        wsGlobalTimesheetCsvSheet.Range(wsGlobalTimesheetCsvSheet.Cells(lngGlobalStartRow, 1), wsGlobalTimesheetCsvSheet.Cells(lngGlobalLastRow - lngGlobalLeftOverRow, lngGlobalLastCol)).Copy wsGlobalTimesheetXlsxSheet.Cells(1, 1)
+    Else
+        lngSummaryLastRow = LastRowColumn(wsGlobalTimesheetXlsxSheet)
+        wsGlobalTimesheetCsvSheet.Range(wsGlobalTimesheetCsvSheet.Cells(lngGlobalStartRow + 1, 1), wsGlobalTimesheetCsvSheet.Cells(lngGlobalLastRow - lngGlobalLeftOverRow, lngGlobalLastCol)).Copy wsGlobalTimesheetXlsxSheet.Cells(lngSummaryLastRow + 1, 1)
+    End If
+    wbGlobalTimesheetCsvWorkbook.Close
+End Function
+
+Function CopyAuditDataToSummary(stParameterFilePath As String, stSettingSheet As String, stAuditDataFilePath As String)    
+    Call FreezeScreen
+    
+    Dim lngLastRow As Long
+    Dim lngLastCol As Long
+    Dim lngSummaryLastRow As Long
+    Dim lngRowCount As Long
+    Dim cetValue As Date
+    Dim jstValue As Date
+    Dim dicConfig As Object
+    Set dicConfig = getDataConfig(stParameterFilePath, stSettingSheet)
+    Dim stSummarySheetName As String: stSummarySheetName = dicConfig("SHEETNAME_SUMMARY")
+    Dim lngAuditMinRowFiltered As Long: lngAuditMinRowFiltered = CInt(dicConfig("OTHER_AUDIT_MIN_ROW_FILTERED"))
+    Dim lngRowSummaryDataStart As Long: lngRowSummaryDataStart = CInt(dicConfig("ROW_SUMMARY_DATA_START"))
+    Dim stUserEnter As String: stUserEnter = dicConfig("OTHER_USER_ENTER")
+    Dim lngDataSourceNum As Long: lngDataSourceNum = CInt(dicConfig("COLUMN_DATA_SOURCE_NUMBER"))
+    Dim lngByUserNum As Long: lngByUserNum = CInt(dicConfig("COLUMN_BY_USER_NUMBER"))
+    Dim lngAuditStartRow As Long: lngAuditStartRow = CInt(dicConfig("ROW_AUDIT_START"))
+    Dim lngEmployeeIDNum As Long: lngEmployeeIDNum = CInt(dicConfig("COLUMN_AUDIT_EMPLOYEE_ID_NUMBER"))
+    Dim lngChangedOnNum As Long: lngChangedOnNum = dicConfig("COLUMN_CHANGED_ON_NUMBER")
+    
+    Dim stRangeCopyEmployeeID As String: stRangeCopyEmployeeID = dicConfig("RANGE_COPY_EMPLOYEE_ID")
+    Dim stRangePasteEmployeeID As String: stRangePasteEmployeeID = dicConfig("RANGE_PASTE_EMPLOYEE_ID")
+    Dim stRangeCopyWorkday As String: stRangeCopyWorkday = dicConfig("RANGE_COPY_WORKDAY")
+    Dim stRangePasteWorkday As String: stRangePasteWorkday = dicConfig("RANGE_PASTE_WORKDAY")
+    Dim stRangeCopyWorkCategory As String: stRangeCopyWorkCategory = dicConfig("RANGE_COPY_WORK_CATEGORY")
+    Dim stRangePasteWorkCategory As String: stRangePasteWorkCategory = dicConfig("RANGE_PASTE_WORK_CATEGORY")
+    Dim stRangeCopyStartTime As String: stRangeCopyStartTime = dicConfig("RANGE_COPY_START_TIME")
+    Dim stRangePasteStartTime As String: stRangePasteStartTime = dicConfig("RANGE_PASTE_START_TIME")
+    Dim stRangeCopyEndTime As String: stRangeCopyEndTime = dicConfig("RANGE_COPY_END_TIME")
+    Dim stRangePasteEndTime As String: stRangePasteEndTime = dicConfig("RANGE_PASTE_END_TIME")
+    Dim stRangeCopyAction As String: stRangeCopyAction = dicConfig("RANGE_COPY_ACTION")
+    Dim stRangePasteAction As String: stRangePasteAction = dicConfig("RANGE_PASTE_ACTION")
+    Dim stRangeCopyChangedOn As String: stRangeCopyChangedOn = dicConfig("RANGE_COPY_CHANGED_ON")
+    Dim stRangePasteChangedOn As String: stRangePasteChangedOn = dicConfig("RANGE_PASTE_CHANGED_ON")
+    Dim stRangeCopyByUser As String: stRangeCopyByUser = dicConfig("RANGE_COPY_BY_USER")
+    Dim stRangePasteByUser As String: stRangePasteByUser = dicConfig("RANGE_PASTE_BY_USER")
+    
+    ' CR-202607 (Step 8-7): Initialize Action filtering
+    Dim lngAction As Long: lngAction = CInt(dicConfig("COLUMN_AUDIT_ACTION"))
+    Dim stActionValue As String: stActionValue = dicConfig("COLUMN_AUDIT_ACTION_VALUE")
+    Dim arrActionValue() As String: arrActionValue = Split(stActionValue, ",")
+ 
+    Dim wsSummarySheet As Worksheet
+    Dim wbAuditDataWorkbook As Workbook
+    Dim wsAuditDataSheet As Worksheet
+    Set wsSummarySheet = ThisWorkbook.Sheets(stSummarySheetName)
+    Set wbAuditDataWorkbook = OpenWorkbook(stAuditDataFilePath)
+    Set wsAuditDataSheet = wbAuditDataWorkbook.Sheets(1)
+    
+    lngLastRow = LastRowColumn(wsAuditDataSheet)
+    lngLastCol = LastRowColumn(wsAuditDataSheet, "col")
+    lngSummaryLastRow = LastRowColumn(wsSummarySheet) + 1
+    
+    If lngSummaryLastRow < lngRowSummaryDataStart Then
+        lngSummaryLastRow = lngRowSummaryDataStart
+    End If
+    
+    ' Add leading zeros to the By User column values
+    For Each cell In wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow + 1, lngByUserNum), wsAuditDataSheet.Cells(lngLastRow, lngByUserNum))
+        If IsNumeric(cell.Value) Then
+            cell.Value = "'" & Right(String(8, "0") & CStr(cell.Value), 8)
+        End If
+    Next cell
+    
+    ' Apply data filtering
+    With wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow, 1), wsAuditDataSheet.Cells(lngLastRow, lngLastCol))
+        .Autofilter Field:=lngDataSourceNum, Criteria1:=stUserEnter
+        .Autofilter Field:=lngByUserNum, Criteria1:="0*"
+        ' Apply additional filter for specific actions
+        .Autofilter Field:=lngAction, Criteria1:=arrActionValue
+    End With
+    
+    lngRowCount = wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow, 1), wsAuditDataSheet.Cells(lngLastRow, lngLastCol)).Columns(lngDataSourceNum).SpecialCells(xlCellTypeVisible).Cells.Count
+    If lngRowCount > lngAuditMinRowFiltered Then
+    
+        ' Update Employee ID format
+        For Each cell In wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow + 1, lngEmployeeIDNum), wsAuditDataSheet.Cells(lngLastRow, lngEmployeeIDNum)).SpecialCells(xlCellTypeVisible)
+            If Not IsEmpty(cell.Value) Then
+                cell.Value = "'" & Right(CStr(cell.Value), 8)
+            End If
+        Next cell
+        
+        ' Convert Changed On (CET) time to JST
+        For Each cell In wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow + 1, lngChangedOnNum), wsAuditDataSheet.Cells(lngLastRow, lngChangedOnNum)).SpecialCells(xlCellTypeVisible)
+            If IsDate(cell.Value) Then
+                cetValue = cell.Value
+                jstValue = CETtoJST(cetValue)
+                cell.Value = jstValue
+                cell.NumberFormat = "yyyy/mm/dd h:mm"
+            End If
+        Next cell
+        
+        wsAuditDataSheet.Range(stRangeCopyWorkday & lngLastRow).NumberFormat = "yyyy/mm/dd"
+        
+        ' Copy filtered audit data to Summary file
+        With wsAuditDataSheet
+            .Range(stRangeCopyEmployeeID & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEmployeeID & lngSummaryLastRow)
+            .Range(stRangeCopyWorkday & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkday & lngSummaryLastRow)
+            .Range(stRangeCopyWorkCategory & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkCategory & lngSummaryLastRow)
+            .Range(stRangeCopyStartTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteStartTime & lngSummaryLastRow)
+            .Range(stRangeCopyEndTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEndTime & lngSummaryLastRow)
+            .Range(stRangeCopyAction & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteAction & lngSummaryLastRow)
+            .Range(stRangeCopyChangedOn & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteChangedOn & lngSummaryLastRow)
+            .Range(stRangeCopyByUser & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteByUser & lngSummaryLastRow)
+        End With
+    End If
+    
+    ' Call formatting sub procedure to apply reporting styles
+    Call FormatReport(wsSummarySheet)
+    
+    wbAuditDataWorkbook.Close
+End Function
+
+' Procedure to format the summary report data
+Sub FormatReport(wsTarget As Worksheet)
+    Dim lngLastRow As Long
+    Dim i As Long
+    
+    ' Determine the last row based on column C (Employee ID)
+    lngLastRow = wsTarget.Cells(wsTarget.Rows.Count, "C").End(xlUp).Row
+    
+    ' 1. Apply borders to the data range
+    wsTarget.Range("A1:P" & lngLastRow).Borders.LineStyle = xlContinuous
+    
+    ' 2 & 3. Process specific columns
+    For i = 2 To lngLastRow
+        ' Process Column E (Role)
+        If wsTarget.Cells(i, 5).Value = "Store Manager" Then
+            wsTarget.Cells(i, 5).Value = "店長/代行"
+        Else
+            wsTarget.Cells(i, 5).ClearContents
+        End If
+        
+        ' Process Column B (Organization Name) - Remove suffix after "/"
+        If InStr(wsTarget.Cells(i, 2).Value, "/") > 0 Then
+            wsTarget.Cells(i, 2).Value = Left(wsTarget.Cells(i, 2).Value, InStr(wsTarget.Cells(i, 2).Value, "/") - 1)
+        End If
+        
+        ' Process Column P (Support Organization Name) - Remove suffix after "/"
+        If InStr(wsTarget.Cells(i, 16).Value, "/") > 0 Then
+            wsTarget.Cells(i, 16).Value = Left(wsTarget.Cells(i, 16).Value, InStr(wsTarget.Cells(i, 16).Value, "/") - 1)
+        End If
+    Next i
+End Sub
+
+Function Autofilter()
+    Dim ws As Worksheet
+    On Error Resume Next
+    For Each ws In ThisWorkbook.Worksheets
+        ws.AutoFilterMode = False
+    Next ws
+End Function
+
+Function FreezeScreen()
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+End Function
+
+' Check if an item exists in the array
+Function CheckItemInArray(myArr() As String, itemCheck As String) As Boolean
+    Dim i As Integer
+    CheckItemInArray = False
+    On Error Resume Next
+    For i = LBound(myArr) To UBound(myArr)
+        If myArr(i) = itemCheck Then
+            CheckItemInArray = True
+            Exit For
+        End If
+    Next
+    On Error GoTo 0
+End Function
+
+' Retrieve size of the array
+Function GetSizeOfArray(ByRef myArr() As String) As Integer
+    Dim intSize As Integer
+    On Error Resume Next
+    intSize = UBound(myArr)
+    If Err.Number <> 0 Then
+        GetSizeOfArray = 0
+    Else
+        GetSizeOfArray = intSize + 1
+    End If
+    On Error GoTo 0
+End Function
+
+' Check if a sheet exists in the workbook
+Function CheckSheetExists(sheetName As String, wb As Workbook) As Boolean
+    On Error Resume Next
+    CheckSheetExists = Not wb.Sheets(sheetName) Is Nothing
+    On Error GoTo 0
+End Function
+
+' Retrieve configuration data from file
+Function getDataConfig(strConfigFilePath As String, strSheetName As String) As Object
+    Dim wbTargetFile As Workbook
+    Dim wsTargetFile As Worksheet
+    Dim dict As Object
+    Dim i As Long, lngLastRow As Long
+    Dim strKey As String
+    Dim strValue As String
+    
+    On Error GoTo OnError
+    Set wbTargetFile = OpenWorkbook(strConfigFilePath)
+    Set wsTargetFile = wbTargetFile.Sheets(strSheetName)
+    Set dict = CreateObject("Scripting.Dictionary")
+    lngLastRow = LastRowColumn(wsTargetFile)
+    
+    With wsTargetFile
+        For i = 2 To lngLastRow
+            strKey = .Cells(i, 1)
+            strValue = .Cells(i, 2)
+            If strKey <> "" And Not dict.Exists(strKey) Then
+                dict.Add strKey, strValue
+            End If
+        Next i
+    End With
+    
+    ' Close file
+    If Not (wbTargetFile Is Nothing) Then
+        wbTargetFile.Close
+    End If
+    Set getDataConfig = dict
+    Exit Function
+    
+OnError:
+    Set wbTargetFile = Nothing
+    ' Error Handling
+    Call Err.Raise("-1", "", "Common_GetDataConfig_Error" & ":ErrorNum:" & Err.Number & "_ErrorDes:" & Err.Description)
+End Function
+
+' Retrieve Workbook by file path
+Function OpenWorkbook(strFilePath As String) As Workbook
+    Dim bolWorkbookOpen As Boolean
+    Dim wbTarget As Workbook
+    Dim wb As Workbook
+    
+    ' Initialize variables
+    bolWorkbookOpen = False
+    Set wbTarget = Nothing
+    
+    For Each wb In Workbooks
+        If wb.Name = Mid(strFilePath, InStrRev(strFilePath, "\") + 1) Then
+            bolWorkbookOpen = True
+            Set wbTarget = wb
+            Exit For
+        End If
+    Next wb
+    
+    If bolWorkbookOpen = False Then
+        If Dir(strFilePath, vbDirectory) = "" Then
+            Call Err.Raise(-1, "", "The file path: " & strFilePath & " does not exist.")
+        End If
+        Set wbTarget = Workbooks.Open(strFilePath)
+    End If
+    Set OpenWorkbook = wbTarget
+End Function
+
+' Check length of argument string
+Sub checkLength(targetValue As String, Optional minLength As Integer = 1, Optional maxLength As Integer = -1)
+    If minLength > 0 And Len(targetValue) < minLength Then
+        Call Err.Raise(-1, "", "Parameter check error")
+    End If
+    
+    If maxLength > 0 And Len(targetValue) > maxLength Then
+        Call Err.Raise(-1, "", "Parameter check error")
+    End If
+End Sub
+
+' Check if argument is numeric
+Sub checkNumeric(num As String)
+    If IsNumeric(num) = False Then
+        Call Err.Raise(-1, "", "Parameter check error")
+    End If
+End Sub
+
+' Check argument value against allowed values
+Sub checkString(targetValue As String, cmpValue As String)
+    Dim arr() As String
+    arr = Split(cmpValue)
+    
+    Dim i As Long
+    For i = 0 To UBound(arr)
+        If StrComp(targetValue, arr(i), vbTextCompare) = 0 Then
+            Exit Sub
+        End If
+    Next i
+    Call Err.Raise(-1, "", "Parameter check error")
+End Sub
+
+' Check boolean argument
+Sub checkBoolean(targetValue As String)
+    Call checkString(targetValue, "true false")
+End Sub
+
+' Check if a folder or file path exists
+Function CheckExistsPath(ByVal strPath As String, ByVal bolFile As Boolean) As Boolean
+    Dim oFSO As Object
+    Dim bolExists As Boolean
+    
+    Set oFSO = CreateObject("Scripting.FileSystemObject")
+    
+    CheckExistsPath = False
+    If strPath = vbNullString Then
+        Exit Function
+    End If
+    If bolFile Then
+        bolExists = oFSO.FileExists(strPath)
+    Else
+        bolExists = oFSO.FolderExists(strPath)
+    End If
+    Set oFSO = Nothing
+    CheckExistsPath = bolExists
+End Function
+
+' Retrieve the last row by column index
+Function getLastRowByColumn(ws As Worksheet, Optional CheckCol As Long = 1) As Long
+    With ws
+        getLastRowByColumn = 0
+        If Not Intersect(.UsedRange, .Columns(CheckCol)) Is Nothing Then
+            Dim LastRow As Long
+            LastRow = .UsedRange.Row + .UsedRange.Rows.Count - 1
+            If LastRow > 1 Then
+                Dim buf As Variant
+                buf = .Range(.Cells(1, CheckCol), .Cells(LastRow, CheckCol)).Value
+                Dim C As Long
+                For C = UBound(buf, 1) To 1 Step -1
+                    If Not IsEmpty(buf(C, 1)) Then
+                        getLastRowByColumn = C
+                        Exit Function
+                    End If
+                Next
+            ElseIf Not IsEmpty(.Cells(1, CheckCol).Value) Then
+                getLastRowByColumn = 1
+            End If
+        End If
+    End With
+End Function
+
+' Retrieve last row or column in sheet
+Function LastRowColumn(wsTargetFile As Worksheet, Optional strRowColumn As String = "row", Optional bolLookInValue As Boolean = True) As Long
+    Dim TypeLookIn As XlFindLookIn
+    If bolLookInValue Then
+        TypeLookIn = xlValues
+    Else
+        TypeLookIn = xlFormulas
+    End If
+    Select Case LCase(Left(strRowColumn, 1))
+        Case "r"
+            LastRowColumn = wsTargetFile.Cells.Find("*", LookIn:=TypeLookIn, SearchOrder:=xlByRows, SearchDirection:=xlPrevious).Row
+        Case "c"
+            LastRowColumn = wsTargetFile.Cells.Find("*", LookIn:=TypeLookIn, SearchOrder:=xlByColumns, SearchDirection:=xlPrevious).Column
+        Case Else
+            LastRowColumn = 1
+    End Select
+End Function
+
+' Check if a given CET date is in Daylight Saving Time
+Private Function IsCETDST(ByVal dt As Date) As Boolean
+    ' CET DST starts last Sunday in March, ends last Sunday in October
+    Dim yearVal As Integer
+    Dim dstStart As Date, dstEnd As Date
+    
+    yearVal = Year(dt)
+    
+    ' Calculate last Sunday in March
+    dstStart = DateSerial(yearVal, 3, 31) - Weekday(DateSerial(yearVal, 3, 31), vbMonday) + 1
+    ' Calculate last Sunday in October
+    dstEnd = DateSerial(yearVal, 10, 31) - Weekday(DateSerial(yearVal, 10, 31), vbMonday) + 1
+    
+    IsCETDST = (dt >= dstStart + TimeSerial(2, 0, 0) And dt < dstEnd + TimeSerial(3, 0, 0))
+End Function
+
+' Convert CET time to JST
+Public Function CETtoJST(ByVal cetDate As Date) As Date
+    Dim offsetHours As Double
+    
+    ' CET = UTC+1, CEST = UTC+2
+    If IsCETDST(cetDate) Then
+        offsetHours = 9 - 2 ' JST(UTC+9) - CEST(UTC+2)
+    Else
+        offsetHours = 9 - 1 ' JST(UTC+9) - CET(UTC+1)
+    End If
+    
+    CETtoJST = cetDate + offsetHours / 24
+End Function
+
+```
