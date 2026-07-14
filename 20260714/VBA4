@@ -1,0 +1,46 @@
+Để thay đổi font chữ cho một vùng dữ liệu trong VBA, bạn nên sử dụng một **Sub** (thủ tục) thay vì Function, vì tác vụ này thực hiện hành động thay đổi thuộc tính đối tượng (format) chứ không trả về một giá trị tính toán.
+
+Dưới đây là đoạn code bạn có thể thêm vào module của mình để thực hiện việc này một cách linh hoạt:
+
+### 1\. Thêm Sub này vào Module của bạn
+
+``` vba
+'----------------------------------------------------------------------------------
+' Sub: SetFontForRange
+' Mô tả: Đổi font chữ cho một vùng dữ liệu
+' @param wsTarget       : Sheet chứa dữ liệu
+' @param strRange       : Địa chỉ vùng dữ liệu (ví dụ: "A2:A100")
+' @param fontName       : Tên font chữ (mặc định là "Arial")
+'----------------------------------------------------------------------------------
+Public Sub SetFontForRange(wsTarget As Worksheet, strRange As String, Optional fontName As String = "Arial")
+    On Error Resume Next
+    wsTarget.Range(strRange).Font.Name = fontName
+    On Error GoTo 0
+End Sub
+
+```
+
+### 2\. Cách áp dụng vào code của bạn
+
+Bạn có thể gọi hàm này sau khi đã thực hiện copy dữ liệu xong trong hàm `CopyAuditDataToSummary`. Ví dụ, nếu bạn muốn đổi toàn bộ cột dữ liệu vừa copy sang font "MS Gothic" (phổ biến cho dữ liệu tiếng Nhật) hoặc "Arial", bạn làm như sau:
+
+``` vba
+        ' --- SAU KHI COPY XONG, GỌI HÀM ĐỔI FONT ---
+        ' Ví dụ: Đổi toàn bộ các cột vừa copy sang font "Arial"
+        
+        ' Cột EmployeeID
+        Call SetFontForRange(wsSummarySheet, stRangePasteEmployeeID & lngSummaryLastRow, "Arial")
+        
+        ' Cột Changed On
+        Call SetFontForRange(wsSummarySheet, stRangePasteChangedOn & lngSummaryLastRow, "Arial")
+        
+        ' Hoặc đổi cả vùng dữ liệu nếu bạn có địa chỉ cụ thể
+        ' Call SetFontForRange(wsSummarySheet, "A" & lngRowSummaryDataStart & ":P" & lngSummaryLastRow, "Meiryo")
+
+```
+
+### Lưu ý khi sử dụng:
+
+  * **Font name:** Đảm bảo tên font bạn truyền vào (ví dụ: "Arial", "MS Gothic", "Meiryo") đúng với tên font đang cài đặt trên máy tính của bạn/server chạy UiPath.
+  * **Tính linh hoạt:** Bạn có thể gọi `Call SetFontForRange(...)` bao nhiêu lần tùy ý cho các cột khác nhau với các font khác nhau nếu cần.
+  * **UiPath:** Nếu bạn gọi VBA từ UiPath qua lệnh "Invoke VBA", hàm này sẽ hoạt động tốt mà không cần thay đổi gì thêm.
