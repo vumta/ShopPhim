@@ -1,0 +1,61 @@
+Để chuyển đổi giá trị trong ô thành dạng **Text** (chuỗi văn bản) với định dạng 24h thay vì chỉ thay đổi cách hiển thị (format), bạn cần sử dụng hàm `Format` trong VBA và gán trực tiếp giá trị đó vào ô.
+
+Dưới đây là hàm riêng biệt mà bạn có thể dùng trong project, và cách áp dụng nó vào code của bạn.
+
+### 1\. Hàm VBA (Thêm vào module của bạn)
+
+Hàm này sẽ ép buộc giá trị trong ô trở thành chuỗi text theo định dạng 24h, kèm theo dấu nháy đơn `'` phía trước để Excel không tự động chuyển đổi ngược lại thành định dạng Date.
+
+``` vba
+'----------------------------------------------------------------------------------
+' Function: ConvertRangeTo24hText
+' Mô tả: Chuyển đổi giá trị trong vùng range thành chuỗi text định dạng 24h
+' @param wsTarget       : Sheet chứa dữ liệu
+' @param strRange       : Địa chỉ vùng dữ liệu (ví dụ: "G2:G100")
+' @param formatType     : "full" (yyyy/mm/dd HH:mm) hoặc "time" (HH:mm)
+'----------------------------------------------------------------------------------
+Public Sub ConvertRangeTo24hText(wsTarget As Worksheet, strRange As String, Optional formatType As String = "full")
+    Dim rng As Range
+    Dim cell As Range
+    
+    On Error Resume Next
+    Set rng = wsTarget.Range(strRange)
+    On Error GoTo 0
+    
+    If rng Is Nothing Then Exit Sub
+    
+    For Each cell In rng.Cells
+        If IsDate(cell.Value) Then
+            If LCase(formatType) = "time" Then
+                cell.Value = "'" & Format(cell.Value, "HH:mm")
+            Else
+                cell.Value = "'" & Format(cell.Value, "yyyy/mm/dd HH:mm")
+            End If
+        End If
+    Next cell
+End Sub
+
+```
+
+### 2\. Cách áp dụng vào code `CopyAuditDataToSummary` của bạn
+
+Bạn thay thế đoạn xử lý `Changed On` cũ bằng cách gọi hàm mới này. Điều này sẽ giúp bạn xử lý ngay trên sheet nguồn trước khi copy hoặc trên sheet đích sau khi copy (khuyên dùng trên sheet đích để đảm bảo dữ liệu hiển thị đúng).
+
+**Cách gọi trong hàm chính:**
+
+``` vba
+' Thay vì dùng vòng lặp và NumberFormat cũ, bạn dùng lệnh này sau khi đã copy xong dữ liệu:
+
+' Giả sử stRangePasteChangedOn & lngSummaryLastRow là vùng dữ liệu vừa copy xong
+Call ConvertRangeTo24hText(wsSummarySheet, stRangePasteChangedOn & lngSummaryLastRow, "full")
+
+' Nếu bạn có cột thời gian khác cần định dạng HH:mm, bạn gọi:
+' Call ConvertRangeTo24hText(wsSummarySheet, stRangePasteStartTime & lngSummaryLastRow, "time")
+
+```
+
+### Lưu ý quan trọng:
+
+  * **Dữ liệu dạng Text:** Khi sử dụng cách này, giá trị trong ô sẽ là chuỗi text (có thêm dấu nháy `'` ẩn ở đầu). Bạn **không thể** thực hiện các phép tính ngày tháng (như cộng trừ ngày) trên các ô này trong Excel nữa.
+  * **Vị trí thực hiện:** Tôi khuyên bạn nên thực hiện việc chuyển đổi này **sau khi đã copy dữ liệu sang `wsSummarySheet`**. Việc này đảm bảo `wsAuditDataSheet` (sheet gốc) vẫn giữ nguyên giá trị Date/Time để tránh lỗi logic nếu file này được dùng cho các tác vụ khác.
+  * **UiPath:** Nếu bạn dùng UiPath để gọi VBA, hãy đảm bảo rằng bạn truyền đúng tham chiếu `Worksheet` và chuỗi `Range`. Nếu UiPath gặp khó khăn khi truyền object Worksheet, bạn có thể sửa hàm trên thành `Sub ConvertRangeTo24hText(wsName As String, ...)` và dùng `Set wsTarget = ThisWorkbook.Sheets(wsName)`.
