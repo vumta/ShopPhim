@@ -1,0 +1,58 @@
+Dưới đây là phiên bản cập nhật cho 2 hàm `IsCETDST` và `CETtoJST` với logic tính toán ngày chuyển đổi DST chính xác hơn, cùng với hướng dẫn cập nhật trong hàm `CopyAuditDataToSummary` để hiển thị đúng định dạng `yyyy/mm/dd HH:mm:ss` (24h).
+
+### 1\. Cập nhật 2 Function xử lý thời gian
+
+Bạn hãy thay thế 2 hàm cũ bằng đoạn code này:
+
+``` vba
+' Function to check if a given CET date is in daylight saving time (CEST)
+' DST: Bắt đầu Chủ nhật cuối tháng 3 (01:00 UTC) -> Kết thúc Chủ nhật cuối tháng 10 (01:00 UTC)
+Private Function IsCETDST(ByVal dt As Date) As Boolean
+    Dim y As Integer: y = Year(dt)
+    Dim lastSunMar As Date, lastSunOct As Date
+    
+    ' Tính Chủ nhật cuối cùng của tháng 3
+    lastSunMar = DateSerial(y, 4, 1) - Weekday(DateSerial(y, 4, 1), vbSunday)
+    ' Tính Chủ nhật cuối cùng của tháng 10
+    lastSunOct = DateSerial(y, 11, 1) - Weekday(DateSerial(y, 11, 1), vbSunday)
+    
+    ' So sánh với mốc 01:00 UTC (Vì CET là UTC+1, 01:00 UTC là 02:00 CET)
+    IsCETDST = (dt >= (lastSunMar + TimeSerial(1, 0, 0)) And dt < (lastSunOct + TimeSerial(1, 0, 0)))
+End Function
+
+' Convert CET/CEST to JST
+Public Function CETtoJST(ByVal cetDate As Date) As Date
+    ' CEST (UTC+2) -> JST (UTC+9): Cộng 7 tiếng
+    ' CET (UTC+1)  -> JST (UTC+9): Cộng 8 tiếng
+    If IsCETDST(cetDate) Then
+        CETtoJST = DateAdd("h", 7, cetDate)
+    Else
+        CETtoJST = DateAdd("h", 8, cetDate)
+    End If
+End Function
+
+```
+
+### 2\. Cập nhật trong Function `CopyAuditDataToSummary`
+
+Tại đoạn xử lý cột `lngChangedOnNum`, bạn cần cập nhật `NumberFormat` thành `yyyy/mm/dd HH:mm:ss` để hiển thị đầy đủ ngày giờ theo định dạng 24h và không bị hiển thị AM/PM:
+
+``` vba
+        'Change Value of Changed On (CET)
+        For Each cell In wsAuditDataSheet.Range(wsAuditDataSheet.Cells(lngAuditStartRow + 1, lngChangedOnNum), wsAuditDataSheet.Cells(lngLastRow, lngChangedOnNum)).SpecialCells(xlCellTypeVisible)
+            If IsDate(cell.Value) Then
+                cetValue = cell.Value
+                jstValue = CETtoJST(cetValue)
+                cell.Value = jstValue
+                ' Update định dạng tại đây
+                cell.NumberFormat = "yyyy/mm/dd HH:mm:ss"
+            End If
+        Next cell
+
+```
+
+### Giải thích thay đổi:
+
+1.  **Logic `IsCETDST`**: Công thức cũ dùng `vbMonday` đôi khi gây lệch ngày Chủ nhật. Công thức `DateSerial(y, 4, 1) - Weekday(..., vbSunday)` là cách chuẩn nhất để lấy ngày Chủ nhật cuối cùng của tháng.
+2.  **Mốc thời gian**: Logic so sánh đã được điều chỉnh về mốc `01:00 UTC` theo quy chuẩn quốc tế về chuyển đổi giờ mùa hè của Châu Âu (thay vì cố định `TimeSerial(2,0,0)` hay `(3,0,0)`), giúp tránh sai sót ở những giờ giao thoa.
+3.  **Định dạng**: Sử dụng `yyyy/mm/dd HH:mm:ss` với `HH` viết hoa trong VBA sẽ ép buộc Excel hiển thị theo định dạng 24 giờ, loại bỏ hoàn toàn hiển thị AM/PM.
