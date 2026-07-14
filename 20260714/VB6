@@ -1,0 +1,68 @@
+Nguyên nhân khiến dữ liệu không đúng là do logic tính ngày "Chủ nhật cuối cùng của tháng" trong hàm `IsCETDST` hiện tại của bạn đang bị sai lệch (công thức lấy ngày hiện tại trừ `Weekday` không chuẩn xác để tìm ngày Chủ nhật cuối cùng).
+
+Dưới đây là các hàm đã được sửa lỗi logic. Bạn hãy xóa 2 hàm `IsCETDST` và `CETtoJST` cũ trong file của bạn và thay thế bằng đoạn code này:
+
+### Đoạn Code Cần Cập Nhật
+
+``` vba
+' ----------------------------------------------------------------------------------
+' Function: IsCETDST (ĐÃ SỬA LỖI LOGIC)
+' Xác định xem thời điểm có nằm trong giai đoạn Daylight Saving Time (CEST) không
+' ----------------------------------------------------------------------------------
+Private Function IsCETDST(ByVal dt As Date) As Boolean
+    Dim yearVal As Integer: yearVal = Year(dt)
+    Dim lastSunMar As Date, lastSunOct As Date
+    
+    ' Tính ngày Chủ nhật cuối cùng của tháng 3: Lấy ngày 1 tháng 4 trừ đi (Weekday của ngày 1 tháng 4)
+    ' vbSunday = 1, nên kết quả là ngày Chủ nhật ngay trước ngày 1 tháng 4
+    lastSunMar = DateSerial(yearVal, 4, 1) - Weekday(DateSerial(yearVal, 4, 1), vbSunday)
+    
+    ' Tính ngày Chủ nhật cuối cùng của tháng 10: Tương tự như trên
+    lastSunOct = DateSerial(yearVal, 11, 1) - Weekday(DateSerial(yearVal, 11, 1), vbSunday)
+    
+    ' DST bắt đầu lúc 01:00 UTC (02:00 CET) ngày Chủ nhật cuối tháng 3
+    ' DST kết thúc lúc 01:00 UTC (03:00 CEST) ngày Chủ nhật cuối tháng 10
+    ' So sánh: Nếu nằm trong khoảng này thì là CEST (UTC+2)
+    If dt >= (lastSunMar + TimeSerial(1, 0, 0)) And dt < (lastSunOct + TimeSerial(1, 0, 0)) Then
+        IsCETDST = True
+    Else
+        IsCETDST = False
+    End If
+End Function
+
+' ----------------------------------------------------------------------------------
+' Function: CETtoJST
+' Convert CET/CEST sang JST
+' ----------------------------------------------------------------------------------
+Public Function CETtoJST(ByVal cetDate As Date) As Date
+    Dim offsetHours As Double
+    
+    ' CEST (UTC+2) -> JST (UTC+9) => Offset = 9 - 2 = 7 tiếng
+    ' CET  (UTC+1) -> JST (UTC+9) => Offset = 9 - 1 = 8 tiếng
+    If IsCETDST(cetDate) Then
+        offsetHours = 7
+    Else
+        offsetHours = 8
+    End If
+    
+    CETtoJST = DateAdd("h", offsetHours, cetDate)
+End Function
+
+```
+
+### Tại sao thay đổi này sẽ sửa được lỗi của bạn?
+
+1.  **Công thức tính ngày Chủ nhật cuối tháng chính xác hơn:**
+    
+      * Công thức cũ: `DateSerial(yearVal, 3, 31) - Weekday(..., vbMonday) + 1` không tính chính xác ngày Chủ nhật cuối cùng của tháng (nó bị lệch tùy vào ngày đầu tháng).
+      * Công thức mới: `DateSerial(yearVal, 4, 1) - Weekday(DateSerial(yearVal, 4, 1), vbSunday)` luôn trả về ngày Chủ nhật cuối cùng của tháng trước đó một cách chính xác.
+
+2.  **Logic Offset (Chênh lệch múi giờ):**
+    
+      * CEST (UTC+2) sang JST (UTC+9) chênh lệch **7 tiếng**.
+      * CET (UTC+1) sang JST (UTC+9) chênh lệch **8 tiếng**.
+      * Code đã được làm rõ bằng cách dùng `DateAdd` (an toàn hơn phép cộng `+`) để xử lý giờ.
+
+### Lưu ý quan trọng cho UiPath:
+
+Nếu sau khi thay đổi hàm này, dữ liệu vẫn không hiển thị đúng (dù giá trị đã chuẩn), có thể do **Excel đang tự động format ô theo định dạng hệ thống**. Bạn nên kết hợp với hàm `ConvertRangeTo24hText` mà tôi đã hướng dẫn ở bước trước để ép giá trị hiển thị thành dạng Text 24h, như vậy dữ liệu khi xuất ra report sẽ không bị Excel làm sai lệch định dạng nữa.
