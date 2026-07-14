@@ -1,0 +1,36 @@
+Vấn đề nằm ở chỗ lệnh `.Copy` trong VBA không chỉ copy giá trị mà **copy cả định dạng (NumberFormat)** của ô nguồn sang ô đích.
+
+Khi bạn format `wsAuditDataSheet` (sheet nguồn) rồi copy sang `wsSummarySheet` (sheet đích), nếu sheet đích trước đó không có định dạng mong muốn, hoặc do thiết lập Excel, nó có thể hiển thị sai định dạng (vẫn hiện AM/PM).
+
+Để giải quyết triệt để, bạn cần thực hiện **format lại cột "Changed On" trên sheet Summary** sau khi quá trình copy hoàn tất.
+
+Bạn hãy sửa đoạn code trong hàm `CopyAuditDataToSummary` như sau:
+
+``` vba
+        'Copy Audit data to Summary file
+        With wsAuditDataSheet
+            .Range(stRangeCopyEmployeeID & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEmployeeID & lngSummaryLastRow)
+            .Range(stRangeCopyWorkday & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkday & lngSummaryLastRow)
+            .Range(stRangeCopyWorkCategory & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkCategory & lngSummaryLastRow)
+            .Range(stRangeCopyStartTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteStartTime & lngSummaryLastRow)
+            .Range(stRangeCopyEndTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEndTime & lngSummaryLastRow)
+            .Range(stRangeCopyAction & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteAction & lngSummaryLastRow)
+            .Range(stRangeCopyChangedOn & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteChangedOn & lngSummaryLastRow)
+            .Range(stRangeCopyByUser & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteByUser & lngSummaryLastRow)
+        End With
+
+        ' --- THÊM ĐOẠN NÀY ĐỂ ÉP ĐỊNH DẠNG Ở SHEET ĐÍCH (SUMMARY) ---
+        ' Định dạng lại cột Changed On trong Summary sheet thành 24h
+        ' Lưu ý: Cần đảm bảo vùng range này bao phủ đúng các dòng đã copy
+        wsSummarySheet.Range(stRangePasteChangedOn & lngSummaryLastRow).NumberFormat = "yyyy/mm/dd HH:mm"
+    End If
+
+```
+
+**Tại sao cách này hiệu quả:**
+
+  * Dùng `HH:mm` (chữ H viết hoa) là định dạng chuẩn cho 24h trong Excel.
+  * Việc áp dụng `NumberFormat` trực tiếp vào `wsSummarySheet` sau khi đã copy đảm bảo dữ liệu tại sheet đích sẽ hiển thị đúng theo ý muốn của bạn, bất kể định dạng gốc của sheet nguồn là gì.
+
+Bạn hãy thử chạy lại code với thay đổi này nhé. Nếu vẫn chưa được, có thể cấu hình vùng `stRangePasteChangedOn` đang chưa bao phủ hết các dòng đã copy, bạn kiểm tra xem `lngSummaryLastRow` có đang trỏ đúng đến dòng cuối cùng của dữ liệu mới copy hay không.
+  
