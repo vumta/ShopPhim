@@ -1,0 +1,55 @@
+Để hỗ trợ bạn gọi từ UiPath một cách thuận tiện, tôi đã thiết kế một hàm riêng biệt, linh hoạt. Bạn có thể truyền vào địa chỉ vùng (range) và loại định dạng mong muốn.
+
+### Hàm VBA mới
+
+Bạn hãy thêm đoạn code này vào module của bạn:
+
+``` vba
+'----------------------------------------------------------------------------------
+' Function: FormatDateRange
+' Mô tả: Định dạng vùng dữ liệu ngày tháng theo kiểu 24h
+' @param wsTarget       : Sheet chứa dữ liệu
+' @param strRange       : Địa chỉ vùng dữ liệu (ví dụ: "G2:G100")
+' @param formatType     : Chọn "full" (yyyy/mm/dd HH:mm) hoặc "time" (HH:mm)
+'----------------------------------------------------------------------------------
+Public Sub FormatDateRange(wsTarget As Worksheet, strRange As String, Optional formatType As String = "full")
+    Dim rng As Range
+    Dim cell As Range
+    
+    On Error Resume Next
+    Set rng = wsTarget.Range(strRange)
+    On Error GoTo 0
+    
+    If rng Is Nothing Then Exit Sub
+    
+    ' Ép kiểu định dạng 24h (HH thay vì h)
+    If LCase(formatType) = "time" Then
+        rng.NumberFormat = "HH:mm"
+    Else
+        rng.NumberFormat = "yyyy/mm/dd HH:mm"
+    End If
+End Sub
+
+```
+
+### Cách sử dụng trong code chính của bạn
+
+Sau khi đã thực hiện copy dữ liệu xong (trong hàm `CopyAuditDataToSummary`), bạn chỉ cần gọi hàm này. Ví dụ:
+
+``` vba
+' Sau khi copy xong vào sheet Summary
+' Gọi hàm định dạng lại cột Changed On thành yyyy/mm/dd HH:mm
+Call FormatDateRange(wsSummarySheet, stRangePasteChangedOn & lngSummaryLastRow, "full")
+
+' Hoặc nếu bạn muốn định dạng cột StartTime/EndTime chỉ hiển thị HH:mm
+' Call FormatDateRange(wsSummarySheet, stRangePasteStartTime & lngSummaryLastRow, "time")
+
+```
+
+### Tại sao hàm này giải quyết được vấn đề AM/PM?
+
+1.  **Sử dụng `HH` thay vì `h`**: Trong Excel, chữ `h` (thường) sẽ luôn tự động chuyển sang định dạng 12h (AM/PM) dựa trên hệ thống, còn `HH` (hoa) là lệnh bắt buộc hiển thị 24h.
+2.  **Tính linh hoạt**: Bạn có thể gọi `FormatDateRange` cho bất kỳ cột nào, bất kỳ sheet nào, chỉ cần truyền vào địa chỉ vùng và loại định dạng mong muốn (`full` hoặc `time`).
+3.  **Tách biệt logic**: Việc đưa vào một `Public Sub` riêng giúp code của bạn sạch hơn, dễ bảo trì và dễ gọi từ UiPath thông qua việc "Invoke VBA".
+
+Nếu UiPath của bạn gọi trực tiếp vào file này, bạn chỉ cần đảm bảo truyền đúng `Worksheet` và chuỗi địa chỉ Range (ví dụ: `"G" & startRow & ":G" & endRow`) là được.
