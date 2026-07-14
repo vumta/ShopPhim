@@ -1,0 +1,59 @@
+Để giải quyết vấn đề các giá trị (đặc biệt là ngày tháng) bị hiển thị thành dấu `######` do độ rộng cột không đủ, bạn cần sử dụng tính năng `AutoFit` của Excel.
+
+Dưới đây là một hàm Sub đơn giản để tự động điều chỉnh độ rộng cột (Autofit) và cách tích hợp vào quy trình của bạn.
+
+### 1\. Thêm Sub Autofit vào Module của bạn
+
+Bạn nên đặt tên là `AutoFitColumns` thay vì `Autofill` (vì Autofill trong VBA dùng để kéo/sao chép dữ liệu, còn bạn đang muốn điều chỉnh độ rộng cột).
+
+``` vba
+'----------------------------------------------------------------------------------
+' Sub: AutoFitColumns
+' Mô tả: Tự động điều chỉnh độ rộng cột để hiển thị đủ nội dung
+' @param wsTarget       : Sheet cần thực hiện
+' @param startCol       : Cột bắt đầu (ví dụ: 1)
+' @param endCol         : Cột kết thúc (ví dụ: 8)
+'----------------------------------------------------------------------------------
+Public Sub AutoFitColumns(wsTarget As Worksheet, startCol As Long, endCol As Long)
+    On Error Resume Next
+    wsTarget.Range(wsTarget.Columns(startCol), wsTarget.Columns(endCol)).EntireColumn.AutoFit
+    On Error GoTo 0
+End Sub
+
+```
+
+### 2\. Cách tích hợp vào hàm `CopyAuditDataToSummary`
+
+Bạn nên gọi hàm này sau khi đã copy xong tất cả dữ liệu sang `wsSummarySheet` để đảm bảo kết quả cuối cùng được hiển thị đẹp nhất.
+
+Giả sử bạn muốn autofit từ cột 1 đến cột 8 (tương ứng các cột bạn vừa copy sang), hãy thêm dòng này vào cuối hàm `CopyAuditDataToSummary`:
+
+``` vba
+        'Copy Audit data to Summary file
+        With wsAuditDataSheet
+            .Range(stRangeCopyEmployeeID & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEmployeeID & lngSummaryLastRow)
+            .Range(stRangeCopyWorkday & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkday & lngSummaryLastRow)
+            .Range(stRangeCopyWorkCategory & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteWorkCategory & lngSummaryLastRow)
+            .Range(stRangeCopyStartTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteStartTime & lngSummaryLastRow)
+            .Range(stRangeCopyEndTime & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEndTime & lngSummaryLastRow)
+            .Range(stRangeCopyAction & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteAction & lngSummaryLastRow)
+            .Range(stRangeCopyChangedOn & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteChangedOn & lngSummaryLastRow)
+            .Range(stRangeCopyByUser & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteByUser & lngSummaryLastRow)
+        End With
+
+        ' --- THÊM DÒNG NÀY ĐỂ TỰ ĐỘNG ĐIỀU CHỈNH ĐỘ RỘNG CỘT ---
+        ' Tự động autofit các cột từ 1 đến 8 trong sheet Summary
+        Call AutoFitColumns(wsSummarySheet, 1, 8)
+        
+    End If
+    wbAuditDataWorkbook.Close
+End Function
+
+```
+
+### Tại sao cách này khắc phục được dấu `######`?
+
+  * **Nguyên lý:** Khi Excel hiển thị `######` trong một ô ngày tháng, đó không phải là lỗi dữ liệu, mà là thông báo rằng **độ rộng cột không đủ để hiển thị ngày**.
+  * **Giải pháp:** Lệnh `.EntireColumn.AutoFit` sẽ tính toán độ rộng cần thiết dựa trên nội dung dài nhất của cột đó và tự động giãn cột ra, giúp giá trị được hiển thị đầy đủ ngay lập tức.
+
+Bạn có thể thay đổi tham số `1, 8` trong `Call AutoFitColumns(wsSummarySheet, 1, 8)` thành bất kỳ phạm vi cột nào bạn muốn (ví dụ `1, 10` nếu bạn có 10 cột dữ liệu).
