@@ -1,0 +1,55 @@
+Để căn lề phải (Right Align) cho các cột dữ liệu sau khi copy vào sheet Summary, bạn có thể tạo một hàm hỗ trợ (Sub) và gọi nó trong hàm chính `CopyAuditDataToSummary`.
+
+Cách này giúp code của bạn gọn gàng và dễ dàng tái sử dụng cho các cột khác nhau.
+
+### 1\. Thêm hàm hỗ trợ này vào Module của bạn
+
+Hàm này sẽ thực hiện căn lề phải cho bất kỳ vùng dữ liệu nào bạn truyền vào.
+
+``` vba
+'----------------------------------------------------------------------------------
+' Function: AlignRangeRight
+' Mô tả: Căn lề phải cho vùng dữ liệu
+' @param wsTarget       : Sheet chứa dữ liệu
+' @param strRange       : Địa chỉ vùng dữ liệu (ví dụ: "G2:G100")
+'----------------------------------------------------------------------------------
+Public Sub AlignRangeRight(wsTarget As Worksheet, strRange As String)
+    On Error Resume Next
+    wsTarget.Range(strRange).HorizontalAlignment = xlRight
+    On Error GoTo 0
+End Sub
+
+```
+
+### 2\. Gọi hàm này trong `CopyAuditDataToSummary`
+
+Bạn hãy thêm các lệnh gọi `AlignRangeRight` ngay sau khối lệnh `With wsAuditDataSheet ... End With` (đoạn copy dữ liệu sang `wsSummarySheet`).
+
+``` vba
+        'Copy Audit data to Summary file
+        With wsAuditDataSheet
+            .Range(stRangeCopyEmployeeID & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteEmployeeID & lngSummaryLastRow)
+            ' ... (các dòng copy khác giữ nguyên) ...
+            .Range(stRangeCopyByUser & lngLastRow).SpecialCells(xlCellTypeVisible).Copy wsSummarySheet.Range(stRangePasteByUser & lngSummaryLastRow)
+        End With
+
+        ' --- THÊM ĐOẠN NÀY ĐỂ CĂN LỀ PHẢI CÁC CỘT CẦN THIẾT ---
+        ' Căn lề phải cho Employee ID
+        Call AlignRangeRight(wsSummarySheet, stRangePasteEmployeeID & lngSummaryLastRow)
+        ' Căn lề phải cho Workday
+        Call AlignRangeRight(wsSummarySheet, stRangePasteWorkday & lngSummaryLastRow)
+        ' Căn lề phải cho Start/End Time
+        Call AlignRangeRight(wsSummarySheet, stRangePasteStartTime & lngSummaryLastRow)
+        Call AlignRangeRight(wsSummarySheet, stRangePasteEndTime & lngSummaryLastRow)
+        ' Căn lề phải cho Changed On
+        Call AlignRangeRight(wsSummarySheet, stRangePasteChangedOn & lngSummaryLastRow)
+        ' Căn lề phải cho By User (nếu là số)
+        Call AlignRangeRight(wsSummarySheet, stRangePasteByUser & lngSummaryLastRow)
+
+```
+
+**Lưu ý:**
+
+  * `stRangePaste... & lngSummaryLastRow` là cách bạn đang xác định vùng đích, việc này hoàn toàn tương thích với các bước copy bạn đã làm trước đó.
+  * Nếu cột nào bạn muốn để mặc định (ví dụ: cột Text như `Action` hoặc `WorkCategory`), bạn chỉ cần không gọi hàm `AlignRangeRight` cho cột đó.
+  * Cách này an toàn vì nó dùng `On Error Resume Next`, nên nếu vùng range bị lỗi hoặc trống, code vẫn sẽ chạy tiếp mà không bị dừng chương trình.
