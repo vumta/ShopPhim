@@ -1,0 +1,99 @@
+Chào bạn, để copy dữ liệu từ một file Excel khác vào file hiện tại khi chạy qua UiPath, cách tối ưu và linh hoạt nhất là truyền đường dẫn của "file nguồn" (file chứa cột AB) vào VBA dưới dạng **tham số (parameter)**.
+Bằng cách này, bạn không cần hardcode đường dẫn file trực tiếp trong code VBA, giúp Bot dễ dàng linh động xử lý các file khác nhau thông qua biến trong UiPath.
+Dưới đây là đoạn code VBA đã được update lại. Mình đã chuyển thành Sub có nhận tham số sourceFilePath để nó tự động mở file nguồn ở chế độ nền (background), copy dữ liệu qua, sau đó đóng file nguồn lại.
+### 1. Code VBA cập nhật (File FormatJapanGrade.txt)
+Bạn hãy copy đoạn code này và ghi đè vào file text hiện tại:
+```vba
+Sub ProcessJapanAndGrade(sourceFilePath As String)
+    Dim targetWB As Workbook
+    Dim sourceWB As Workbook
+    Dim wsTarget As Worksheet
+    Dim wsSource As Worksheet
+    Dim sheetNames As Variant
+    Dim sheetName As Variant
+    Dim lastRow As Long
+    Dim startRow As Long
+    
+    Dim colB_Value As String
+    Dim colM_Value As String
+    Dim firstChar As String
+    
+    ' File target chính là file Excel đang được UiPath mở (Excel Application Scope)
+    Set targetWB = ActiveWorkbook
+    
+    ' Mở file nguồn (chứa cột AB) ở chế độ ReadOnly để tránh lock file
+    On Error Resume Next
+    Set sourceWB = Workbooks.Open(Filename:=sourceFilePath, ReadOnly:=True)
+    On Error GoTo 0
+    
+    ' Báo lỗi nếu đường dẫn truyền vào từ UiPath không chính xác
+    If sourceWB Is Nothing Then
+        MsgBox "Không thể mở file nguồn. Vui lòng kiểm tra lại đường dẫn: " & sourceFilePath, vbCritical
+        Exit Sub
+    End If
+    
+    ' Danh sách các sheet cần xử lý
+    sheetNames = Array("Staff_MasterList", "Mgr_MasterList", "Dir_MasterList")
+    
+    ' Lặp qua từng sheet
+    For Each sheetName In sheetNames
+        Set wsTarget = Nothing
+        Set wsSource = Nothing
+        
+        ' Ánh xạ sheet của cả 2 file
+        On Error Resume Next
+        Set wsTarget = targetWB.Sheets(sheetName)
+        Set wsSource = sourceWB.Sheets(sheetName)
+        On Error GoTo 0
+        
+        ' Chỉ xử lý nếu sheet tồn tại ở CẢ 2 file
+        If Not wsTarget Is Nothing And Not wsSource Is Nothing Then
+            ' Lấy dòng cuối của file target dựa vào cột 7
+            lastRow = wsTarget.Cells(wsTarget.Rows.Count, 7).End(xlUp).Row
+            
+            For startRow = 4 To lastRow
+                '-------------------------------------------------------
+                ' 1. Copy cột AB (28) từ file Nguồn sang cột B (2) file Target
+                ' (Lưu ý: Logic này giả định 2 file có số lượng và thứ tự dòng khớp nhau)
+                '-------------------------------------------------------
+                wsTarget.Cells(startRow, 2).Value = wsSource.Cells(startRow, 28).Value
+                
+                '-------------------------------------------------------
+                ' 2. Highlight cột M (13) theo điều kiện (Logic OR)
+                '-------------------------------------------------------
+                colB_Value = wsTarget.Cells(startRow, 2).Value
+                colM_Value = wsTarget.Cells(startRow, 13).Value
+                firstChar = UCase(Left(colM_Value, 1))
+                
+                ' Reset màu nền trước khi kiểm tra
+                wsTarget.Cells(startRow, 13).Interior.ColorIndex = xlNone
+                
+                If colB_Value = "Japan" Then
+                    wsTarget.Cells(startRow, 13).Interior.Color = RGB(255, 255, 0) ' Màu vàng
+                ElseIf Right(colM_Value, 1) = "新" Then
+                    wsTarget.Cells(startRow, 13).Interior.Color = RGB(255, 255, 0)
+                ElseIf firstChar = "M" Or firstChar = "S" Or firstChar = "J" Then
+                    wsTarget.Cells(startRow, 13).Interior.Color = RGB(255, 255, 0)
+                End If
+                
+            Next startRow
+        End If
+    Next sheetName
+
+    ' Đóng file nguồn mà không lưu (để đảm bảo không làm hỏng file gốc)
+    sourceWB.Close SaveChanges:=False
+    
+    ' Dọn dẹp object
+    Set sourceWB = Nothing
+    Set targetWB = Nothing
+End Sub
+
+```
+### 2. Cách cấu hình tham số trong UiPath (Invoke VBA)
+Để gọi được hàm này trong quy trình của bạn, hãy cập nhật lại Properties của activity **Invoke VBA** như sau:
+ * **CodeFilePath:** Trỏ tới file .txt chứa đoạn code trên.
+ * **EntryMethodName:** "ProcessJapanAndGrade" (Nhớ có dấu ngoặc kép).
+ * **EntryMethodParameters:** Đây là phần quan trọng nhất để truyền đường dẫn file nguồn. Bạn cần truyền vào một mảng (Array) chứa biến đường dẫn file.
+   * Cú pháp: {"C:\Duong\Dan\Toi\File_Nguon.xlsx"}
+   * Nếu bạn đang dùng biến kiểu String trong UiPath (ví dụ biến strSourcePath), hãy điền: {strSourcePath}
+Logic này ánh xạ dòng startRow của file này với đúng dòng startRow của file kia. Nếu thứ tự dòng giữa 2 file bị lệch và cần dùng key (như mã nhân viên) để lookup, bạn có thể cân nhắc viết thêm một hàm VLOOKUP nhẹ bằng Dictionary trong VBA, nhưng nếu data 2 template song song khớp dòng nhau thì cách copy trực tiếp Cells().Value = Cells().Value này là tối ưu nhất.
