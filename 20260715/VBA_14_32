@@ -1,0 +1,30 @@
+Để thực hiện yêu cầu cập nhật xử lý dữ liệu cho cột '組織名称' (B) và '応援先組織名' (P) theo logic: "Chỉ lấy phần text từ trái sang, dừng lại khi gặp dấu space đầu tiên", bạn cần sửa đổi cách xử lý chuỗi trong mã VBA.
+
+Dưới đây là gợi ý đoạn mã VBA để xử lý logic này. Bạn có thể chèn đoạn này vào vị trí xử lý dữ liệu của các cột B và P trong code của mình:
+
+``` vba
+' Giả sử cell là biến đang trỏ vào ô cần xử lý trong vòng lặp
+Dim stValue As String
+stValue = cell.Value
+
+' Nếu có dấu cách, chỉ lấy phần trước dấu cách đó
+If InStr(stValue, " ") > 0 Then
+    cell.Value = Left(stValue, InStr(stValue, " ") - 1)
+' Nếu không có dấu cách, giữ nguyên giá trị cũ (hoặc xử lý tùy chọn khác)
+Else
+    cell.Value = stValue
+End If
+
+```
+
+### Hướng dẫn tích hợp:
+
+Hiện tại trong mã của bạn, việc xử lý dữ liệu các cột thường diễn ra trong các vòng lặp `For Each cell In ...`. Bạn hãy tìm các đoạn xử lý cho `Column B` và `Column P` (nếu có) và thay thế logic cắt chuỗi cũ bằng đoạn mã trên.
+
+**Lưu ý quan trọng:**
+
+  * Hàm `InStr(stValue, " ")` tìm vị trí của dấu cách đầu tiên.
+  * Hàm `Left(..., InStr(...) - 1)` sẽ lấy toàn bộ ký tự đứng trước dấu cách đó.
+  * Nếu dữ liệu của bạn có thể chứa dấu cách toàn giác (Full-width space - thường gặp trong tiếng Nhật), bạn nên đảm bảo dấu cách trong `InStr(stValue, " ")` khớp với ký tự thực tế trong dữ liệu (có thể là `InStr(stValue, " ")` hoặc `InStr(stValue, "　")`).
+
+Bạn có muốn tôi hỗ trợ tích hợp cụ thể đoạn mã này vào một hàm nào đó trong file hiện tại không?
