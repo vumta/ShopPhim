@@ -1,0 +1,55 @@
+Để xử lý việc lấy phần chữ và loại bỏ phần số ở cuối (dù độ dài số không xác định), bạn có thể thêm một hàm phụ (helper function) vào module của mình. Hàm này sẽ duyệt ngược từ cuối chuỗi, loại bỏ các ký tự số cho đến khi gặp chữ cái đầu tiên.
+
+### Bước 1: Thêm hàm xử lý vào module
+
+Bạn có thể copy hàm này vào file code hiện tại của bạn:
+
+``` vba
+' Hàm tách phần chữ và loại bỏ số ở cuối chuỗi
+Function GetTextOnly(ByVal strInput As String) As String
+    Dim i As Long
+    Dim strTemp As String
+    
+    strTemp = Trim(strInput) ' Loại bỏ khoảng trắng thừa ở đầu/cuối
+    
+    ' Duyệt ngược từ ký tự cuối cùng về đầu
+    For i = Len(strTemp) To 1 Step -1
+        ' Nếu ký tự tại vị trí i KHÔNG phải là số, thì đó là điểm dừng
+        If Not (Mid(strTemp, i, 1) Like "#") Then
+            GetTextOnly = Trim(Left(strTemp, i))
+            Exit Function
+        End If
+    Next i
+    
+    ' Trường hợp chuỗi chỉ toàn số
+    GetTextOnly = ""
+End Function
+
+```
+
+### Bước 2: Cập nhật "Yêu cầu 3" trong logic của bạn
+
+Trong đoạn code xử lý dữ liệu của bạn (nơi bạn thực hiện lệnh `Split` hoặc xử lý chuỗi sau dấu `/`), hãy áp dụng hàm này cho kết quả nhận được.
+
+Giả sử đoạn code hiện tại của bạn đang gán giá trị vào một biến `strResult` sau khi đã cắt dấu `/`, bạn hãy cập nhật như sau:
+
+``` vba
+' Ví dụ logic hiện tại của bạn
+Dim strRaw As String
+Dim arrParts() As String
+strRaw = "ビーンズ阿佐ヶ谷店 12345/xxxxxxxx" 
+
+' 1. Cắt lấy phần trước dấu /
+arrParts = Split(strRaw, "/")
+Dim strBeforeSlash As String
+strBeforeSlash = arrParts(0) ' Kết quả: "ビーンズ阿佐ヶ谷店 12345"
+
+' 2. Áp dụng hàm mới để lấy phần chữ
+Dim strFinal As String
+strFinal = GetTextOnly(strBeforeSlash) ' Kết quả: "ビーンズ阿佐ヶ谷店"
+
+```
+
+Với cách làm này, dù số ở cuối là `12345` (5 số) hay `12345678` (8 số), hàm sẽ tự động cắt bỏ phần số và trả về đúng phần chữ (và xóa khoảng trắng dư thừa).
+
+Bạn có muốn tôi giúp tích hợp hàm này trực tiếp vào một vòng lặp cụ thể trong code `MergeGlobalData` hay `CopyAuditDataToSummary` không?
