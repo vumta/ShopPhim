@@ -1,0 +1,57 @@
+Để đáp ứng yêu cầu số 1 là thêm viền (border) cho vùng dữ liệu với độ dày (width) tùy chỉnh, bạn có thể tạo một hàm (Sub) riêng biệt để xử lý việc này và gọi nó sau khi quá trình sao chép dữ liệu hoàn tất.
+
+Dưới đây là cách thực hiện:
+
+### Bước 1: Thêm hàm xử lý viền (Helper Function)
+
+Bạn thêm hàm này vào cuối file module của mình. Hàm này cho phép bạn tùy chỉnh độ dày của viền thông qua tham số `borderWeight`.
+
+``` vba
+' Hàm thêm viền cho vùng dữ liệu
+' borderWeight có thể là: xlThin (mỏng), xlMedium (trung bình), xlThick (dày)
+Sub ApplyBorders(rng As Range, Optional borderWeight As XlBorderWeight = xlThin)
+    With rng.Borders
+        .LineStyle = xlContinuous
+        .ColorIndex = xlAutomatic
+        .Weight = borderWeight
+    End With
+End Sub
+
+```
+
+### Bước 2: Cập nhật hàm `MergeGlobalData`
+
+Bạn tìm đến phần cuối của hàm `MergeGlobalData` (sau khi đã dán dữ liệu thành công) và chèn lệnh gọi hàm `ApplyBorders`.
+
+Ví dụ, nếu bạn muốn dùng viền độ dày trung bình (`xlMedium`):
+
+``` vba
+' ... (đoạn code cũ của bạn)
+        Else
+            lngSummaryLastRow = LastRowColumn(wsGlobalTimesheetXlsxSheet)
+            wsGlobalTimesheetCsvSheet.Range(wsGlobalTimesheetCsvSheet.Cells(lngGlobalStartRow + 1, 1), wsGlobalTimesheetCsvSheet.Cells(lngGlobalLastRow - lngGlobalLeftOverRow, lngGlobalLastCol)).Copy wsGlobalTimesheetXlsxSheet.Cells(lngSummaryLastRow + 1, 1)
+        End If
+        
+        ' --- THÊM ĐOẠN NÀY VÀO ĐỂ TẠO BORDER ---
+        ' Xác định vùng dữ liệu mới được dán
+        Dim rngData As Range
+        Set rngData = wsGlobalTimesheetXlsxSheet.Range(wsGlobalTimesheetXlsxSheet.Cells(1, 1), wsGlobalTimesheetXlsxSheet.Cells(LastRowColumn(wsGlobalTimesheetXlsxSheet), lngGlobalLastCol))
+        
+        ' Áp dụng border với độ dày tùy chỉnh (xlThin, xlMedium, hoặc xlThick)
+        Call ApplyBorders(rngData, xlMedium)
+        ' ---------------------------------------
+        
+        wbGlobalTimesheetCsvWorkbook.Close
+End Function
+
+```
+
+### Giải thích về độ dày (Border Width):
+
+Trong hàm `ApplyBorders`, tôi đã đặt mặc định là `xlThin`. Khi gọi hàm, bạn có thể thay đổi tham số thứ hai:
+
+  * `xlThin`: Viền mỏng (mặc định).
+  * `xlMedium`: Viền trung bình.
+  * `xlThick`: Viền dày.
+
+Bạn có cần tôi hỗ trợ thêm logic để tự động tính toán lại vùng dữ liệu (range) nếu cấu trúc file thay đổi không?
