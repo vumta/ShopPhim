@@ -1,0 +1,41 @@
+Để căn giữa dữ liệu (cả theo chiều ngang và chiều dọc) cho một Range trong Excel bằng VBA, bạn có thể sử dụng thuộc tính .HorizontalAlignment và .VerticalAlignment.
+Dưới đây là đoạn mã VBA chuẩn và cách sử dụng:
+### Đoạn mã VBA căn giữa dữ liệu
+```vba
+Sub CanGiuaDuLieu()
+    Dim rg As Range
+    
+    ' Cách 1: Chỉ định một vùng cụ thể (Ví dụ: từ ô A1 đến D10)
+    Set rg = Range("A1:D10")
+    
+    ' Cách 2: Áp dụng cho toàn bộ vùng đang chọn (nếu muốn quét chuột rồi chạy sub)
+    ' Set rg = Selection
+    
+    With rg
+        .HorizontalAlignment = xlCenter ' Căn giữa theo chiều ngang
+        .VerticalAlignment = xlCenter   ' Căn giữa theo chiều dọc
+    End With
+End Sub
+
+```
+### Giải thích chi tiết các thuộc tính:
+ * **xlCenter**: Là hằng số trong Excel VBA đại diện cho việc căn giữa.
+ * **HorizontalAlignment**: Căn lề trái/phải/giữa. Bạn có thể đổi thành xlLeft (trái) hoặc xlRight (phải).
+ * **VerticalAlignment**: Căn lề trên/dưới/giữa. Bạn có thể đổi thành xlTop (trên) hoặc xlBottom (dưới).
+### Cách viết thành một Hàm (Function) linh hoạt
+Nếu bạn muốn viết thành một hàm để dễ dàng gọi lại nhiều lần cho các vùng dữ liệu khác nhau trong các đoạn code lớn hơn, bạn có thể dùng hàm này:
+```vba
+Sub ChayThu()
+    ' Gọi hàm và truyền vùng dữ liệu cần căn giữa vào
+    Call CanGiuaRange(Range("A1:D10"))
+End Sub
+
+Function CanGiuaRange(VungChon As Range)
+    With VungChon
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+    End With
+End Function
+
+```
+**Mẹo nhỏ:** Nếu vùng dữ liệu của bạn có các ô bị gộp (Merge Cells), đoạn code trên vẫn hoạt động hoàn hảo mà không làm lỗi định dạng.
