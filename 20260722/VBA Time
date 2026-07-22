@@ -1,0 +1,52 @@
+Dưới đây là đoạn mã VBA giúp bạn tự động duyệt từng dòng, chuyển cột A sang chuỗi Text dạng 24H (hh:mm), rồi so sánh với cột B và ghi kết quả vào cột C.
+### Đoạn mã VBA
+```vba
+Sub SoSanhGio24H()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim valA As String
+    Dim valB As String
+    
+    ' Chỉ định Worksheet cần xử lý (đổi tên "Sheet1" nếu sheet của bạn tên khác)
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    
+    ' Tìm dòng cuối cùng chứa dữ liệu ở Cột A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Vòng lặp chạy từ dòng 2 (giả sử dòng 1 là tiêu đề)
+    For i = 2 To lastRow
+        If Not IsEmpty(ws.Range("A" & i).Value) Then
+            
+            ' 1. Chuyển giá trị giờ cột A thành định dạng Text 24H (ví dụ: "17:10" hoặc "05:10")
+            valA = Format(ws.Range("A" & i).Value, "hh:mm")
+            
+            ' 2. Lấy giá trị chuỗi ở cột B và xóa khoảng trắng thừa
+            valB = Trim(CStr(ws.Range("B" & i).Value))
+            
+            ' 3. So sánh 2 chuỗi và xuất kết quả ra Cột C
+            If valA = valB Then
+                ws.Range("C" & i).Value = "Khớp"
+            Else
+                ws.Range("C" & i).Value = "Lệch"
+            End If
+            
+            ' Tùy chọn: Nếu bạn muốn ghi giá trị text 24H đã chuyển đổi sang cột D
+            ' ws.Range("D" & i).NumberFormat = "@"
+            ' ws.Range("D" & i).Value = valA
+            
+        End If
+    Next i
+    
+    MsgBox "Đã hoàn thành so sánh!", vbInformation, "Thông báo"
+End Sub
+
+```
+### Hướng dẫn cách dán và chạy Sub:
+ 1. Mở file Excel, nhấn tổ hợp phím **Alt + F11** để mở cửa sổ VBA Editor.
+ 2. Trên menu đỉnh, chọn **Insert** \rightarrow **Module**.
+ 3. Copy đoạn mã trên và dán vào cửa sổ Module vừa mở.
+ 4. Nhấn **F5** (hoặc bấm nút **Play** màu xanh) để chạy Macro.
+### Lời khuyên xử lý dữ liệu:
+ * **Định dạng số phút/giờ:** Format(..., "hh:mm") sẽ luôn trả về chuỗi có 2 chữ số cho giờ (ví dụ 05:10). Nếu cột B của bạn có trường hợp viết thiếu số 0 ở đầu (ví dụ 5:10), hãy đổi "hh:mm" thành "h:mm".
+ 
