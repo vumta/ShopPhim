@@ -1,0 +1,30 @@
+Để tìm và xóa email có tiêu đề (Subject) chứa hoặc chính xác là "ABC" trong thư mục Drafts (Thư nháp) bằng UiPath, bạn có thể thực hiện theo các bước dưới đây bằng **Classic Experience** (phổ biến) hoặc **Modern Experience**.
+### Cách 1: Sử dụng Classic Activities (Khuyên dùng)
+ 1. Lấy danh sách email trong thư mục Drafts
+   Activity: Get Outlook Mail Messages
+   Kéo activity Get Outlook Mail Messages vào Workflow và thiết lập trong bảng Properties:
+   MailFolder: "Drafts" (Lưu ý: Nếu Outlook của bạn cài giao diện tiếng Việt, cần đổi thành "Thư nháp").
+   Filter:
+   Top: Đặt số lượng giới hạn, ví dụ 50 hoặc 100.
+   Output: Tạo biến để nhận danh sách mail (bấm Ctrl + K tại ô Messages), ví dụ: listDraftMails (Kiểu dữ liệu: List<MailMessage>).
+ 2. Lặp qua danh sách email lấy được
+   Activity: For Each
+   Kéo activity For Each vào ngay bên dưới:
+   Values / In: listDraftMails
+   TypeArgument: Chỉnh thành System.Net.Mail.MailMessage (trong thuộc tính của For Each).
+ 3. Xóa từng email nháp
+   Activity: Delete Mail Message
+   Kéo activity Delete Mail Message vào bên trong phần Body của vòng lặp For Each:
+   MailMessage: Đặt tên biến là item (hoặc tên đại diện cho từng phần tử trong vòng lặp).
+### Cách 2: Sử dụng Modern Experience
+Nếu dự án của bạn đang cấu hình theo thiết kế Modern:
+ 1. Kéo activity **Use Desktop Outlook App** vào Sequence.
+ 2. Kéo activity **For Each Email** vào bên trong khung app:
+   * **In emails from**: Chọn thư mục Outlook > Drafts (hoặc Thư nháp).
+   * **Filter**: Thiết lập điều kiện CurrentMail.Subject.Contains("ABC") hoặc Equals("ABC").
+ 3. Kéo activity **Delete Email** vào bên trong vòng lặp:
+   * **Email**: Chọn CurrentMail.
+### 💡 Lưu ý quan trọng
+ * **Tên thư mục (MailFolder)**: Tên thư mục phải khớp 100% với tên hiển thị trên giao diện Outlook của máy bạn (Drafts hoặc Thư nháp).
+ * **Thư mục lưu trữ sau khi xóa**: Mặc định, activity Delete Mail Message sẽ chuyển email nháp đó vào thư mục **Deleted Items** (Thùng rác) trên Outlook chứ không làm mất vĩnh viễn ngay lập tức.
+ 
