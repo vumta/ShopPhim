@@ -1,0 +1,25 @@
+Cách tối ưu và gọn nhất trong UiPath là sử dụng **Regex (Regular Expression)** ngay trong hoạt động **Assign**.
+### Cách thực hiện (Dùng Assign Activity)
+Tạo một hoạt động **Assign** với cấu hình sau:
+ * **To:** strResult *(hoặc biến chứa chuỗi của bạn)*
+ * **Value:**
+   ```vb
+   System.Text.RegularExpressions.Regex.Replace(strInput, "\s*\d+$", "")
+   
+   ```
+### Giải thích cú pháp Regex \s*\d+$:
+ * \s*: Tìm và xóa luôn các khoảng trắng đứng ngay trước dãy số (nếu có).
+ * \d+: Đại diện cho một hoặc nhiều chữ số liên tiếp (0-9).
+ * $: Đảm bảo chỉ áp dụng cho dãy số nằm ở **cuối chuỗi**.
+### Kết quả ví dụ:
+| Đầu vào (strInput) | Đầu ra (strResult) |
+|---|---|
+| "AnhVu 1234" | "AnhVu" |
+| "AnhVu1234" | "AnhVu" |
+| "AnhVu 1234 ABC 5678" | "AnhVu 1234 ABC" *(chỉ xóa 5678 ở cuối)* |
+> **Mẹo:** Nếu trong bảng Imports của UiPath bạn đã thêm namespace System.Text.RegularExpressions, bạn có thể viết ngắn gọn lại thành:
+> ```vb
+> Regex.Replace(strInput, "\s*\d+$", "")
+> 
+> ```
+> 
