@@ -1,0 +1,60 @@
+Dựa vào hình ảnh (Custom Sort với 3 điều kiện: Cột A, Cột F, Cột C tăng dần, không có header) và yêu cầu của bạn (sort từ range A5:V đến dòng cuối cùng), dưới đây là đoạn mã VBA chuẩn để bạn có thể gọi (Invoke) từ UiPath.
+### Mã VBA (Lưu file này dưới dạng .txt hoặc .vbs để dùng trong UiPath)
+```vba
+Sub CustomSortForUiPath()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim sortRange As Range
+    
+    ' Sử dụng ActiveSheet (Sheet đang được mở bởi UiPath)
+    Set ws = ActiveSheet
+    
+    ' Tìm dòng cuối cùng có chứa dữ liệu dựa vào cột A
+    ' (Bạn có thể thay "A" thành cột khác nếu cột A có thể có ô trống)
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Nếu dòng cuối nhỏ hơn 5 thì không có gì để sort, thoát sub
+    If lastRow < 5 Then Exit Sub
+    
+    ' Xác định vùng dữ liệu cần sort (Từ A5 đến V của dòng cuối cùng)
+    Set sortRange = ws.Range("A5:V" & lastRow)
+    
+    ' Xóa các điều kiện sort cũ (nếu có) để tránh lỗi
+    ws.Sort.SortFields.Clear
+    
+    ' Thêm các điều kiện sort giống trong hình
+    With ws.Sort
+        ' 1. Sort by Column A (Ascending)
+        .SortFields.Add Key:=ws.Range("A5:A" & lastRow), _
+            SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+            
+        ' 2. Then by Column F (Ascending)
+        .SortFields.Add Key:=ws.Range("F5:F" & lastRow), _
+            SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+            
+        ' 3. Then by Column C (Ascending)
+        .SortFields.Add Key:=ws.Range("C5:C" & lastRow), _
+            SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+            
+        ' Cài đặt thông số sort
+        .SetRange sortRange
+        .Header = xlNo ' Trong hình của bạn "My data has headers" không được tick
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        
+        ' Thực thi Sort
+        .Apply
+    End With
+    
+End Sub
+
+```
+### Hướng dẫn cách dùng trong UiPath:
+ 1. Copy đoạn code trên và dán vào Notepad, lưu lại với tên ví dụ: SortData.txt.
+ 2. Trong UiPath Studio, bên trong **Excel Process Scope** -> **Use Excel File**:
+ 3. Kéo thả activity **Invoke VBA**.
+ 4. Cấu hình activity:
+   * **CodeFilePath**: Trỏ đường dẫn đến file SortData.txt vừa lưu.
+   * **EntryMethodName**: Điền "CustomSortForUiPath" (Đây là tên của Sub trong file VBA).
+**Lưu ý:** Đoạn code trên đang lấy dòng cuối cùng dựa vào **Cột A** (ws.Cells(ws.Rows.Count, "A")). Nếu cột A của bạn có những ô trống ở cuối và bạn muốn lấy dòng cuối chuẩn xác nhất dựa trên một cột khác luôn đầy đủ dữ liệu (ví dụ cột B), hãy thay chữ "A" ở dòng code tìm lastRow thành cột tương ứng nhé.
