@@ -1,0 +1,58 @@
+Hiện tượng dữ liệu bị trùng lặp (duplicate) trên Gallery dù Database chuẩn rất hay xảy ra trong Power Apps. Nguyên nhân thường do **2 lý do chính**:
+ 1. **Bảng Collection Master có tên Collection bị trùng:** Ví dụ Collection "Spring 2026" xuất hiện ở 2 dòng khác nhau trong Collection Master (do 2 người quản lý khác nhau hoặc tạo nhiều đợt). Khi lọc ra, danh sách thu được sẽ là ["Spring 2026", "Spring 2026"], dẫn đến việc quét bị lặp.
+ 2. **Cách lưu biến/Collection:** Nếu bạn có dùng lệnh Collect() thay vì ClearCollect(), hoặc dùng ForAll() để nạp dữ liệu, mỗi lần app tải lại nó sẽ gom chồng dữ liệu cũ và mới lên nhau.
+### 🛠️ Cách khắc phục (Chọn 1 trong 2 cách bên dưới)
+#### Cách 1: Khử trùng lặp danh sách Collection Name bằng hàm Distinct() (Khuyên dùng)
+Bạn bọc hàm Distinct() xung quanh bước lấy Collection Name. Điều này đảm bảo mỗi Collection Name chỉ xuất hiện **đúng 1 lần** trước khi đưa đi lọc bảng Licensor Approval.
+```powerapps
+With(
+    {
+        // Dùng Distinct để gom các Collection Name bị trùng thành 1 danh sách duy nhất
+        MyCollections: Distinct(
+            Filter(
+                'Collection Master',
+                'Pic 1'.Email = User().Email Or 'Pic 2'.Email = User().Email
+            ),
+            'Collection Name'
+        )
+    },
+    SortByColumns(
+        Filter(
+            'Licensor Approval',
+            'Collection Name' in MyCollections
+        ),
+        "Request_x0020_ID",
+        SortOrder.Descending
+    )
+)
+
+```
+#### Cách 2: Lọc lấy duy nhất các Request ID trực tiếp trên Gallery
+Nếu mục tiêu của bạn **chỉ cần hiển thị danh sách các Request ID không bị trùng lên Gallery**, bạn có thể ép Gallery chỉ lấy các Request ID duy nhất bằng công thức sau:
+```powerapps
+Distinct(
+    Filter(
+        'Licensor Approval',
+        'Collection Name' in Filter(
+            'Collection Master',
+            'Pic 1'.Email = User().Email Or 'Pic 2'.Email = User().Email
+        ).'Collection Name'
+    ),
+    'Request ID'
+)
+
+```
+> **📌 Lưu ý quan trọng khi dùng Cách 2:**
+> Khi dùng Distinct(), bảng kết quả trả về sẽ chỉ còn duy nhất 1 cột tên là **Value** (chứa Request ID).
+> Trong Gallery, tại Label hiển thị, bạn cần sửa thuộc tính Text thành: **ThisItem.Value** (thay vì ThisItem.'Request ID').
+> 
+### 💡 Cảnh báo thêm nếu bạn dùng Collection tạm (Biến col...)
+Nếu bạn đang tạo một Collection tạm bằng nút bấm hoặc sự kiện OnVisible của Màn hình bằng hàm Collect(), hãy chắc chắn đã đổi thành **ClearCollect()** để nó xóa dữ liệu cũ trước khi nạp dữ liệu mới:
+```powerapps
+// Sai: Rất dễ bị duplicate mỗi khi chuyển màn hình
+Collect(colMyRequests, Filter(...)) 
+
+// Đúng: Xóa dữ liệu cũ rồi mới nạp dữ liệu mới
+ClearCollect(colMyRequests, Filter(...)) 
+
+```
