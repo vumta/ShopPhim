@@ -1,0 +1,32 @@
+Cách viết Cột in Filter(...) mà bạn thấy là một kỹ thuật rất phổ biến trong Power Apps, được gọi là **Nested Filter (Lọc lồng nhau)**. Nó đóng vai trò giống như câu lệnh IN (SELECT ...) trong SQL.
+Thay vì dùng hàm With() chia làm 2 bước như mình hướng dẫn ở trên, bạn hoàn toàn có thể gộp trực tiếp vào một dòng code duy nhất bằng kiểu viết này.
+Áp dụng đúng logic bài toán của bạn, đoạn code viết theo kiểu in Filter(...) sẽ trông như sau:
+```powerapps
+SortByColumns(
+    Filter(
+        'Licensor Approval',
+        'Collection Name' in Filter(
+            'Collection Master',
+            'Pic 1'.Email = User().Email Or 'Pic 2'.Email = User().Email
+        ).'Collection Name'
+    ),
+    "Request_x0020_ID", // Tên internal name của cột Request ID
+    SortOrder.Descending
+)
+
+```
+### 🔍 Cách đoạn code này hoạt động:
+ 1. **Phần bên phải chữ in chạy trước:** Nó lọc bảng 'Collection Master' tìm các dòng thỏa mãn điều kiện User, sau đó nhờ đuôi .'Collection Name' ở cuối, nó trích xuất ra một danh sách (1 cột) chứa toàn bộ các Collection Name.
+ 2. **Phần bên trái chữ in chạy sau:** Bảng 'Licensor Approval' sẽ dò xem cột 'Collection Name' của nó có nằm trong danh sách vừa được tạo ra ở bước 1 hay không.
+### ⚖️ So sánh kiểu in Filter(...) và kiểu dùng hàm With()
+Cả 2 cách đều ra kết quả giống hệt nhau, nhưng mỗi cách có ưu/nhược điểm riêng:
+| Tiêu chí | Kiểu in Filter(...) | Kiểu dùng With(...) |
+|---|---|---|
+| **Độ dài code** | Ngắn gọn, viết thẳng vào 1 cục. | Dài hơn một chút. |
+| **Dễ đọc/Bảo trì** | Hơi khó nhìn nếu điều kiện bên trong Filter con quá dài và phức tạp. | Rất dễ đọc vì biến logic phức tạp thành biến tạm (MyCollections), chia luồng rõ ràng. |
+| **Hiệu suất (Performance)** | Có thể khiến Power Apps phải tính toán lại cục Filter con mỗi lần Gallery refresh dữ liệu. | Tối ưu hơn. Power Apps chỉ tính toán danh sách biến tạm 1 lần, sau đó dùng biến đó đem đi so sánh. |
+### ⚠️ Cảnh báo cực kỳ quan trọng: Lỗi Delegation (Giới hạn dữ liệu)
+Dù bạn dùng cách nào (hàm With hay in Filter), khi bạn dùng toán tử **in** với SharePoint hoặc Dataverse, Power Apps thường sẽ hiện **cảnh báo gạch chân màu xanh (Delegation Warning)**.
+ * **Tại sao?** Power Apps không thể "nhờ" SharePoint xử lý toán tử in trên toàn bộ cơ sở dữ liệu. Nó buộc phải kéo dữ liệu về máy để tự lọc.
+ * **Hậu quả:** Nếu bảng 'Collection Master' hoặc bảng 'Licensor Approval' của bạn có **nhiều hơn 500 dòng (tối đa chỉnh được lên 2000 dòng)**, toán tử in sẽ chỉ tìm kiếm trong 500-2000 dòng đầu tiên. Nó sẽ bỏ qua các dữ liệu cũ hơn, dẫn đến kết quả hiển thị trên Gallery bị thiếu.
+ 
