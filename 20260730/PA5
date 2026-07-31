@@ -1,0 +1,40 @@
+Để thêm điều kiện lọc các Collection thuộc sở hữu của User (là **PIC 1** hoặc **PIC 2** trong bảng Collection Master), bạn chỉ cần dùng hàm **With()** để tạo sẵn danh sách các Collection Name hợp lệ, sau đó thêm điều kiện Collection in MyCollections vào trong các hàm Filter() của bạn.
+Đoạn code hoàn chỉnh sau khi cập nhật:
+```powerapps
+With(
+    {
+        // 1. Lấy ra danh sách các Collection Name độc nhất mà User là PIC 1 hoặc PIC 2
+        MyCollections: Distinct(
+            Filter(
+                'Collection Master',
+                'PIC 1'.既定電子メール = User().Email || 'PIC 2'.既定電子メール = User().Email
+            ),
+            'Collection Name'
+        )
+    },
+    // 2. Thêm điều kiện Collection in MyCollections vào Filter
+    If(
+        Toggle_ifshowall.Value,
+        Filter(
+            'Licensor Approval',
+            'Request ID' = DataCardValue7_1.Text,
+            Collection in MyCollections
+        ),
+        Filter(
+            'Licensor Approval',
+            'Request ID' = DataCardValue7_1.Text,
+            'UTMK PIC'.既定電子メール = User().Email,
+            Collection in MyCollections
+        )
+    )
+)
+
+```
+### 💡 Điểm cải tiến và Lưu ý quan trọng:
+ 1. **Cách hoạt động:**
+   * Hàm With() sẽ lọc bảng 'Collection Master' trước một lần duy nhất để lấy ra danh sách các Collection Name tương ứng với User.
+   * Cả 2 trường hợp Toggle_ifshowall bằng true hay false đều bổ sung thêm điều kiện Collection in MyCollections, đảm bảo danh sách hiển thị chỉ bao gồm các Collection thuộc quyền quản lý của User.
+ 2. **Nếu cột Collection trong bảng Licensor Approval là dạng Lookup:**
+   * Bạn chỉ cần đổi Collection in MyCollections thành **Collection.Value in MyCollections**.
+ 3. **Kết quả trả về:**
+   * Đoạn code vẫn giữ nguyên bản chất trả về **các dòng dữ liệu (Data Rows)** đầy đủ của bảng 'Licensor Approval', giúp bạn thoải mái lấy thông tin của từng cột để hiển thị trên Gallery/Control.
