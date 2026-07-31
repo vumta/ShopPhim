@@ -1,0 +1,44 @@
+Để giữ lại **đầy đủ thông tin của 1 dòng (full row)** thay vì chỉ lấy 1 cột giá trị đơn lẻ như Distinct(), giải pháp chuẩn nhất trong Power Apps là kết hợp bộ ba hàm: **GroupBy + ForAll + First**.
+Cách này sẽ nhóm các dòng bị trùng theo Request ID lại với nhau, sau đó bốc ra đúng **1 dòng đầu tiên đại diện** cho mỗi nhóm. Kết quả trả về vẫn là một Bảng chứa đầy đủ các cột nguyên bản của Licensor Approval.
+Đoạn code hoàn chỉnh cho thuộc tính **Items** của Gallery như sau:
+```powerapps
+With(
+    {
+        // Bước 1: Filter danh sách Licensor Approval như bình thường
+        RawData: Filter(
+            'Licensor Approval',
+            'Collection Name' in Distinct(
+                Filter(
+                    'Collection Master',
+                    'Pic 1'.Email = User().Email Or 'Pic 2'.Email = User().Email
+                ),
+                'Collection Name'
+            )
+        )
+    },
+    // Bước 2: Gom nhóm theo Request ID và rút ra 1 row đại diện cho mỗi Request ID
+    SortByColumns(
+        ForAll(
+            GroupBy(RawData, "Request_x0020_ID", "GroupData"),
+            First(GroupData)
+        ),
+        "Request_x0020_ID",
+        SortOrder.Descending
+    )
+)
+
+```
+### 💡 Cách hoạt động của đoạn code:
+ 1. **GroupBy(RawData, "Request_x0020_ID", "GroupData")**:
+   Nó gom tất cả các dòng có cùng Request ID trong kết quả lọc vào một nhóm tạm tên là GroupData.
+ 2. **ForAll(..., First(GroupData))**:
+   Nó duyệt qua từng nhóm Request ID, lấy ra dòng đầu tiên (First) của nhóm đó. Kết quả gom lại thành một bảng chứa các Row độc nhất.
+ 3. **SortByColumns(...)**:
+   Sắp xếp lại danh sách các Row độc nhất này theo thứ tự bạn muốn.
+### 🛠️ Trong Gallery:
+Bây giờ dữ liệu trả về đã là dạng **Row đầy đủ**, bạn có thể gọi bất kỳ cột nào trong Label của Gallery một cách bình thường:
+ * ThisItem.'Request ID'
+ * ThisItem.'Collection Name'
+ * ThisItem.Status (hoặc bất kỳ cột nào khác trong bảng Licensor Approval)
+> **⚠️ Lưu ý:** Tên cột "Request_x0020_ID" trong hàm GroupBy và SortByColumns phải là **Internal Name** (Tên nội bộ trong SharePoint/Dataverse) của cột Request ID.
+> 
