@@ -1,0 +1,93 @@
+Dưới đây là đoạn code hoàn chỉnh đã được cập nhật logic lọc theo **Collection Master (PIC 1 / PIC 2)** kết hợp với **UTMK PIC** và bọc trong hàm With() để tối ưu hiệu năng cho Gallery:
+```powerapps
+With(
+    {
+        // 1. Tạo trước danh sách Collection Name độc nhất mà User hiện tại là PIC 1 hoặc PIC 2
+        MyCollections: Distinct(
+            Filter(
+                'Collection Master',
+                'PIC 1'.既定電子メール = User().Email || 'PIC 2'.既定電子メール = User().Email
+            ),
+            'Collection Name'
+        )
+    },
+    If(
+        UTMKflag,
+        SortByColumns(
+            Filter(
+                'UTMK Request',
+                // --- [ĐOẠN CODE ĐÃ ĐƯỢC CẬP NHẬT TRONG TOGGLE] ---
+                If(
+                    Toggle_ifshowall.Value = false,
+                    'Request ID' in Filter(
+                        'Licensor Approval',
+                        Collection in MyCollections && 'UTMK PIC'.既定電子メール = User().Email
+                    ).'Request ID',
+                    true
+                ),
+                // ------------------------------------------------
+                If(
+                    IsBlank(ComboBox1.SelectedItems) || IsEmpty(ComboBox1.SelectedItems),
+                    true,
+                    'Request ID' in Filter('Licensor Approval', 'Collection Status' in ComboBox1.SelectedItems).'Request ID'
+                ),
+                If(
+                    IsBlank(ComboBox1_1.SelectedItems) || IsEmpty(ComboBox1_1.SelectedItems),
+                    true,
+                    'Request ID' in Filter('Licensor Approval', Collection in ComboBox1_1.SelectedItems).'Request ID'
+                ),
+                If(
+                    IsBlank(ComboBox1_2.SelectedItems) || IsEmpty(ComboBox1_2.SelectedItems),
+                    true,
+                    'Asset Type' in ComboBox1_2.SelectedItems
+                ),
+                If(
+                    IsBlank(ComboBox1_3.SelectedItems) || IsEmpty(ComboBox1_3.SelectedItems),
+                    true,
+                    作成者.既定電子メール in ComboBox1_3.SelectedItems.既定電子メール
+                )
+            ),
+            "at_requestid",
+            If(varSortDescending, SortOrder.Descending, SortOrder.Ascending)
+        ),
+        SortByColumns(
+            Filter(
+                'UTMK Request',
+                作成者.既定電子メール = User().Email,
+                If(
+                    IsBlank(ComboBox1.SelectedItems) || IsEmpty(ComboBox1.SelectedItems),
+                    true,
+                    'Request ID' in Filter('Licensor Approval', 'Collection Status' in ComboBox1.SelectedItems).'Request ID'
+                ),
+                If(
+                    IsBlank(ComboBox1_1.SelectedItems) || IsEmpty(ComboBox1_1.SelectedItems),
+                    true,
+                    'Request ID' in Filter('Licensor Approval', Collection in ComboBox1_1.SelectedItems).'Request ID'
+                ),
+                If(
+                    IsBlank(ComboBox1_2.SelectedItems) || IsEmpty(ComboBox1_2.SelectedItems),
+                    true,
+                    'Asset Type' in ComboBox1_2.SelectedItems
+                ),
+                If(
+                    IsBlank(ComboBox1_3.SelectedItems) || IsEmpty(ComboBox1_3.SelectedItems),
+                    true,
+                    作成者.既定電子メール in ComboBox1_3.SelectedItems.既定電子メール
+                )
+            ),
+            "at_requestid",
+            If(varSortDescending, SortOrder.Descending, SortOrder.Ascending)
+        )
+    )
+)
+
+```
+### 📝 Các điểm thay đổi chính:
+ 1. **Dùng hàm With khởi tạo MyCollections:** Giúp Power Apps chỉ cần truy vấn bảng Collection Master 1 lần duy nhất để lấy danh sách tên Collection thỏa điều kiện User là PIC 1 hoặc PIC 2, tránh việc lặp lại câu truy vấn lồng nhau gây chậm app.
+ 2. **Cập nhật logic Toggle_ifshowall:**
+   * Khi Toggle_ifshowall.Value = false, điều kiện kiểm tra Licensor Approval sẽ yêu cầu thỏa đồng thời:
+     * Collection in MyCollections (Collection thuộc quản lý của User trong Collection Master)
+     * 'UTMK PIC'.既定電子メール = User().Email (User là UTMK PIC)
+ 3. **Giữ nguyên danh sách Row dữ liệu:** Kết quả đầu ra của toàn bộ đoạn code vẫn là danh sách đầy đủ các **Data Row của bảng 'UTMK Request'**, giúp bạn thoải mái hiển thị 'Request ID' (ThisItem.at_requestid hoặc ThisItem.'Request ID') cùng các cột thông tin khác trên Gallery.
+> **💡 Lưu ý nhỏ:** Nếu cột Collection trong bảng 'Licensor Approval' của bạn là dạng **Lookup**, hãy đổi đoạn Collection in MyCollections thành Collection.Value in MyCollections.
+> 
