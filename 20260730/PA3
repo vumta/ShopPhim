@@ -1,0 +1,42 @@
+Bạn có thể đơn giản hóa đoạn code của mình mà vẫn đảm bảo **kết quả trả về là danh sách các Dòng (Full Data Rows)** để hiển thị lên Gallery và gọi các cột khác nhau.
+### 💡 Điểm tối ưu quan trọng:
+Thay vì viết 'Request ID' in Filter('Licensor Approval', Collection in ...).'Request ID', bạn chỉ cần lọc trực tiếp điều kiện Collection in Filter('Collection Master', ...).'Collection Name'.
+Việc lồng thêm một hàm Filter('Licensor Approval') ở bên trong sẽ khiến Power Apps phải truy vấn lại bảng Licensor Approval hai lần, làm giảm hiệu năng và dễ bị lỗi Delegation.
+### đoạn code hoàn chỉnh đã được lồng vào điều kiện If:
+```powerapps
+With(
+    {
+        // Bước 1: Lấy danh sách Collection Name độc nhất thỏa mãn điều kiện PIC 1 hoặc PIC 2
+        MyCollections: Distinct(
+            Filter(
+                'Collection Master',
+                'PIC 1'.既定電子メール = User().Email || 'PIC 2'.既定電子メール = User().Email
+            ),
+            'Collection Name'
+        )
+    },
+    // Bước 2: Filter bảng Licensor Approval dựa theo nút Toggle và trả về FULL ROW
+    If(
+        Toggle_ifshowall.Value,
+        Filter(
+            'Licensor Approval',
+            Collection in MyCollections
+        ),
+        Filter(
+            'Licensor Approval',
+            Collection in MyCollections,
+            'UTMK PIC'.既定電子メール = User().Email
+        )
+    )
+)
+
+```
+### 📌 Các lưu ý khi áp dụng:
+ 1. **Kiểu dữ liệu của cột Collection trong Licensor Approval:**
+   * **Nếu là cột Text:** Viết Collection in MyCollections như code trên.
+   * **Nếu là cột Lookup/Choice:** Bạn cần thêm đuôi .Value, đổi thành Collection.Value in MyCollections.
+ 2. **Kết quả trả về:**
+   * Đoạn code trên trả về danh sách các **dòng đầy đủ (Data Rows)** của bảng 'Licensor Approval'.
+   * Trong Gallery, bạn hoàn toàn có thể gọi bất kỳ cột nào bằng cú pháp: ThisItem.'Request ID', ThisItem.Collection, ThisItem.'UTMK PIC', v.v.
+ 3. **Xử lý trùng lặp dòng (Nếu bảng Licensor Approval có nhiều dòng trùng Request ID):**
+   * Nếu sau khi lọc, kết quả trên Gallery vẫn xuất hiện nhiều dòng có cùng Request ID, bạn có thể bọc hàm GroupBy bên ngoài để nhóm lấy 1 row đại diện như hướng dẫn ở bước trước.
