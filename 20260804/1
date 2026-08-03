@@ -1,0 +1,4 @@
+Mọi người có ai ở ngoài koo mn. Đọc tin nhắn thì vô ODC, check PC giúp e xem còn kết nối internet hay ko bằng cách gõ lệnh này với nha: 
+ ----- 
+ cmd chạy giúp em thử lệnh này nha 
+ curl -I https://www.youtube.com
