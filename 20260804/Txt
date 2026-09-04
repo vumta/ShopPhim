@@ -1,0 +1,30 @@
+2
+Nearby Sharing
+Disable "Nearby sharing" on PC Turn off and set it to be unchangeable by users without domain admin privileges
+Vào setting, tìm "Near by sharing" +> nếu đã bị disable màu xám, kg edit được => OK
+
+4
+Clipboard
+Turn off all the settings, including 'Clipboard history' and 'Clipboard history across your device', and set it to be unchangeable by users without domain admin privileges
+
+10
+Lock screen/Sleep
+Set the lock screen and sleep time and set it to be unchangeable by users without domain admin privileges
+Vào setting > search "lock screen setting" > "screen timeout" > "screen and sleep" cài đặt mặc định 5 phút, không thay đổi được => OK
+
+11
+Advanced app settings
+Disable 'Share across devices' and set it to be unchangeable by users without domain admin privileges
+Vào setting, search 'Share across devices' bị disable => OK
+
+16
+Screenshot
+Block this function and ensure that all the following shortcuts are disabled.
+Block :
+Snipping tool
+ ・prt sc
+ ・Alt+Prt sc
+ ・Windows+prt sc
+ ・Windows+shift+s
+
+*Clipboard histroy: Windows + V
