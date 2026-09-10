@@ -1,0 +1,17 @@
+Dưới đây là chuỗi 5 Why hoàn chỉnh đã được cập nhật theo hướng Kiến trúc hệ thống (System Architecture & Design):
+Sự cố: Process 02 và Process 03 bị lỗi sau khi release CR của Process 01.
+ * Why 1: Tại sao Process 02 và Process 03 lại bị lỗi sau khi release CR 01?
+   * Đáp: Vì file Input dùng chung bị thay đổi công thức (formula) và cấu trúc dữ liệu, khiến Process 02 và 03 không còn tương thích.
+ * Why 2: Tại sao file Input bị thay đổi công thức mà Process 02 và 03 lại không được cập nhật hoặc kiểm tra?
+   * Đáp: Vì khi làm task, người thực hiện thấy công thức trong file Input bị lỗi nên đã sửa lại, đồng thời chủ quan nhận định file này chỉ dùng cho Process 01 nên chỉ thực hiện đánh giá tác động (Impact Analysis) trên Process 01.
+ * Why 3: Tại sao lại đưa ra nhận định chủ quan và bỏ qua việc xác minh ảnh hưởng lên Process 02, 03?
+   * Đáp: Vì người thực hiện thao tác dựa trên giả định cá nhân và chỉ tập trung vào phạm vi yêu cầu của task (Process 01), không kiểm tra xem file Input có phải là tài nguyên dùng chung (Shared Resource) hay không.
+ * Why 4: Tại sao người làm không nhận biết được tài nguyên dùng chung và việc tự ý sửa lỗi ngoài scope lại không được phát hiện ở bước Review/Testing?
+   * Đáp: Vì dự án thiếu tài liệu/sơ đồ quản lý sự phụ thuộc (Dependency Map), đồng thời quy trình Review/Testing chỉ kiểm tra theo đúng phạm vi CR 01 mà bỏ qua các thay đổi ngoài phạm vi (Out-of-scope changes).
+ * Why 5 (Root Cause): Tại sao các process lại dễ bị ảnh hưởng chéo khi có sự thay đổi ở file Input dùng chung?
+   * Đáp: Vì kiến trúc hệ thống hiện tại bị phụ thuộc chặt (Tight Coupling) vào file Input dùng chung mà không có cơ chế tách biệt tài nguyên (Decoupling) hoặc kiểm tra ràng buộc dữ liệu (Data Validation) độc lập cho từng process.
+Giải pháp đề xuất (Countermeasures):
+ * Kiến trúc (Dài hạn): Tách file Input thành các template/file riêng biệt cho từng process (Decoupling) hoặc bổ sung bước kiểm tra dữ liệu đầu vào (Input Schema Validation) trước khi process thực thi để tránh lỗi lan truyền.
+ * Quản lý tài nguyên dùng chung: Tạo bản Dependency Matrix để ghi nhận toàn bộ các file/database/API dùng chung giữa các process.
+ * Kỷ luật làm task: Tuân thủ quy tắc không tự ý chỉnh sửa bất kỳ lỗi nào ngoài phạm vi CR (Out-of-scope) khi chưa báo cáo và thực hiện đánh giá tác động.
+ 
