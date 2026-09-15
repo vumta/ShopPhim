@@ -1,0 +1,64 @@
+Để ghi dữ liệu vào một trang tính (Sheet) đang bị khóa mật khẩu bằng Power Automate Cloud Flow, bạn không thể dùng các hành động ghi dữ liệu thông thường (như Add a row into a table) vì Excel API sẽ báo lỗi từ chối ghi.
+Tuy nhiên, vì bạn đã có mật khẩu, có 3 giải pháp để thực hiện việc này:
+Phương án 1: Sử dụng Office Scripts (Tối ưu nhất cho Cloud Flow)
+Excel Online có tích hợp sẵn Office Scripts (dựa trên TypeScript). Script có khả năng nhận tham số mật khẩu từ Cloud Flow, thực hiện mở khóa Sheet, ghi dữ liệu, sau đó khóa Sheet lại ngay lập tức.
+Bước 1: Tạo Script trên Excel Online
+ * Mở file Excel trên trình duyệt web, vào thẻ Automate > chọn New Script.
+ * Dán đoạn mã sau vào trình biên soạn:
+function main(
+  workbook: ExcelScript.Workbook, 
+  sheetName: string, 
+  password: string, 
+  value1: string, 
+  value2: string
+) {
+  // 1. Lấy Sheet cần thao tác
+  let sheet = workbook.getWorksheet(sheetName);
+
+  // 2. Mở khóa Sheet bằng mật khẩu
+  sheet.unprotect(password);
+
+  // 3. Ghi dữ liệu (Ví dụ: Thêm dòng mới vào Table1 hoặc ghi vào ô dữ liệu)
+  let table = sheet.getTable("Table1");
+  if (table) {
+    table.addRow(-1, [value1, value2]);
+  } else {
+    // Nếu ghi trực tiếp vào dòng trống tiếp theo của Bảng tính
+    let usedRange = sheet.getUsedRange();
+    let nextRow = usedRange ? usedRange.RowCount + 1 : 1;
+    sheet.getRange(`A${nextRow}`).setValue(value1);
+    sheet.getRange(`B${nextRow}`).setValue(value2);
+  }
+
+  // 4. Khóa lại Sheet với mật khẩu ban đầu
+  sheet.protect({
+    allowFormatCells: false,
+    allowInsertColumns: false,
+    allowInsertRows: false
+  }, password);
+}
+
+ * Lưu Script với tên (ví dụ: UnprotectAndWriteData).
+Bước 2: Gọi Script trong Cloud Flow
+Trong Power Automate Cloud Flow:
+ * Thêm hành động Excel Online (Business) -> Run script.
+ * Chọn đúng Location, Document Library, và File Excel.
+ * Tại ô Script, chọn UnprotectAndWriteData.
+ * Điền các tham số đầu vào: sheetName, password, và các dữ liệu cần ghi (value1, value2).
+Phương án 2: Sử dụng Power Automate Desktop (PAD)
+Nếu quy trình của bạn có kích hoạt Desktop Flow, PAD hỗ trợ các hành động xử lý khóa Sheet trực tiếp:
+ * Launch Excel: Mở file Excel.
+ * Unprotect Excel worksheet: Truyền tên Sheet và mật khẩu mở khóa.
+ * Write to Excel worksheet / Insert row to Excel worksheet: Ghi dữ liệu vào file.
+ * Protect Excel worksheet: Khóa lại Sheet bằng mật khẩu.
+ * Save Excel & Close Excel.
+Phương án 3: Gọi Microsoft Graph API trong Cloud Flow
+Nếu không muốn dùng Office Scripts, bạn có thể dùng hành động HTTP with Azure AD hoặc HTTP (Premium) trong Cloud Flow để gọi REST API của Microsoft Graph:
+ * Unprotect Sheet:
+   * POST [https://graph.microsoft.com/v1.0/me/drive/items/](https://graph.microsoft.com/v1.0/me/drive/items/){file-id}/workbook/worksheets/{sheet-name}/unprotect
+   * Body: {"password": "your_password"}
+ * Ghi dữ liệu: Sử dụng các hành động Excel chuẩn của Power Automate Cloud.
+ * Protect Sheet:
+   * POST [https://graph.microsoft.com/v1.0/me/drive/items/](https://graph.microsoft.com/v1.0/me/drive/items/){file-id}/workbook/worksheets/{sheet-name}/protect
+   * Body: {"password": "your_password"}
+   
