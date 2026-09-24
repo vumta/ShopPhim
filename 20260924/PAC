@@ -1,0 +1,191 @@
+Có. Trong Power Automate Cloud, khi dùng Scope + Configure run after thì mặc định bạn chỉ biết Scope trước đó Failed, nhưng lỗi chi tiết của action bị fail vẫn nằm trong output của flow.
+
+## Cách 1: Dùng hàm `result()` để lấy lỗi trong Scope
+
+Giả sử bạn có:
+
+```text
+ Scope_Main
+ - Action A
+ - Action B
+ - Action C
+
+Scope_Error
+ ```
+
+`Scope_Error` được cấu hình chạy khi `Scope_Main` Failed.
+
+Trong `Scope_Error`, thêm một Compose:
+
+```text
+ result('Scope_Main')
+ ```
+
+Kết quả trả về là một array chứa toàn bộ action trong scope:
+
+```json
+ [
+ {
+ "name": "Action_A",
+ "status": "Succeeded"
+ },
+ {
+ "name": "Action_B",
+ "status": "Failed",
+ "error": {
+ "code": "BadRequest",
+ "message": "The specified item was not found."
+ }
+ }
+ ]
+ ```
+
+Từ đây bạn có thể parse và lấy:
+
+```text
+ item()?['error']?['message']
+ ```
+
+hoặc
+
+```text
+ item()?['error']?['code']
+ ```
+
+---
+
+## Cách 2: Xem lỗi của action cụ thể bằng `outputs()`
+
+Nếu bạn biết action nào có thể fail:
+
+```text
+ outputs('Get_item')
+ ```
+
+hoặc
+
+```text
+ actions('Get_item')
+ ```
+
+Ví dụ:
+
+```text
+ actions('Get_item')?['error']?['message']
+ ```
+
+thường sẽ trả:
+
+```text
+ Item not found
+ ```
+
+hoặc
+
+```text
+ Unauthorized
+ ```
+
+---
+
+## Cách 3: Lấy action nào fail trong Scope
+
+Trong Scope Error:
+
+### Filter Array
+
+Filter:
+
+```text
+ @equals(item()?['status'], 'Failed')
+ ```
+
+Nguồn:
+
+```text
+ result('Scope_Main')
+ ```
+
+Sau đó lấy:
+
+```text
+ first(body('Filter_array'))?['name']
+ ```
+
+=> tên action failed.
+
+Và:
+
+```text
+ first(body('Filter_array'))?['error']?['message']
+ ```
+
+=> message lỗi.
+
+---
+
+## Cách 4: Dùng expression phổ biến nhất
+
+Nếu mục tiêu chỉ là gửi email/Teams thông báo lỗi:
+
+```text
+ string(result('Scope_Main'))
+ ```
+
+Bạn sẽ nhận được toàn bộ JSON lỗi để debug.
+
+Hoặc:
+
+```text
+ first(
+ filter(
+ result('Scope_Main'),
+ equals(item()?['status'],'Failed')
+ )
+ )
+ ```
+
+(rồi lấy field `error.message`).
+
+---
+
+## Một lưu ý quan trọng
+
+Với nhiều connector (SharePoint, Dataverse, HTTP, SQL...), lỗi chi tiết thường nằm ở:
+
+```json
+ error.message
+ ```
+
+nhưng một số action sẽ trả cấu trúc sâu hơn như:
+
+```json
+ error: {
+ code: "...",
+ message: "...",
+ innerError: {
+ message: "..."
+ }
+ }
+ ```
+
+Do đó khi debug, tôi thường dùng:
+
+```text
+ string(result('Scope_Main'))
+ ```
+
+ghi ra Compose trước, xem chính xác JSON trả về rồi mới xây expression lấy message phù hợp.
+
+Mẫu thực tế tôi hay dùng:
+
+```text
+ first(
+ filter(
+ result('Scope_Main'),
+ equals(item()?['status'],'Failed')
+ )
+ )?['error']?['message']
+ ```
+
+để gửi Teams hoặc Email với nội dung lỗi chi tiết thay vì chỉ `"Action failed"`.
