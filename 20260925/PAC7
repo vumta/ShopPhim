@@ -1,0 +1,105 @@
+Nếu dùng Compose để tạo object mapping cho các Scope thì trong expression mode bạn có thể dùng:
+
+```json
+ {
+ "Scope_CreateCustomer": @{result('Scope_CreateCustomer')},
+ "Scope_CreateContract": @{result('Scope_CreateContract')},
+ "Scope_SendMail": @{result('Scope_SendMail')}
+ }
+ ```
+
+Tuy nhiên Compose thường không cho chèn expression trực tiếp vào JSON như trên. Cách ổn định hơn là dùng expression:
+
+```text
+ json(
+ concat(
+ '{',
+ '"Scope_CreateCustomer":', string(result('Scope_CreateCustomer')),
+ ',"Scope_CreateContract":', string(result('Scope_CreateContract')),
+ ',"Scope_SendMail":', string(result('Scope_SendMail')),
+ '}'
+ )
+ )
+ ```
+
+Kết quả:
+
+```json
+ {
+ "Scope_CreateCustomer": [
+ {
+ "name": "Get_Customer",
+ "status": "Succeeded"
+ }
+ ],
+ "Scope_CreateContract": [
+ {
+ "name": "Update_Contract",
+ "status": "Failed",
+ "error": {
+ "code": "NotFound",
+ "message": "Item does not exist."
+ }
+ }
+ ],
+ "Scope_SendMail": []
+ }
+ ```
+
+Sau đó lấy result của Scope bị lỗi:
+
+```text
+ outputs('Compose_ScopeResults')?[outputs('Compose_FailedScope')]
+ ```
+
+Trong đó `Compose_FailedScope` trả về:
+
+```text
+ Scope_CreateContract
+ ```
+
+Tiếp tục Filter Array:
+
+From
+
+```text
+ outputs('Compose_ScopeResults')?[outputs('Compose_FailedScope')]
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+Lấy action lỗi:
+
+```text
+ first(body('Filter_Failed_Action'))?['name']
+ ```
+
+Lấy message:
+
+```text
+ first(body('Filter_Failed_Action'))?['error']?['message']
+ ```
+
+---
+
+Nếu số lượng Scope nhiều (10+), mình khuyên dùng Object Variable thay vì Compose:
+
+```json
+ {
+ "Scope_CreateCustomer": "@{result('Scope_CreateCustomer')}",
+ "Scope_CreateContract": "@{result('Scope_CreateContract')}",
+ "Scope_SendMail": "@{result('Scope_SendMail')}"
+ }
+ ```
+
+vì dễ mở rộng và dễ truy cập bằng key động:
+
+```text
+ variables('ScopeResults')[outputs('Compose_FailedScope')]
+ ```
+
+đây là cách gần nhất để mô phỏng `result(dynamicScopeName)` trong Power Automate.
