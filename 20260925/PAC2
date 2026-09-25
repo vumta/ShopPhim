@@ -1,0 +1,171 @@
+Nếu bạn có nhiều Scope và muốn Catch đọc được lỗi của Scope nào fail mà không cần mapping `result('Scope_X')`, mình thường dùng một biến Object tên `ErrorInfo`.
+
+## 1. Khởi tạo biến
+
+Đầu flow:
+
+Initialize variable
+
+```json
+ Name: ErrorInfo
+ Type: Object
+ Value: {}
+ ```
+
+---
+
+## 2. Trong mỗi Scope
+
+Ví dụ:
+
+```text
+ Try
+ ├─ Scope_CreateCustomer
+ ├─ Scope_CreateContract
+ ├─ Scope_SendMail
+ ```
+
+### Scope_CreateCustomer
+
+Thêm một action cuối Scope:
+
+```text
+ Set variable ErrorInfo
+ ```
+
+Run after:
+
+```text
+ Has Failed
+ Has Timed Out
+ ```
+
+Value:
+
+```json
+ {
+ "Scope": "Scope_CreateCustomer",
+ "Time": "@{utcNow()}",
+ "Message": "@{workflow()['error']?['message']}"
+ }
+ ```
+
+---
+
+### Scope_CreateContract
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Time": "@{utcNow()}",
+ "Message": "@{workflow()['error']?['message']}"
+ }
+ ```
+
+---
+
+### Scope_SendMail
+
+```json
+ {
+ "Scope": "Scope_SendMail",
+ "Time": "@{utcNow()}",
+ "Message": "@{workflow()['error']?['message']}"
+ }
+ ```
+
+---
+
+## 3. Trong Catch
+
+Chỉ cần đọc:
+
+```text
+ variables('ErrorInfo')
+ ```
+
+Ví dụ output:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Time": "2026-09-25T07:15:20Z",
+ "Message": "The requested item was not found."
+ }
+ ```
+
+Lấy tên Scope:
+
+```text
+ variables('ErrorInfo')?['Scope']
+ ```
+
+Lấy Message:
+
+```text
+ variables('ErrorInfo')?['Message']
+ ```
+
+---
+
+## Cách chuyên nghiệp hơn (khuyên dùng)
+
+Dùng Array để lưu lịch sử lỗi.
+
+Khởi tạo:
+
+```json
+ []
+ ```
+
+Tên biến:
+
+```text
+ ErrorLogs
+ ```
+
+Trong mỗi Scope bị Fail:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Status": "Failed",
+ "Time": "@{utcNow()}",
+ "RunId": "@{workflow()?['run']?['name']}"
+ }
+ ```
+
+Dùng:
+
+```text
+ Append to array variable
+ ```
+
+Sau đó trong Catch:
+
+```text
+ first(variables('ErrorLogs'))
+ ```
+
+hoặc
+
+```text
+ last(variables('ErrorLogs'))
+ ```
+
+Kết quả:
+
+```json
+ [
+ {
+ "Scope": "Scope_CreateCustomer",
+ "Status": "Failed"
+ },
+ {
+ "Scope": "Scope_SendMail",
+ "Status": "Failed"
+ }
+ ]
+ ```
+
+Cách này rất phù hợp khi bạn có 10–20 Scope vì không cần duy trì object mapping hay gọi `result('Scope_X')` cho từng Scope nữa.
