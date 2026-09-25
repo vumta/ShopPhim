@@ -1,0 +1,215 @@
+Đúng rồi, flow mình mô tả trước đó có lỗi thiết kế: action xử lý lỗi đặt bên trong Scope bị fail sẽ không chạy được khi Scope dừng tại action lỗi.
+
+Pattern đúng trong Power Automate Cloud nên là:
+
+```text
+ Initialize ErrorLogs (Array)
+
+Try
+ ├─ Scope_CreateCustomer
+ ├─ Scope_CreateContract
+ └─ Scope_SendMail
+
+Catch
+ ├─ Find Failed Scope
+ ├─ Get Scope Detail
+ ├─ Find Failed Action
+ └─ Send Notification
+ ```
+
+## Bước 1. Tìm Scope lỗi
+
+Trong Catch:
+
+### Filter Failed Scope
+
+From
+
+```text
+ result('Try')
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+### Compose_FailedScope
+
+```text
+ first(body('Filter_Failed_Scope'))
+ ```
+
+Kết quả:
+
+```json
+ {
+ "name": "Scope_CreateContract",
+ "status": "Failed"
+ }
+ ```
+
+Tên scope:
+
+```text
+ first(body('Filter_Failed_Scope'))?['name']
+ ```
+
+---
+
+## Bước 2. Mapping result của các Scope
+
+Do Power Automate không hỗ trợ:
+
+```text
+ result(dynamicScope)
+ ```
+
+nên tạo một Object:
+
+### Compose_ScopeResults
+
+```json
+ {
+ "Scope_CreateCustomer": @{result('Scope_CreateCustomer')},
+ "Scope_CreateContract": @{result('Scope_CreateContract')},
+ "Scope_SendMail": @{result('Scope_SendMail')}
+ }
+ ```
+
+Hoặc dùng Initialize Variable kiểu Object:
+
+```json
+ {
+ "Scope_CreateCustomer": [],
+ "Scope_CreateContract": [],
+ "Scope_SendMail": []
+ }
+ ```
+
+rồi Set Variable.
+
+---
+
+## Bước 3. Lấy result của Scope lỗi
+
+Tên scope:
+
+```text
+ outputs('Compose_FailedScope')?['name']
+ ```
+
+Lấy detail:
+
+```text
+ outputs('Compose_ScopeResults')?[outputs('Compose_FailedScope')?['name']]
+ ```
+
+Kết quả:
+
+```json
+ [
+ {
+ "name": "Get_Item",
+ "status": "Succeeded"
+ },
+ {
+ "name": "Update_Item",
+ "status": "Failed",
+ "error": {
+ "code": "NotFound",
+ "message": "Item does not exist."
+ }
+ }
+ ]
+ ```
+
+---
+
+## Bước 4. Tìm action lỗi
+
+Filter Array
+
+From
+
+```text
+ outputs('Compose_ScopeResults')?[outputs('Compose_FailedScope')?['name']]
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+## Bước 5. Lấy thông tin lỗi
+
+### Action Name
+
+```text
+ first(body('Filter_Failed_Action'))?['name']
+ ```
+
+### Error Code
+
+```text
+ first(body('Filter_Failed_Action'))?['error']?['code']
+ ```
+
+### Message
+
+```text
+ first(body('Filter_Failed_Action'))?['error']?['message']
+ ```
+
+---
+
+## Output cuối cùng
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "Update_Item",
+ "Code": "NotFound",
+ "Message": "Item does not exist."
+ }
+ ```
+
+## Nếu có rất nhiều Scope (10+)
+
+Mình khuyên thiết kế khác:
+
+```text
+ Try
+ ├─ Scope_1
+ ├─ Scope_2
+ ├─ Scope_3
+ ...
+ ├─ Scope_20
+
+Catch
+ ```
+
+Và trong mỗi Scope tạo một object output chuẩn:
+
+```json
+ {
+ "Scope":"Scope_2",
+ "IsSuccess":true,
+ "Error":""
+ }
+ ```
+
+Sau đó Catch chỉ đọc các output đã chuẩn hóa thay vì phải maintain một Object mapping lớn chứa:
+
+```text
+ result('Scope_1')
+ result('Scope_2')
+ ...
+ result('Scope_20')
+ ```
+
+Với flow enterprise nhiều scope, đây là mẫu dễ bảo trì nhất.
