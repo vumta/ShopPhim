@@ -1,0 +1,159 @@
+Power Automate không có format JSON "flow import" đơn giản để copy-paste trực tiếp toàn bộ flow. File export thực tế là `.zip` chứa nhiều definition nội bộ.
+
+Tuy nhiên, bạn có thể import nhanh các action bằng Peek code hoặc copy JSON definition của từng action.
+
+Ví dụ một mẫu khả thi để dựng flow:
+
+## Initialize Variable
+
+```json
+ {
+ "type": "InitializeVariable",
+ "inputs": {
+ "variables": [
+ {
+ "name": "ErrorLogs",
+ "type": "array",
+ "value": []
+ }
+ ]
+ }
+ }
+ ```
+
+---
+
+## Scope Try
+
+```text
+ Try
+ ├─ Scope_CreateCustomer
+ ├─ Scope_CreateContract
+ ├─ Scope_SendMail
+ ```
+
+---
+
+## Error Handler cho Scope_CreateContract
+
+### Filter array
+
+From:
+
+```text
+ result('Scope_CreateContract')
+ ```
+
+Condition:
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+Advanced mode:
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+### Append to array variable
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "@{first(body('Filter_Action_Failed_Scope_CreateContract'))?['name']}",
+ "Code": "@{first(body('Filter_Action_Failed_Scope_CreateContract'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Action_Failed_Scope_CreateContract'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+Run After:
+
+```json
+ {
+ "Scope_CreateContract": [
+ "Failed",
+ "TimedOut"
+ ]
+ }
+ ```
+
+---
+
+## Scope Catch
+
+Run After:
+
+```json
+ {
+ "Try": [
+ "Failed",
+ "TimedOut"
+ ]
+ }
+ ```
+
+---
+
+## Compose Last Error
+
+Expression:
+
+```text
+ last(variables('ErrorLogs'))
+ ```
+
+---
+
+## Compose Error Message
+
+```text
+ concat(
+ 'Scope: ',
+ last(variables('ErrorLogs'))?['Scope'],
+ ' | Action: ',
+ last(variables('ErrorLogs'))?['Action'],
+ ' | Code: ',
+ last(variables('ErrorLogs'))?['Code'],
+ ' | Message: ',
+ last(variables('ErrorLogs'))?['Message']
+ )
+ ```
+
+---
+
+## Cấu trúc hoàn chỉnh đề xuất
+
+```text
+ Initialize ErrorLogs
+
+Try
+ │
+ ├─ Scope_CreateCustomer
+ │
+ ├─ Scope_CreateCustomer_ErrorHandler
+ │ ├─ Filter Failed Action
+ │ └─ Append ErrorLogs
+ │
+ ├─ Scope_CreateContract
+ │
+ ├─ Scope_CreateContract_ErrorHandler
+ │ ├─ Filter Failed Action
+ │ └─ Append ErrorLogs
+ │
+ ├─ Scope_SendMail
+ │
+ └─ Scope_SendMail_ErrorHandler
+ ├─ Filter Failed Action
+ └─ Append ErrorLogs
+
+Catch
+ ├─ Compose Last Error
+ ├─ Send Teams
+ └─ Send Email
+ ```
+
+Lưu ý: với Power Automate Cloud, ErrorHandler phải nằm ngoài Scope chính và cấu hình Run After = Failed/TimedOut trên Scope đó. Đây là điểm quan trọng nhất để pattern hoạt động ổn định.
