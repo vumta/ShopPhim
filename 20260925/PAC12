@@ -1,0 +1,208 @@
+Nếu bạn muốn một definition JSON hoàn chỉnh kiểu Power Automate Workflow Definition Language để tham khảo kiến trúc, dưới đây là mẫu rút gọn cho pattern:
+
+```text
+ Initialize ErrorLogs
+ ↓
+ Try
+ ├─ Scope_CreateCustomer
+ ├─ Scope_CreateContract
+ └─ Scope_SendMail
+ ↓
+ ErrorHandler_Scope_CreateContract
+ ↓
+ Catch
+ ```
+
+```json
+ {
+ "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2019-05-01/workflowdefinition.json#",
+ "contentVersion": "1.0.0.0",
+ "actions": {
+ "Initialize_ErrorLogs": {
+ "type": "InitializeVariable",
+ "inputs": {
+ "variables": [
+ {
+ "name": "ErrorLogs",
+ "type": "array",
+ "value": []
+ }
+ ]
+ }
+ },
+
+"Try": {
+ "runAfter": {
+ "Initialize_ErrorLogs": [
+ "Succeeded"
+ ]
+ },
+ "type": "Scope",
+ "actions": {
+ "Scope_CreateCustomer": {
+ "type": "Scope",
+ "actions": {
+ "Get_Customer": {
+ "type": "Compose",
+ "inputs": "Customer Created"
+ }
+ }
+ },
+
+"Scope_CreateContract": {
+ "runAfter": {
+ "Scope_CreateCustomer": [
+ "Succeeded"
+ ]
+ },
+ "type": "Scope",
+ "actions": {
+ "Get_Contract": {
+ "type": "Compose",
+ "inputs": "Contract Loaded"
+ },
+ "Update_Contract": {
+ "runAfter": {
+ "Get_Contract": [
+ "Succeeded"
+ ]
+ },
+ "type": "Compose",
+ "inputs": "@{div(1,0)}"
+ }
+ }
+ },
+
+"Scope_SendMail": {
+ "runAfter": {
+ "Scope_CreateContract": [
+ "Succeeded"
+ ]
+ },
+ "type": "Scope",
+ "actions": {
+ "Send_Mail": {
+ "type": "Compose",
+ "inputs": "Mail Sent"
+ }
+ }
+ }
+ }
+ },
+
+"ErrorHandler_Scope_CreateContract": {
+ "runAfter": {
+ "Try": [
+ "Failed"
+ ]
+ },
+ "type": "Scope",
+ "actions": {
+ "Filter_Failed_Action": {
+ "type": "Query",
+ "inputs": {
+ "from": "@result('Scope_CreateContract')",
+ "where": "@equals(item()?['status'],'Failed')"
+ }
+ },
+
+"Append_ErrorLog": {
+ "runAfter": {
+ "Filter_Failed_Action": [
+ "Succeeded"
+ ]
+ },
+ "type": "AppendToArrayVariable",
+ "inputs": {
+ "name": "ErrorLogs",
+ "value": {
+ "Scope": "Scope_CreateContract",
+ "Action": "@{first(body('Filter_Failed_Action'))?['name']}",
+ "Code": "@{first(body('Filter_Failed_Action'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Failed_Action'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ }
+ }
+ }
+ },
+
+"Catch": {
+ "runAfter": {
+ "ErrorHandler_Scope_CreateContract": [
+ "Succeeded"
+ ]
+ },
+ "type": "Scope",
+ "actions": {
+ "Compose_Last_Error": {
+ "type": "Compose",
+ "inputs": "@last(variables('ErrorLogs'))"
+ },
+
+"Compose_Message": {
+ "runAfter": {
+ "Compose_Last_Error": [
+ "Succeeded"
+ ]
+ },
+ "type": "Compose",
+ "inputs": "@concat('Scope=',outputs('Compose_Last_Error')?['Scope'],' | Action=',outputs('Compose_Last_Error')?['Action'],' | Message=',outputs('Compose_Last_Error')?['Message'])"
+ }
+ }
+ }
+ }
+ }
+ ```
+
+Tuy nhiên, với nhu cầu của bạn là nhiều Scope tự động, mẫu trên vẫn chưa giải quyết được vấn đề lớn nhất:
+
+```text
+ result('Scope_CreateContract')
+ ```
+
+vẫn là hard-code.
+
+Power Automate hiện không hỗ trợ:
+
+```text
+ result(outputs('FailedScope'))
+ ```
+
+nên nếu bạn có:
+
+```text
+ Scope_1
+ Scope_2
+ ...
+ Scope_20
+ ```
+
+thì vẫn phải có:
+
+```text
+ result('Scope_1')
+ result('Scope_2')
+ ...
+ result('Scope_20')
+ ```
+
+ở đâu đó trong flow.
+
+Vì vậy với flow enterprise lớn, thiết kế đúng nhất là:
+
+```text
+ Scope_X
+ ↓ Failed
+ ErrorHandler_X
+ ↓
+ Append ErrorLogs
+ ```
+
+để Catch chỉ cần:
+
+```text
+ last(variables('ErrorLogs'))
+ ```
+
+mà không cần parse `result('Try')` nữa. Đây là pattern mình khuyên dùng cho các flow có nhiều Scope.
