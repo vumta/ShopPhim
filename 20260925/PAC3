@@ -1,0 +1,113 @@
+Được. Mình thường lưu `Scope`, `Action`, `Message`, `Code`, `Time` trong cùng một object.
+
+Ví dụ biến `ErrorInfo`:
+
+```json
+ {
+ "Scope": "",
+ "Action": "",
+ "Code": "",
+ "Message": "",
+ "Time": ""
+ }
+ ```
+
+## Lấy tên Action bị lỗi trong Scope
+
+Trong một Scope, dùng:
+
+```text
+ result('Scope_CreateContract')
+ ```
+
+Filter Array:
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+Sau đó lấy action đầu tiên bị lỗi:
+
+```text
+ first(body('Filter_Failed_Action'))
+ ```
+
+Lưu vào `ErrorInfo`:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "@{first(body('Filter_Failed_Action'))?['name']}",
+ "Code": "@{first(body('Filter_Failed_Action'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Failed_Action'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+Kết quả:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "Update_item",
+ "Code": "NotFound",
+ "Message": "Item does not exist.",
+ "Time": "2026-09-25T07:30:00Z"
+ }
+ ```
+
+Trong Catch:
+
+```text
+ variables('ErrorInfo')?['Scope']
+ ```
+
+```text
+ variables('ErrorInfo')?['Action']
+ ```
+
+```text
+ variables('ErrorInfo')?['Message']
+ ```
+
+---
+
+## Nếu muốn generic cho tất cả Scope
+
+Trong mỗi Scope, thêm một bước Set ErrorInfo có Run After = Failed.
+
+Expression lấy action fail:
+
+```text
+ first(
+ filter(
+ result('Scope_CreateContract'),
+ equals(item()?['status'],'Failed')
+ )
+ )?['name']
+ ```
+
+Tuy nhiên Power Automate không có hàm `filter()` expression như Logic Apps, nên thực tế bạn sẽ dùng Filter array action rồi lấy:
+
+```text
+ first(body('Filter_Failed_Action'))?['name']
+ ```
+
+Đây là cách đáng tin cậy nhất để ghi log:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "Update_item",
+ "Code": "NotFound",
+ "Message": "Item does not exist."
+ }
+ ```
+
+Sau này gửi Teams, Email hoặc ghi SharePoint log sẽ rất dễ đọc:
+
+```text
+ Scope : Scope_CreateContract
+ Action: Update_item
+ Error : Item does not exist.
+ ```
