@@ -1,0 +1,182 @@
+Với pattern Try-Catch + ErrorLogs, mình thường cấu hình Run After như sau:
+
+## 1. Scope Try
+
+```text
+ Scope - Try
+ ├─ Scope_CreateCustomer
+ ├─ Scope_CreateContract
+ └─ Scope_SendMail
+ ```
+
+Không cần cấu hình đặc biệt.
+
+---
+
+## 2. Filter Failed Action trong từng Scope
+
+Ví dụ trong `Scope_CreateContract`:
+
+```text
+ Action C
+ Action D
+ Filter Failed Action
+ Append Error Log
+ ```
+
+### Filter Failed Action
+
+Run After
+
+| Action trước | Is successful | Has failed | Is skipped | Has timed out |
+ |--------------|--------------|------------|------------|---------------|
+ | Action D | ✅ | ✅ | ✅ | ✅ |
+
+Tức là chọn toàn bộ 4 trạng thái.
+
+Mục đích:
+
+```text
+ result('Scope_CreateContract')
+ ```
+
+luôn được thực thi để tìm action lỗi.
+
+---
+
+## 3. Append Error Log
+
+### Run After
+
+Chỉ chạy khi Filter Array thành công:
+
+```text
+ Filter Failed Action
+ ✅ Is successful
+ ```
+
+Sau đó expression:
+
+```text
+ length(body('Filter_Failed_Action_CreateContract'))
+ ```
+
+Nếu > 0 thì Append.
+
+Có thể bọc bằng Condition:
+
+```text
+ @greater(
+ length(body('Filter_Failed_Action_CreateContract')),
+ 0
+ )
+ ```
+
+---
+
+## 4. Scope Catch
+
+### Run After của Catch
+
+Đặt trên chính Scope Try:
+
+```text
+ Scope Catch
+ ```
+
+Run After:
+
+```text
+ Scope Try
+ ☑ Has failed
+ ☑ Has timed out
+ ```
+
+Không chọn:
+
+```text
+ ☐ Is successful
+ ☐ Is skipped
+ ```
+
+---
+
+## 5. Send Email trong Catch
+
+Nếu muốn chỉ gửi khi thực sự có log lỗi:
+
+Condition:
+
+```text
+ @greater(
+ length(variables('ErrorLogs')),
+ 0
+ )
+ ```
+
+YES:
+
+```text
+ Send Email
+ ```
+
+NO:
+
+```text
+ Terminate
+ ```
+
+---
+
+## Flow hoàn chỉnh
+
+```text
+ Initialize ErrorLogs
+
+Scope Try
+ │
+ ├─ Scope_CreateCustomer
+ │ ├─ Action A
+ │ ├─ Action B
+ │ ├─ Filter Failed Action
+ │ └─ Append Error Log
+ │
+ ├─ Scope_CreateContract
+ │ ├─ Action C
+ │ ├─ Action D
+ │ ├─ Filter Failed Action
+ │ └─ Append Error Log
+ │
+ └─ Scope_SendMail
+ ├─ Action E
+ ├─ Action F
+ ├─ Filter Failed Action
+ └─ Append Error Log
+
+Scope Catch
+ (Run After: Try Failed / Timed Out)
+
+├─ Compose:
+ │ last(variables('ErrorLogs'))
+ │
+ └─ Send Email
+ ```
+
+Tuy nhiên có một vấn đề quan trọng: nếu `Action D` fail thì `Scope_CreateContract` sẽ dừng ngay, các action nằm sau Action D trong cùng Scope sẽ không chạy. Vì vậy `Filter Failed Action` và `Append Error Log` đặt bên trong chính Scope bị lỗi thường sẽ không được thực thi.
+
+Thực tế mình khuyên dùng:
+
+```text
+ Try
+ ├─ Scope_CreateCustomer
+ ├─ Scope_CreateContract
+ └─ Scope_SendMail
+
+Catch
+ ├─ result('Try')
+ ├─ xác định Scope fail
+ ├─ result('Scope_CreateContract')
+ └─ ghi ErrorLogs
+ ```
+
+hoặc mỗi Scope có một Error Handler action riêng với Run After = Failed của action cuối cùng có khả năng lỗi. Đây là cách hoạt động ổn định nhất trong Power Automate Cloud.
