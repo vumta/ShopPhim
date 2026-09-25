@@ -1,0 +1,291 @@
+Nếu chọn HƯỚNG 2 (Enterprise Pattern) thì hãy bỏ hoàn toàn ý tưởng:
+
+```text
+ result('Try')
+ → tìm Scope lỗi
+ → gọi result() tiếp
+ ```
+
+Thay vào đó:
+
+```text
+ Try
+ ├─ Scope_1
+ ├─ Scope_2
+ ├─ Scope_3
+ └─ Scope_N
+
+Catch
+ └─ Đọc ErrorLogs
+ ```
+
+Mỗi Scope có trách nhiệm tự ghi lỗi của nó.
+
+---
+
+# 1. Initialize Variables
+
+## ErrorLogs
+
+Type:
+
+```text
+ Array
+ ```
+
+Value:
+
+```json
+ []
+ ```
+
+---
+
+# 2. Scope_1
+
+```text
+ Scope_1
+ ├─ Get Item
+ ├─ Update Item
+ └─ Scope_1_ErrorHandler
+ ```
+
+## Scope_1_ErrorHandler
+
+Run After của Scope_1_ErrorHandler:
+
+```text
+ Scope_1
+
+☐ Is successful
+ ☑ Has failed
+ ☐ Is skipped
+ ☑ Has timed out
+ ```
+
+---
+
+### Filter Action Failed
+
+From:
+
+```text
+ result('Scope_1')
+ ```
+
+Condition:
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+### Append to array variable
+
+Tên biến:
+
+```text
+ ErrorLogs
+ ```
+
+Value:
+
+```json
+ {
+ "Scope": "Scope_1",
+ "Action": "@{first(body('Filter_Action_Failed_Scope1'))?['name']}",
+ "Code": "@{first(body('Filter_Action_Failed_Scope1'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Action_Failed_Scope1'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+---
+
+# 3. Scope_2
+
+```text
+ Scope_2
+ ├─ Create Item
+ ├─ Update Item
+ └─ Scope_2_ErrorHandler
+ ```
+
+Run After:
+
+```text
+ Scope_2
+
+☐ Is successful
+ ☑ Has failed
+ ☑ Has timed out
+ ☐ Is skipped
+ ```
+
+---
+
+### Filter Action Failed
+
+From
+
+```text
+ result('Scope_2')
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+### Append ErrorLogs
+
+```json
+ {
+ "Scope": "Scope_2",
+ "Action": "@{first(body('Filter_Action_Failed_Scope2'))?['name']}",
+ "Code": "@{first(body('Filter_Action_Failed_Scope2'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Action_Failed_Scope2'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+---
+
+# 4. Scope_3
+
+Làm tương tự:
+
+```text
+ result('Scope_3')
+ ```
+
+Append:
+
+```json
+ {
+ "Scope": "Scope_3",
+ "Action": "...",
+ "Code": "...",
+ "Message": "...",
+ "Time": "..."
+ }
+ ```
+
+---
+
+# 5. Scope Catch
+
+Run After của Catch:
+
+```text
+ Try
+
+☐ Is successful
+ ☑ Has failed
+ ☑ Has timed out
+ ☐ Is skipped
+ ```
+
+---
+
+## Compose Last Error
+
+Expression:
+
+```text
+ last(variables('ErrorLogs'))
+ ```
+
+Output:
+
+```json
+ {
+ "Scope": "Scope_2",
+ "Action": "Update_Item",
+ "Code": "NotFound",
+ "Message": "Item does not exist.",
+ "Time": "2026-09-25T10:00:00Z"
+ }
+ ```
+
+---
+
+# 6. Send Email / Teams
+
+Scope:
+
+```text
+ @{last(variables('ErrorLogs'))?['Scope']}
+ ```
+
+Action:
+
+```text
+ @{last(variables('ErrorLogs'))?['Action']}
+ ```
+
+Code:
+
+```text
+ @{last(variables('ErrorLogs'))?['Code']}
+ ```
+
+Message:
+
+```text
+ @{last(variables('ErrorLogs'))?['Message']}
+ ```
+
+Time:
+
+```text
+ @{last(variables('ErrorLogs'))?['Time']}
+ ```
+
+---
+
+# Phiên bản tối ưu cho 20+ Scope
+
+Tạo một Child Flow "Handle Error".
+
+Input:
+
+```json
+ {
+ "ScopeName": "Scope_2",
+ "ScopeResult": result('Scope_2')
+ }
+ ```
+
+Child Flow sẽ:
+
+1. Filter action Failed.
+ 2. Lấy Action.
+ 3. Lấy Code.
+ 4. Lấy Message.
+ 5. Trả về object:
+
+```json
+ {
+ "Scope": "Scope_2",
+ "Action": "Update_Item",
+ "Code": "NotFound",
+ "Message": "Item does not exist."
+ }
+ ```
+
+Sau đó mỗi Scope chỉ cần:
+
+```text
+ Scope_X Failed
+ ↓
+ Call Child Flow Handle Error
+ ↓
+ Append ErrorLogs
+ ```
+
+Với 10–50 Scope, đây là pattern dễ maintain nhất trong Power Automate Cloud.
