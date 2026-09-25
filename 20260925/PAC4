@@ -1,0 +1,194 @@
+Nếu muốn generic, dễ maintain và không cần mapping trong Catch, mình đề xuất mẫu sau.
+
+# Flow Structure
+
+```text
+ Try
+ ├─ Scope_CreateCustomer
+ │ ├─ Action A
+ │ ├─ Action B
+ │ ├─ Filter Failed Action
+ │ └─ Append Error Log
+ │
+ ├─ Scope_CreateContract
+ │ ├─ Action C
+ │ ├─ Action D
+ │ ├─ Filter Failed Action
+ │ └─ Append Error Log
+ │
+ └─ Scope_SendMail
+ ├─ Action E
+ ├─ Action F
+ ├─ Filter Failed Action
+ └─ Append Error Log
+
+Catch
+ ├─ Compose ErrorInfo
+ ├─ Send Email
+ └─ Log SharePoint
+ ```
+
+---
+
+# 1. Initialize variable
+
+### ErrorLogs
+
+```json
+ []
+ ```
+
+Type:
+
+```text
+ Array
+ ```
+
+---
+
+# 2. Trong mỗi Scope
+
+Ví dụ Scope_CreateContract
+
+## Filter Failed Action
+
+From:
+
+```text
+ result('Scope_CreateContract')
+ ```
+
+Condition:
+
+```text
+ item()?['status']
+ is equal to
+ Failed
+ ```
+
+---
+
+## Append to array variable
+
+Run After:
+
+```text
+ Has Failed
+ Has Timed Out
+ ```
+
+Value:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "@{first(body('Filter_Failed_Action_CreateContract'))?['name']}",
+ "Code": "@{first(body('Filter_Failed_Action_CreateContract'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Failed_Action_CreateContract'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+---
+
+# 3. Scope Create Customer
+
+Append:
+
+```json
+ {
+ "Scope": "Scope_CreateCustomer",
+ "Action": "@{first(body('Filter_Failed_Action_CreateCustomer'))?['name']}",
+ "Code": "@{first(body('Filter_Failed_Action_CreateCustomer'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Failed_Action_CreateCustomer'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+---
+
+# 4. Scope Send Mail
+
+Append:
+
+```json
+ {
+ "Scope": "Scope_SendMail",
+ "Action": "@{first(body('Filter_Failed_Action_SendMail'))?['name']}",
+ "Code": "@{first(body('Filter_Failed_Action_SendMail'))?['error']?['code']}",
+ "Message": "@{first(body('Filter_Failed_Action_SendMail'))?['error']?['message']}",
+ "Time": "@{utcNow()}"
+ }
+ ```
+
+---
+
+# 5. Catch
+
+Lấy lỗi cuối cùng:
+
+```text
+ last(variables('ErrorLogs'))
+ ```
+
+Hoặc lỗi đầu tiên:
+
+```text
+ first(variables('ErrorLogs'))
+ ```
+
+Ví dụ output:
+
+```json
+ {
+ "Scope": "Scope_CreateContract",
+ "Action": "Update_item",
+ "Code": "NotFound",
+ "Message": "Item does not exist.",
+ "Time": "2026-09-25T08:40:00Z"
+ }
+ ```
+
+---
+
+# 6. Nội dung email/Teams
+
+```text
+ Flow Failed
+
+Scope:
+ @{last(variables('ErrorLogs'))?['Scope']}
+
+Action:
+ @{last(variables('ErrorLogs'))?['Action']}
+
+Code:
+ @{last(variables('ErrorLogs'))?['Code']}
+
+Message:
+ @{last(variables('ErrorLogs'))?['Message']}
+
+Time:
+ @{last(variables('ErrorLogs'))?['Time']}
+ ```
+
+---
+
+# Phiên bản tối ưu hơn
+
+Thay vì tạo `Filter Failed Action` trong từng Scope, bạn có thể tạo một Child Flow xử lý lỗi nhận tham số:
+
+```json
+ {
+ "ScopeName": "Scope_CreateContract",
+ "Result": result('Scope_CreateContract')
+ }
+ ```
+
+Child Flow sẽ:
+
+1. Filter action failed.
+ 2. Trả về Action, Code, Message.
+ 3. Append vào ErrorLogs.
+
+Khi có 20–30 Scope, chỉ cần gọi chung một Child Flow, không phải copy-paste logic xử lý lỗi cho từng Scope. Đây là cách mình thường dùng cho các flow enterprise lớn.
