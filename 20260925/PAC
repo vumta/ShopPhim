@@ -1,0 +1,160 @@
+Có, nhưng sẽ phụ thuộc vào việc bạn chấp nhận thiết kế flow như thế nào.
+
+Thực tế có một hạn chế lớn:
+
+```text
+ result()
+ ```
+
+không hỗ trợ truyền tên action động. Vì vậy không tồn tại cách kiểu:
+
+```text
+ result(dynamicScopeName)
+ ```
+
+để drill-down trực tiếp vào Scope lỗi.
+
+### Cách gần nhất với "xử lý trực tiếp"
+
+Thay vì:
+
+```text
+ Try
+ ├─ Scope 1
+ ├─ Scope 2
+ └─ Scope 3
+ ```
+
+Hãy để từng Scope tự publish lỗi vào một biến dùng chung.
+
+Ví dụ:
+
+```text
+ Initialize variable ErrorInfo (Object)
+ ```
+
+Trong mỗi Scope:
+
+```text
+ Set variable ErrorInfo
+ {
+ "Scope": "Scope_2",
+ "Error": first(result('Scope_2'))
+ }
+ ```
+
+Configure Run After = Failed
+
+Sau đó trong Catch chỉ cần:
+
+```text
+ variables('ErrorInfo')
+ ```
+
+Lúc này không cần:
+
+```text
+ result('Try')
+ → tìm Scope
+ → filter
+ → mapping
+ ```
+
+---
+
+### Nếu muốn 100% generic
+
+Một trick khác là dùng HTTP call tới Flow Run History API hoặc Management Connector để đọc chi tiết run hiện tại.
+
+Luồng:
+
+```text
+ Current Run
+ ↓
+ List Actions
+ ↓
+ Filter status = Failed
+ ↓
+ Lấy action lỗi
+ ```
+
+Khi đó bạn sẽ nhận được:
+
+```json
+ {
+ "name": "Update_item",
+ "status": "Failed",
+ "error": {
+ "message": "..."
+ }
+ }
+ ```
+
+mà không cần biết trước Scope nào.
+
+Tuy nhiên:
+
+• Khá phức tạp
+ • Cần Premium
+ • Phải parse metadata của run
+
+Thường không đáng để làm.
+
+---
+
+### Một trick đơn giản hơn
+
+Nếu mục tiêu cuối cùng chỉ là lấy lỗi đầu tiên trong Try:
+
+```text
+ Try
+ ├─ Scope_1
+ ├─ Scope_2
+ └─ Scope_3
+ ```
+
+Thì trong mỗi Scope cuối cùng thêm:
+
+```text
+ Compose ScopeName
+ ```
+
+Run After:
+
+```text
+ Has Failed
+ Has Timed Out
+ ```
+
+và append vào array:
+
+```json
+ {
+ "Scope": "Scope_2",
+ "Message": actions('FailedAction')?['error']?['message']
+ }
+ ```
+
+Catch chỉ việc:
+
+```text
+ first(variables('ErrorArray'))
+ ```
+
+---
+
+### Kết luận
+
+Nếu bạn hỏi:
+
+> Có cách nào từ `result('Try')` lấy được trực tiếp action lỗi bên trong Scope mà không cần mapping hay gọi `result('Scope_X')` không?
+
+Thì câu trả lời là:
+
+Không. `result('Try')` chỉ biết `Scope_2 Failed`, nó không chứa toàn bộ cây action bên trong Scope để bạn drill-down tiếp. Vì vậy hoặc:
+
+1. Mapping các `result('Scope_X')`.
+ 2. Mỗi Scope tự ghi lỗi vào biến chung (cách mình khuyên dùng).
+ 3. Đọc Run History qua API/Management Connector.
+
+Với các flow lớn trong Power Automate Cloud, cách mỗi Scope tự ghi ErrorInfo vào biến Object/Array rồi Catch đọc lại là clean và maintainable nhất.
