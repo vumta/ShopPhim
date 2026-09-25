@@ -1,0 +1,291 @@
+Nếu mục tiêu là nhiều Scope, không muốn maintain thủ công từng Scope trong Catch, thì tiếc là Power Automate có một giới hạn:
+
+```text
+ result()
+ ```
+
+bắt buộc phải nhận tên action tĩnh.
+
+Nghĩa là không có cách nào:
+
+```text
+ result(outputs('FailedScope'))
+ ```
+
+để tự động drill-down vào Scope lỗi.
+
+Do đó có 2 hướng:
+
+## Hướng 1 - Nhiều Scope nhưng vẫn phải khai báo mapping
+
+### Tìm Scope lỗi
+
+Filter Array
+
+From
+
+```text
+ result('Try')
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+### Compose_FailedScope
+
+```text
+ first(body('Filter_Failed_Scope'))?['name']
+ ```
+
+Kết quả:
+
+```text
+ Scope_CreateContract
+ ```
+
+---
+
+### Tạo ScopeResults
+
+Compose:
+
+```text
+ json(
+ concat(
+ '{',
+ '"Scope_CreateCustomer":', string(result('Scope_CreateCustomer')),
+ ',"Scope_CreateContract":', string(result('Scope_CreateContract')),
+ ',"Scope_SendMail":', string(result('Scope_SendMail')),
+ '}'
+ )
+ )
+ ```
+
+---
+
+### Lấy detail Scope lỗi
+
+Compose_FailedScopeResult
+
+```text
+ outputs('Compose_ScopeResults')?[outputs('Compose_FailedScope')]
+ ```
+
+---
+
+### Filter action lỗi
+
+From
+
+```text
+ outputs('Compose_FailedScopeResult')
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+### Lấy action lỗi
+
+```text
+ first(body('Filter_Failed_Action'))?['name']
+ ```
+
+### Lấy message
+
+```text
+ first(body('Filter_Failed_Action'))?['error']?['message']
+ ```
+
+---
+
+## Hướng 2 - Pattern Enterprise (khuyên dùng)
+
+Đừng đợi Catch đi tìm lỗi.
+
+Hãy để mỗi Scope tự ghi log lỗi.
+
+Ví dụ:
+
+```text
+ Try
+ ├─ Scope_1
+ ├─ Scope_2
+ ├─ Scope_3
+ ```
+
+Khởi tạo:
+
+```json
+ []
+ ```
+
+Variable:
+
+```text
+ ErrorLogs
+ ```
+
+---
+
+### Bên trong Scope_1
+
+Action cuối:
+
+```text
+ Append to array variable
+ ```
+
+Run After:
+
+```text
+ Has Failed
+ ```
+
+Value:
+
+```json
+ {
+ "Scope":"Scope_1",
+ "Action":"Get_Item",
+ "Message":"..."
+ }
+ ```
+
+---
+
+### Bên trong Scope_2
+
+```json
+ {
+ "Scope":"Scope_2",
+ "Action":"Update_Item",
+ "Message":"..."
+ }
+ ```
+
+---
+
+### Catch
+
+Lấy lỗi cuối cùng:
+
+```text
+ last(variables('ErrorLogs'))
+ ```
+
+Lấy scope:
+
+```text
+ last(variables('ErrorLogs'))?['Scope']
+ ```
+
+Lấy action:
+
+```text
+ last(variables('ErrorLogs'))?['Action']
+ ```
+
+Lấy message:
+
+```text
+ last(variables('ErrorLogs'))?['Message']
+ ```
+
+---
+
+## Sửa expression lấy Scope lỗi
+
+Không nên:
+
+```text
+ first(body('Filter_array'))
+ ```
+
+vì trả về cả object.
+
+Nên dùng:
+
+```text
+ first(body('Filter_Failed_Scope'))?['name']
+ ```
+
+hoặc an toàn hơn:
+
+```text
+ coalesce(
+ first(body('Filter_Failed_Scope'))?['name'],
+ 'Unknown Scope'
+ )
+ ```
+
+---
+
+## Filter Array hoàn chỉnh
+
+### Filter Scope lỗi
+
+From
+
+```text
+ result('Try')
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+### Filter Action lỗi trong Scope
+
+From
+
+```text
+ outputs('Compose_FailedScopeResult')
+ ```
+
+Condition
+
+```text
+ @equals(item()?['status'],'Failed')
+ ```
+
+---
+
+### Lấy output cuối cùng
+
+Tên Scope:
+
+```text
+ first(body('Filter_Failed_Scope'))?['name']
+ ```
+
+Tên Action:
+
+```text
+ first(body('Filter_Failed_Action'))?['name']
+ ```
+
+Error Code:
+
+```text
+ first(body('Filter_Failed_Action'))?['error']?['code']
+ ```
+
+Error Message:
+
+```text
+ first(body('Filter_Failed_Action'))?['error']?['message']
+ ```
+
+Đây là pattern ổn định nhất khi dùng Try/Catch với nhiều Scope trong Power Automate Cloud.
