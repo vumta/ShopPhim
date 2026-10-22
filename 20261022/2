@@ -1,0 +1,50 @@
+Để khắc phục triệt để vấn đề này, bạn nên thay vì dùng số dòng giới hạn cố định (như `:500` hay `:1500`), hãy viết một đoạn code ngắn để **tự động tìm dòng cuối cùng thực sự có dữ liệu** trên sheet (hoặc dựa vào cột A/B), sau đó xóa từ dòng `Mylow_D + 1` cho đến dòng cuối cùng đó.
+
+Dưới đây là cách sửa lại phần **Step3** trong đoạn code VBA của bạn:
+
+### 1\. Sửa đoạn xử lý sheet `weekly_os`
+
+Thay thế đoạn code cũ từ `Mylow_D = Range("C1")` đến `Selection.Delete Shift:=xlUp` bằng đoạn sau:
+
+``` vba
+    Mylow_D = Range("C1").Value
+    Dim LastRow_W As Long
+    ' Tự động tìm dòng cuối cùng có chứa dữ liệu trên sheet
+    LastRow_W = ActiveSheet.Cells(ActiveSheet.Rows.Count, "A").End(xlUp).Row
+    
+    ' Nếu dòng cuối thực tế lớn hơn Mylow_D thì tiến hành xóa các dòng thừa phía dưới
+    If LastRow_W >= Mylow_D Then
+        Rows(Mylow_D & ":" & LastRow_W).Select
+        Selection.Delete Shift:=xlUp
+    End If
+
+```
+
+### 2\. Sửa đoạn xử lý sheet `daily_os`
+
+Làm tương tự cho phần daily ở bên dưới:
+
+``` vba
+    Mylow_D = Range("C1").Value
+    Dim LastRow_D As Long
+    ' Tự động tìm dòng cuối cùng có chứa dữ liệu trên sheet
+    LastRow_D = ActiveSheet.Cells(ActiveSheet.Rows.Count, "A").End(xlUp).Row
+    
+    ' Nếu dòng cuối thực tế lớn hơn Mylow_D thì tiến hành xóa các dòng thừa phía dưới
+    If LastRow_D >= Mylow_D Then
+        Rows(Mylow_D & ":" & LastRow_D).Select
+        Selection.Delete Shift:=xlUp
+    End If
+
+```
+
+-----
+
+### Tóm tắt lợi ích của cách sửa này:
+
+  - **Không bao giờ bị lỗi thiếu dòng:** Dù bạn tăng lên 105 hay hàng nghìn thành phố, `ActiveSheet.Cells(ActiveSheet.Rows.Count, "A").End(xlUp.Row)` sẽ luôn quét chính xác dòng cuối cùng đang có dữ liệu thực tế trên file.
+  - **Loại bỏ giới hạn cứng:** Không còn phụ thuộc vào các con số chết như `500` hay `1500`, giúp macro linh hoạt chạy với mọi quy mô dữ liệu.
+
+*Lưu ý nhỏ:* Bạn nhớ kiểm tra xem ô `C1` trên các sheet báo cáo có đang phản ánh đúng công thức tính toán theo số lượng thành phố mới hay không nhé.
+
+Would you like me to help you review or adjust any other part of this VBA script?
