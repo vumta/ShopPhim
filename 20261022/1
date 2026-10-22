@@ -1,0 +1,45 @@
+Đoạn code trên là một Macro viết bằng **VBA (Visual Basic for Applications)** trong Excel, có tên là `Sub Weather()`. Macro này tự động hóa quy trình cập nhật dữ liệu thời tiết hàng tuần và hàng ngày, làm sạch dữ liệu, cập nhật Pivot Table, và xuất ra một file Excel mới đã được tối ưu (chỉ còn dữ liệu dạng giá trị, xóa các sheet trung gian và macro).
+
+Dưới đây là giải thích chi tiết từng phần/bước trong đoạn code:
+
+### 1\. Khởi tạo (`Step0`)
+
+  * **Tắt cảnh báo và thiết lập lỗi:** `Application.DisplayAlerts = False` giúp ẩn các hộp thoại cảnh báo của Excel (như hỏi có muốn ghi đè file không) để macro chạy mượt mà không bị ngắt quãng. `On Error GoTo ERR_Handler` dùng để bắt lỗi nếu có sự cố xảy ra trong quá trình chạy.
+  * **Khai báo biến và lấy đường dẫn:**
+      * Lấy đường dẫn đến màn hình Desktop (`Desktop`) của máy tính.
+      * Lấy ngày hiện tại theo định dạng `yyyymmdd` (ví dụ: `20261022`) để đặt tên file kết quả.
+      * Lưu lại workbook hiện tại vào biến `MyBook`.
+
+### 2\. Cập nhật dữ liệu hàng tuần (`Step1`)
+
+  * **Làm sạch sheet dữ liệu cũ:** Xóa toàn bộ nội dung cũ trong sheet `csv_weekly`.
+  * **Nhập dữ liệu CSV mới:**
+      * Copy file `weather_weekly.csv` từ Desktop thành file `.txt` và mở nó bằng Excel với bảng mã UTF-8 (`Origin:=65001`).
+      * Copy toàn bộ dữ liệu từ file văn bản này dán vào workbook chính (`MyBook`) dạng giá trị (`xlPasteValues`), sau đó đóng file `.txt` lại.
+  * **Làm mới Pivot Table:** Cập nhật lại dữ liệu cho các Pivot Table trên sheet `pbt_weekly_jp` và `pbt_weekly_os` để biểu đồ/báo cáo phản ánh đúng dữ liệu mới.
+
+### 3\. Cập nhật dữ liệu hàng ngày (`Step2`)
+
+  * **Làm sạch sheet dữ liệu cũ:** Xóa toàn bộ nội dung trong sheet `csv_daily`.
+  * **Nhập dữ liệu CSV mới:**
+      * Tương tự như phần tuần, thao tác này đọc file `weather_daily.csv`, chuyển đổi và dán dữ liệu vào workbook chính, sau đó đóng file văn bản.
+  * **Làm mới Pivot Table:** Cập nhật lại dữ liệu cho các Pivot Table trên sheet `pbt_daily_jp` và `pbt_daily_os`.
+
+### 4\. Tạo file báo cáo công khai / xuất file (`Step3`)
+
+  * **Lưu file với tên mới:** Lưu workbook hiện tại thành một file Excel mới có tên kèm theo ngày tháng (ví dụ: `weather_20261022.xlsx`).
+  * **Chuyển công thức thành giá trị (`Values`):**
+      * Duyệt qua các sheet `weekly_jp`, `weekly_os`, `daily_jp`, `daily_os`, copy toàn bộ và paste đè lại chính nó bằng giá trị thực tế (`xlPasteValues`). Việc này giúp loại bỏ các công thức hoặc liên kết dữ liệu bên ngoài, làm cho file nhẹ hơn và an toàn khi gửi đi.
+  * **Dọn dẹp dòng thừa và định dạng:**
+      * Đọc số dòng giới hạn từ ô `C1`, sau đó xóa các dòng thừa bên dưới.
+      * Kẻ lại đường viền chân bảng (`xlEdgeBottom`) cho gọn gàng.
+  * **Xóa các sheet không cần thiết:** Xóa các sheet trung gian như sheet chứa macro, các sheet pivot, sheet csv và sheet định dạng (`macro`, `pbt_...`, `csv_...`, `format`), chỉ giữ lại các sheet báo cáo chính.
+
+### 5\. Xử lý lỗi và Hoàn tất (`ERR_Handler` & `Step9`)
+
+  * **Bắt lỗi:** Nếu có lỗi xảy ra trong quá trình chạy, chương trình sẽ nhảy đến `ERR_Handler` để ghi nhận thông báo lỗi.
+  * **Kết thúc:** Lưu lại workbook lần cuối, bật lại các thiết lập cảnh báo của Excel (`Application.DisplayAlerts = True`) và hoàn thành quá trình chạy macro.
+
+-----
+
+Bạn có muốn tôi hướng dẫn cách tối ưu hóa hoặc chỉnh sửa một đoạn cụ thể nào trong macro này không?
